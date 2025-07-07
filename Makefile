@@ -2,7 +2,7 @@ CC                     = clang
 CFLAGS                 = $(NIX_CFLAGS_COMPILE)
 
 #add your library dependencies here
-DEPS                   = # -lauthorized_keys -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509
+DEPS                   = -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509 # -lauthorized_keys -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509
 PROJECT_NAME           = nngio
 PROJECT_NAME_UPPERCASE = NNGIO
 

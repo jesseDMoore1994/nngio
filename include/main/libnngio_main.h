@@ -1,12 +1,71 @@
-// Description: This file contains the header for a library produced for the
-// "main" subproject of the "nngio" project.
+#ifndef LIBNNGIO_MAIN_H
+#define LIBNNGIO_MAIN_H
 
-// This name convention ( lib<project_name>_<subproject_name>.h ) is used
-// for libraries only.
+#include <stddef.h>
 
-#ifndef LIBnngio_MAIN_H
-#define LIBnngio_MAIN_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void main_function(void);
+// Protocols supported
+typedef enum {
+    LIBNNGIO_PROTO_PAIR = 0
+    // Add others as needed
+} libnngio_proto;
 
-#endif // LIBnngio_MAIN_H
+typedef enum {
+    LIBNNGIO_MODE_DIAL = 0,
+    LIBNNGIO_MODE_LISTEN = 1
+} libnngio_mode;
+
+// Flexible option passing
+typedef struct {
+    const char *key;
+    const char *value;
+} libnngio_option;
+
+typedef struct libnngio_ctx libnngio_ctx;
+
+// User configuration
+typedef struct {
+    libnngio_mode mode;
+    libnngio_proto proto;
+    const char *url;
+
+    // TLS options: paths to certificate/key/CA PEM files
+    const char *tls_cert;
+    const char *tls_key;
+    const char *tls_ca_cert;
+
+    // Optionally set timeouts (ms) and max message size
+    int recv_timeout_ms;
+    int send_timeout_ms;
+    size_t max_msg_size;
+
+    // Arbitrary nng socket options
+    const libnngio_option *options;
+    size_t option_count;
+} libnngio_config;
+
+// Callback type for async send/recv
+typedef void (*libnngio_async_cb)(libnngio_ctx *ctx, int result, void *data, size_t len, void *user_data);
+
+// Core API (sync)
+int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config);
+int libnngio_send(libnngio_ctx *ctx, const void *buf, size_t len);
+int libnngio_recv(libnngio_ctx *ctx, void *buf, size_t *len);
+void libnngio_free(libnngio_ctx *ctx);
+
+// Async API
+int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len, libnngio_async_cb cb, void *user_data);
+int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len, libnngio_async_cb cb, void *user_data);
+
+// Cleanup global NNG state (calls nng_fini). Safe to call multiple times.
+// after this, no more libnngio functions should be called.
+void libnngio_cleanup(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // LIBNNGIO_MAIN_H
