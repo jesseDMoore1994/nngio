@@ -43,7 +43,7 @@ int main() {
     const char *message = "Hello, NNG!";
     if (libnngio_send(ctx, message, strlen(message)) != 0) {
         fprintf(stderr, "Failed to send message\n");
-        libnngio_cleanup(ctx);
+        libnngio_free(ctx);
         return -1;
     }
 
