@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <nng/nng.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,7 +53,8 @@ void test_tcp_basic() {
 
   libnngio_free(client);
   libnngio_free(server);
-  printf("TCP test PASSED\n");
+  libnngio_log("INF", "TEST_TCP_BASIC", __FILE__, __LINE__, -1,
+               "TCP basic test completed successfully.\n");
 }
 
 void test_tls_basic() {
@@ -101,7 +103,8 @@ void test_tls_basic() {
 
   libnngio_free(client);
   libnngio_free(server);
-  printf("TLS test PASSED\n");
+  libnngio_log("INF", "TEST_TLS_BASIC", __FILE__, __LINE__, -1,
+               "TLS basic test completed successfully.\n");
 }
 
 // ---------- ASYNC TESTING SUPPORT -----------
@@ -114,7 +117,9 @@ typedef struct {
 
 void async_recv_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
                    void *user_data) {
-  printf("Async recv callback: result=%d, len=%zu\n", result, len);
+  libnngio_log("INF", "TEST_ASYNC_RECV_CB", __FILE__, __LINE__, -1,
+               "Async recv callback called with result=%d, len=%zu\n", result,
+               len);
   async_test_sync *sync = (async_test_sync *)user_data;
   if (result == 0 && data && len <= sizeof(sync->buf)) {
     memcpy(sync->buf, data, len);
@@ -128,8 +133,9 @@ void async_recv_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
 
 void async_send_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
                    void *user_data) {
-  printf("Async send callback: result=%d, len=%zu\n", result, len);
-  printf("len is not used in the send callback.\n");
+  libnngio_log("INF", "TEST_ASYNC_SEND_CB", __FILE__, __LINE__, -1,
+               "Async send callback called with result=%d, len=%zu\n", result,
+               len);
   async_test_sync *sync = (async_test_sync *)user_data;
   sync->result = result;
   sync->done = 1;
@@ -182,11 +188,10 @@ void test_tcp_async() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
-  printf("Received message: %s\n", recv_sync.buf);
-
   libnngio_free(client);
   libnngio_free(server);
-  printf("TCP async test PASSED\n");
+  libnngio_log("INF", "TEST_TCP_ASYNC", __FILE__, __LINE__, -1,
+               "TCP async test completed successfully.\n");
 }
 
 void test_tls_async() {
@@ -247,7 +252,8 @@ void test_tls_async() {
 
   libnngio_free(client);
   libnngio_free(server);
-  printf("TLS async test PASSED\n");
+  libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
+               "TLS async test completed successfully.\n");
 }
 
 void test_reqrep_basic() {
@@ -296,7 +302,8 @@ void test_reqrep_basic() {
 
   libnngio_free(client);
   libnngio_free(server);
-  printf("REQ/REP test PASSED\n");
+  libnngio_log("INF", "TEST_REQREP_BASIC", __FILE__, __LINE__, -1,
+               "REQ/REP basic test completed successfully.\n");
 }
 
 void test_pubsub_basic() {
@@ -329,8 +336,6 @@ void test_pubsub_basic() {
                            &recv_sync);
   assert(rv == 0);
 
-  sleep_ms(1000); // Wait for subscription to establish
-
   rv = libnngio_send_async(server, hello, strlen(hello) + 1, async_send_cb,
                            &send_sync);
   assert(rv == 0);
@@ -348,11 +353,10 @@ void test_pubsub_basic() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
-  printf("Received message: %s\n", recv_sync.buf);
-
   libnngio_free(client);
   libnngio_free(server);
-  printf("TCP async test PASSED\n");
+  libnngio_log("INF", "TEST_PUBSUB_BASIC", __FILE__, __LINE__, -1,
+               "PUB/SUB basic test completed successfully.\n");
 }
 
 void test_pushpull_basic() {
@@ -389,12 +393,35 @@ void test_pushpull_basic() {
 
   libnngio_free(push);
   libnngio_free(pull);
-  printf("PUSH/PULL test PASSED\n");
+  libnngio_log("INF", "TEST_PUSHPULL_BASIC", __FILE__, __LINE__, -1,
+               "PUSH/PULL basic test completed successfully.\n");
 }
 
 int main() {
   // Register cleanup for global NNG state
   atexit(libnngio_cleanup);
+
+  // Get the value associated with the variable
+  const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
+  nng_log_level loglevel = NNG_LOG_INFO;  // Default log level
+  switch (loglevelstr ? loglevelstr[0] : 'E') {
+    case 'D':
+      loglevel = NNG_LOG_DEBUG;
+      break;
+    case 'I':
+      loglevel = NNG_LOG_INFO;
+      break;
+    case 'W':
+      loglevel = NNG_LOG_WARN;
+      break;
+    case 'E':
+      loglevel = NNG_LOG_ERR;
+      break;
+    default:
+      loglevel = NNG_LOG_ERR;  // Default if not set or invalid
+  }
+  nng_log_set_level(loglevel);
+  nng_log_set_logger(nng_stderr_logger);
 
   test_tcp_basic();
   test_tls_basic();

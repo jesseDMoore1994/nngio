@@ -13,6 +13,7 @@
 #include <nng/protocol/survey0/survey.h>
 #include <nng/supplemental/tls/tls.h>
 #include <nng/supplemental/util/platform.h>  // for nng_msleep if needed for timer
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -118,6 +119,17 @@ static char *libnngio_proto_name(libnngio_proto proto) {
   }
 }
 
+static char *libnngio_mode_name(libnngio_mode mode) {
+  switch (mode) {
+    case LIBNNGIO_MODE_DIAL:
+      return "dial";
+    case LIBNNGIO_MODE_LISTEN:
+      return "listen";
+    default:
+      return NULL;
+  }
+}
+
 // Configure the TLS config object on dialer/listener
 static int libnngio_configure_tls(libnngio_ctx *ctx, nng_dialer dialer,
                                   nng_listener listener, int is_dial,
@@ -173,8 +185,53 @@ static int libnngio_apply_options(nng_socket sock, const libnngio_option *opts,
   return 0;
 }
 
+void libnngio_log(const char *level, const char *routine, const char *file,
+                  const int line, const int ctxid, const char *msg, ...) {
+  // Allocate header and body strings
+  char *header = (char *)malloc(1024);
+  char *body = (char *)malloc(1024);
+
+  if (!header || !body) {
+    // Allocation failed, clean up and return
+    free(header);
+    free(body);
+    return;
+  }
+
+  // Create header string
+  snprintf(header, 1024, "%s >>> (Context ID: %d) [%s:%d]", routine, ctxid,
+           file, line);
+
+  // Create body string using variadic arguments
+  va_list args;
+  va_start(args, msg);
+  vsnprintf(body, 1024, msg, args);
+  va_end(args);
+
+  switch (level[0]) {
+    case 'D':
+      nng_log_debug(header, body);  // Debug level
+      break;
+    case 'I':
+      nng_log_info(header, body);  // Info level
+      break;
+    case 'W':
+      nng_log_warn(header, body);  // Warning level
+      break;
+    case 'E':
+      nng_log_err(header, body);  // Error level
+      break;
+    default:
+      nng_log_info(header, body);  // Default to info
+      // log an error if level is unknown
+      fprintf(stderr, "Unknown log level '%s' in %s:%d\n", level, file, line);
+      break;
+  }
+}
+
 int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
-  printf("libnngio_init: Initializing context\n");
+  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, free_id,
+               "Initializing context.");
   if (!ctxp || !config) return NNG_EINVAL;
   int rv;
   libnngio_ctx *ctx = calloc(1, sizeof(*ctx));
@@ -184,18 +241,34 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
 
   ctx->is_dial = (config->mode == LIBNNGIO_MODE_DIAL);
 
-  printf("libnngio_init (ctx %d): Opening socket\n", ctx->id);
-  printf("libnngio_init (ctx %d): Protocol %s, URL %s\n", ctx->id,
-         libnngio_proto_name(config->proto), config->url);
+  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+               "Creating %s context.", libnngio_mode_name(config->mode));
+  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+               "Protocol: %s, URL: %s", libnngio_proto_name(config->proto),
+               config->url);
+  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+               "Opening socket!");
   rv = libnngio_proto_open(&ctx->sock, config->proto);
   if (rv != 0) {
     free(ctx);
     return rv;
   }
 
+  if (config->proto == LIBNNGIO_PROTO_SUB) {
+    // Subscribe to all topics
+    int rv = nng_socket_set(ctx->sock, NNG_OPT_SUB_SUBSCRIBE, "", 0);
+    if (rv != 0) {
+      // Handle error (optional: log or abort)
+      libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                   "Failed to set SUB subscribe filter: %s\n",
+                   nng_strerror(rv));
+      return rv;
+    }
+  }
+
   if (ctx->is_dial) {
-    printf("libnngio_init (ctx %d): Creating dialer for URL %s\n", ctx->id,
-           config->url);
+    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "Creating dialer for URL %s.\n", config->url);
     rv = nng_dialer_create(&ctx->dialer, ctx->sock, config->url);
     if (rv != 0) {
       nng_close(ctx->sock);
@@ -203,8 +276,8 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
       return rv;
     }
   } else {
-    printf("libnngio_init (ctx %d): Creating listener for URL %s\n", ctx->id,
-           config->url);
+    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "Creating listener for URL %s.\n", config->url);
     rv = nng_listener_create(&ctx->listener, ctx->sock, config->url);
     if (rv != 0) {
       nng_close(ctx->sock);
@@ -213,13 +286,19 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     }
   }
 
-  printf("libnngio_init (ctx %d): Setting tls options\n", ctx->id);
+  if (config->tls_cert && config->tls_key && config->tls_ca_cert) {
+    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "--tls-- cert: %s, key: %s, ca: %s",
+                 config->tls_cert ? config->tls_cert : "NULL",
+                 config->tls_key ? config->tls_key : "NULL",
+                 config->tls_ca_cert ? config->tls_ca_cert : "NULL");
+  }
   rv = libnngio_configure_tls(ctx, ctx->dialer, ctx->listener, ctx->is_dial,
                               config->tls_cert, config->tls_key,
                               config->tls_ca_cert);
   if (rv != 0) {
-    printf("libnngio_init (ctx %d): TLS configuration failed with error %d\n",
-           ctx->id, rv);
+    libnngio_log("ERR", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "Failed to configure TLS with error %d\n", rv);
     if (ctx->is_dial)
       nng_dialer_close(ctx->dialer);
     else
@@ -233,8 +312,8 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     rv = libnngio_apply_options(ctx->sock, config->options,
                                 config->option_count);
     if (rv != 0) {
-      printf("libnngio_init (ctx %d): Failed to apply options with error %d\n",
-             ctx->id, rv);
+      libnngio_log("ERR", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                   "Failed to apply options with error %d\n", rv);
       if (ctx->is_dial)
         nng_dialer_close(ctx->dialer);
       else
@@ -253,16 +332,19 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     nng_socket_set_size(ctx->sock, NNG_OPT_RECVMAXSZ, config->max_msg_size);
 
   if (ctx->is_dial) {
-    printf("libnngio_init (ctx %d): Starting dialer\n", ctx->id);
+    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "Starting dialer for URL: %s.\n", config->url);
     rv = nng_dialer_start(ctx->dialer, 0);
   } else {
-    printf("libnngio_init (ctx %d): Starting listener\n", ctx->id);
+    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "Starting listener for URL: %s.\n", config->url);
     rv = nng_listener_start(ctx->listener, 0);
   }
 
   if (rv != 0) {
-    printf("libnngio_init (ctx %d): Failed to start %s with error %d\n",
-           ctx->id, ctx->is_dial ? "dialer" : "listener", rv);
+    libnngio_log("ERR", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "Failed to start %s with error %d.\n",
+                 libnngio_mode_name(config->mode), rv);
     if (ctx->is_dial)
       nng_dialer_close(ctx->dialer);
     else
@@ -275,20 +357,25 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
   ctx->is_open = 1;
   *ctxp = ctx;
 
-  printf("libnngio_init (ctx %d): Context initialized successfully\n", ctx->id);
+  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+               "Context initialized successfully: %s %s %s",
+               libnngio_mode_name(config->mode),
+               libnngio_proto_name(config->proto), config->url);
   return 0;
 }
 
 int libnngio_send(libnngio_ctx *ctx, const void *buf, size_t len) {
   if (!ctx || !ctx->is_open || !buf || len == 0) return NNG_EINVAL;
-  printf("libnngio_send (ctx %d): Sending %zu bytes\n", ctx->id, len);
+  libnngio_log("INF", "NNGIO_SEND", __FILE__, __LINE__, ctx->id,
+               "Sending %zu bytes.\n", len);
   return nng_send(ctx->sock, (void *)buf, len, 0);
 }
 
 int libnngio_recv(libnngio_ctx *ctx, void *buf, size_t *len) {
   if (!ctx || !ctx->is_open || !buf || !len || *len == 0) return NNG_EINVAL;
   size_t maxlen = *len;
-  printf("libnngio_recv (ctx %d): Receiving up to %zu bytes\n", ctx->id, maxlen);
+  libnngio_log("INF", "NNGIO_RECV", __FILE__, __LINE__, ctx->id,
+               "Receiving up to %zu bytes.\n", maxlen);
   int rv = nng_recv(ctx->sock, buf, &maxlen, 0);
   if (rv == 0) *len = maxlen;
   return rv;
@@ -304,14 +391,12 @@ typedef struct libnngio_async_op {
 } libnngio_async_op;
 
 static libnngio_async_op *libnngio_async_op_alloc(void) {
-  printf("libnngio_async_op_alloc: Allocating async operation\n");
   libnngio_async_op *op = calloc(1, sizeof(*op));
   return op;
 }
 
 static void libnngio_async_op_free(libnngio_async_op *op) {
   if (!op) return;
-  printf("libnngio_async_op_free: Freeing async operation\n");
   if (op->aio) nng_aio_reap(op->aio);
   free(op);
 }
@@ -327,12 +412,36 @@ static void libnngio_send_aio_cb(void *arg) {
 
 int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
                         libnngio_async_cb cb, void *user_data) {
-  printf("libnngio_send_async: Starting async send\n");
-  if (!ctx || !ctx->is_open || !buf || len == 0 || !cb) return NNG_EINVAL;
+  if (!ctx) {
+    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid context.\n");
+    return NNG_EINVAL;
+  }
+  if (!ctx->is_open) {
+    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Context is not open.\n");
+    return NNG_EINVAL;
+  }
+  if (!buf || len == 0) {
+    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid buffer or length.\n");
+    return NNG_EINVAL;
+  }
+  if (!cb) {
+    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid callback function.\n");
+    return NNG_EINVAL;
+  }
   libnngio_async_op *op = libnngio_async_op_alloc();
-  if (!op) return NNG_ENOMEM;
+  if (!op) {
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Failed to allocate async operation.\n");
+    return NNG_ENOMEM;
+  }
   int rv = nng_aio_alloc(&op->aio, libnngio_send_aio_cb, op);
   if (rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Failed to allocate AIO with error %d.\n", rv);
     libnngio_async_op_free(op);
     return rv;
   }
@@ -353,13 +462,14 @@ int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
   memcpy(nng_msg_body(msg), buf, len);
   nng_aio_set_msg(op->aio, msg);
 
+  libnngio_log("INF", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+               "Setting up async send of %zu bytes.\n", len);
   nng_send_aio(ctx->sock, op->aio);
   return 0;
 }
 
 // --- Async RECV ---
 static void libnngio_recv_aio_cb(void *arg) {
-  printf("libnngio_recv_aio_cb: Async receive callback invoked\n");
   libnngio_async_op *op = (libnngio_async_op *)arg;
   int rv = nng_aio_result(op->aio);
 
@@ -383,31 +493,37 @@ static void libnngio_recv_aio_cb(void *arg) {
 
 int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
                         libnngio_async_cb cb, void *user_data) {
-  if(!ctx) {
-    printf("libnngio_recv_async: Invalid context\n");
+  if (!ctx) {
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid context.\n");
     return NNG_EINVAL;
   }
-  if(!ctx->is_open) {
-    printf("libnngio_recv_async: Context is not open\n");
+  if (!ctx->is_open) {
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Context is not open.\n");
     return NNG_EINVAL;
   }
-  if(!buf || !len || *len == 0) {
-    printf("libnngio_recv_async: Invalid buffer or length\n");
+  if (!buf || !len || *len == 0) {
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid buffer or length.\n");
     return NNG_EINVAL;
   }
-  if(!cb) {
-    printf("libnngio_recv_async: Invalid callback\n");
+  if (!cb) {
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid callback function.\n");
     return NNG_EINVAL;
   }
 
   libnngio_async_op *op = libnngio_async_op_alloc();
   if (!op) {
-    printf("libnngio_recv_async: Failed to allocate async operation\n");
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Failed to allocate async operation.\n");
     return NNG_ENOMEM;
   }
   int rv = nng_aio_alloc(&op->aio, libnngio_recv_aio_cb, op);
   if (rv != 0) {
-    printf("libnngio_recv_async: Failed to allocate AIO with error %d\n", rv);
+    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Failed to allocate AIO with error %d.\n", rv);
     libnngio_async_op_free(op);
     return rv;
   }
@@ -417,7 +533,8 @@ int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
   op->cb = cb;
   op->user_data = user_data;
 
-  printf("libnngio_recv_async (ctx %d): Setting up async receive\n", ctx->id);
+  libnngio_log("INF", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+               "Setting up async receive into buffer of size %zu.\n", *len);
   nng_aio_set_timeout(op->aio, -1);
   nng_recv_aio(ctx->sock, op->aio);
   return 0;
@@ -426,20 +543,25 @@ int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
 // Free all resources associated with context
 void libnngio_free(libnngio_ctx *ctx) {
   if (!ctx) return;
-  printf("libnngio_free (ctx %d): Freeing context\n", ctx->id);
+  libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+               "Freeing context.\n");
   if (ctx->is_open) {
     if (ctx->is_dial) {
-      printf("libnngio_free (ctx %d): Closing dialer\n", ctx->id);
+      libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+                   "Closing dialer for context.\n");
       nng_dialer_close(ctx->dialer);
     } else {
-      printf("libnngio_free (ctx %d): Closing listener\n", ctx->id);
+      libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+                   "Closing listener for context.\n");
       nng_listener_close(ctx->listener);
     }
-    printf("libnngio_free (ctx %d): Closing socket\n", ctx->id);
+    libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+                 "Closing socket for context.\n");
     nng_close(ctx->sock);
   }
 
-  printf("libnngio_free (ctx %d): Context freed\n", ctx->id);
+  libnngio_log("INF", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+               "Context freed successfully.\n");
   // Free TLS PEM buffers if allocated
   if (ctx->tls_cert_mem) free(ctx->tls_cert_mem);
   if (ctx->tls_key_mem && ctx->tls_key_mem != ctx->tls_cert_mem)
@@ -451,7 +573,7 @@ void libnngio_free(libnngio_ctx *ctx) {
 
 // User-invoked cleanup for global NNG state
 void libnngio_cleanup(void) {
-  printf("libnngio_cleanup: Finalizing NNG\n");
+  libnngio_log("INF", "LIBNNGIO_CLEANUP", __FILE__, __LINE__, -1,
+               "Cleaning up global NNG state.\n");
   nng_fini();
-  printf("libnngio_cleanup: NNG finalized\n");
 }

@@ -57,6 +57,8 @@ typedef void (*libnngio_async_cb)(libnngio_ctx *ctx, int result, void *data,
                                   size_t len, void *user_data);
 
 // Core API (sync)
+void libnngio_log(const char *level, const char *tag, const char *file,
+                  int line, int id, const char *fmt, ...);
 int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config);
 int libnngio_send(libnngio_ctx *ctx, const void *buf, size_t len);
 int libnngio_recv(libnngio_ctx *ctx, void *buf, size_t *len);
