@@ -228,6 +228,8 @@ void test_tls_async() {
                            &recv_sync);
   assert(rv == 0);
 
+  sleep_ms(100);
+
   rv = libnngio_send_async(client, hello, strlen(hello) + 1, async_send_cb,
                            &send_sync);
   assert(rv == 0);
@@ -248,6 +250,148 @@ void test_tls_async() {
   printf("TLS async test PASSED\n");
 }
 
+void test_reqrep_basic() {
+  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_config server_cfg = {0}, client_cfg = {0};
+  const char *url = "tcp://127.0.0.1:5560";
+  char msg[256] = {0};
+  size_t msglen;
+  int rv;
+
+  server_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  server_cfg.proto = LIBNNGIO_PROTO_REP;
+  server_cfg.url = url;
+
+  client_cfg.mode = LIBNNGIO_MODE_DIAL;
+  client_cfg.proto = LIBNNGIO_PROTO_REQ;
+  client_cfg.url = url;
+
+  rv = libnngio_init(&server, &server_cfg);
+  assert(rv == 0);
+
+  rv = libnngio_init(&client, &client_cfg);
+  assert(rv == 0);
+
+  sleep_ms(100);
+
+  // Client sends request
+  const char *req = "request-data";
+  rv = libnngio_send(client, req, strlen(req) + 1);
+  assert(rv == 0);
+
+  // Server receives request
+  msglen = sizeof(msg);
+  rv = libnngio_recv(server, msg, &msglen);
+  assert(rv == 0 && strcmp(msg, req) == 0);
+
+  // Server sends reply
+  const char *rep = "reply-data";
+  rv = libnngio_send(server, rep, strlen(rep) + 1);
+  assert(rv == 0);
+
+  // Client receives reply
+  msglen = sizeof(msg);
+  rv = libnngio_recv(client, msg, &msglen);
+  assert(rv == 0 && strcmp(msg, rep) == 0);
+
+  libnngio_free(client);
+  libnngio_free(server);
+  printf("REQ/REP test PASSED\n");
+}
+
+void test_pubsub_basic() {
+  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_config server_cfg = {0}, client_cfg = {0};
+  const char *url = "tcp://127.0.0.1:5561";
+  int rv;
+
+  server_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  server_cfg.proto = LIBNNGIO_PROTO_PUB;
+  server_cfg.url = url;
+
+  client_cfg.mode = LIBNNGIO_MODE_DIAL;
+  client_cfg.proto = LIBNNGIO_PROTO_SUB;
+  client_cfg.url = url;
+
+  rv = libnngio_init(&server, &server_cfg);
+  assert(rv == 0);
+
+  rv = libnngio_init(&client, &client_cfg);
+  assert(rv == 0);
+
+  sleep_ms(100);
+
+  const char *hello = "hello-sub";
+  async_test_sync send_sync = {0}, recv_sync = {0};
+
+  recv_sync.len = sizeof(recv_sync.buf);
+  rv = libnngio_recv_async(client, recv_sync.buf, &recv_sync.len, async_recv_cb,
+                           &recv_sync);
+  assert(rv == 0);
+
+  sleep_ms(1000); // Wait for subscription to establish
+
+  rv = libnngio_send_async(server, hello, strlen(hello) + 1, async_send_cb,
+                           &send_sync);
+  assert(rv == 0);
+
+  // Wait for send to finish
+  while (!send_sync.done) {
+    sleep_ms(1);
+  }
+  assert(send_sync.result == 0);
+
+  // Wait for recv to finish
+  while (!recv_sync.done) {
+    sleep_ms(1);
+  }
+  assert(recv_sync.result == 0);
+  assert(strcmp(recv_sync.buf, hello) == 0);
+
+  printf("Received message: %s\n", recv_sync.buf);
+
+  libnngio_free(client);
+  libnngio_free(server);
+  printf("TCP async test PASSED\n");
+}
+
+void test_pushpull_basic() {
+  libnngio_ctx *push = NULL, *pull = NULL;
+  libnngio_config push_cfg = {0}, pull_cfg = {0};
+  const char *url = "tcp://127.0.0.1:5562";
+  char msg[256] = {0};
+  size_t msglen;
+  int rv;
+
+  push_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  push_cfg.proto = LIBNNGIO_PROTO_PUSH;
+  push_cfg.url = url;
+
+  pull_cfg.mode = LIBNNGIO_MODE_DIAL;
+  pull_cfg.proto = LIBNNGIO_PROTO_PULL;
+  pull_cfg.url = url;
+
+  rv = libnngio_init(&push, &push_cfg);
+  assert(rv == 0);
+
+  rv = libnngio_init(&pull, &pull_cfg);
+  assert(rv == 0);
+
+  sleep_ms(100);
+
+  const char *payload = "pushed-data";
+  rv = libnngio_send(push, payload, strlen(payload) + 1);
+  assert(rv == 0);
+
+  msglen = sizeof(msg);
+  rv = libnngio_recv(pull, msg, &msglen);
+  assert(rv == 0 && strcmp(msg, payload) == 0);
+
+  libnngio_free(push);
+  libnngio_free(pull);
+  printf("PUSH/PULL test PASSED\n");
+}
+
 int main() {
   // Register cleanup for global NNG state
   atexit(libnngio_cleanup);
@@ -256,5 +400,9 @@ int main() {
   test_tls_basic();
   test_tcp_async();
   test_tls_async();
+  test_reqrep_basic();
+  test_pubsub_basic();
+  test_pushpull_basic();
+
   return 0;
 }

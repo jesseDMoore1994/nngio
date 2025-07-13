@@ -281,12 +281,14 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
 
 int libnngio_send(libnngio_ctx *ctx, const void *buf, size_t len) {
   if (!ctx || !ctx->is_open || !buf || len == 0) return NNG_EINVAL;
+  printf("libnngio_send (ctx %d): Sending %zu bytes\n", ctx->id, len);
   return nng_send(ctx->sock, (void *)buf, len, 0);
 }
 
 int libnngio_recv(libnngio_ctx *ctx, void *buf, size_t *len) {
   if (!ctx || !ctx->is_open || !buf || !len || *len == 0) return NNG_EINVAL;
   size_t maxlen = *len;
+  printf("libnngio_recv (ctx %d): Receiving up to %zu bytes\n", ctx->id, maxlen);
   int rv = nng_recv(ctx->sock, buf, &maxlen, 0);
   if (rv == 0) *len = maxlen;
   return rv;
@@ -325,6 +327,7 @@ static void libnngio_send_aio_cb(void *arg) {
 
 int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
                         libnngio_async_cb cb, void *user_data) {
+  printf("libnngio_send_async: Starting async send\n");
   if (!ctx || !ctx->is_open || !buf || len == 0 || !cb) return NNG_EINVAL;
   libnngio_async_op *op = libnngio_async_op_alloc();
   if (!op) return NNG_ENOMEM;
@@ -356,6 +359,7 @@ int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
 
 // --- Async RECV ---
 static void libnngio_recv_aio_cb(void *arg) {
+  printf("libnngio_recv_aio_cb: Async receive callback invoked\n");
   libnngio_async_op *op = (libnngio_async_op *)arg;
   int rv = nng_aio_result(op->aio);
 
@@ -379,12 +383,31 @@ static void libnngio_recv_aio_cb(void *arg) {
 
 int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
                         libnngio_async_cb cb, void *user_data) {
-  if (!ctx || !ctx->is_open || !buf || !len || *len == 0 || !cb)
+  if(!ctx) {
+    printf("libnngio_recv_async: Invalid context\n");
     return NNG_EINVAL;
+  }
+  if(!ctx->is_open) {
+    printf("libnngio_recv_async: Context is not open\n");
+    return NNG_EINVAL;
+  }
+  if(!buf || !len || *len == 0) {
+    printf("libnngio_recv_async: Invalid buffer or length\n");
+    return NNG_EINVAL;
+  }
+  if(!cb) {
+    printf("libnngio_recv_async: Invalid callback\n");
+    return NNG_EINVAL;
+  }
+
   libnngio_async_op *op = libnngio_async_op_alloc();
-  if (!op) return NNG_ENOMEM;
+  if (!op) {
+    printf("libnngio_recv_async: Failed to allocate async operation\n");
+    return NNG_ENOMEM;
+  }
   int rv = nng_aio_alloc(&op->aio, libnngio_recv_aio_cb, op);
   if (rv != 0) {
+    printf("libnngio_recv_async: Failed to allocate AIO with error %d\n", rv);
     libnngio_async_op_free(op);
     return rv;
   }
@@ -394,6 +417,7 @@ int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
   op->cb = cb;
   op->user_data = user_data;
 
+  printf("libnngio_recv_async (ctx %d): Setting up async receive\n", ctx->id);
   nng_aio_set_timeout(op->aio, -1);
   nng_recv_aio(ctx->sock, op->aio);
   return 0;
