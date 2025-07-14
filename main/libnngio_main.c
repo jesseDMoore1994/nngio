@@ -185,6 +185,22 @@ static int libnngio_apply_options(nng_socket sock, const libnngio_option *opts,
   return 0;
 }
 
+void libnngio_log_init(const char *level) {
+  // Initialize logging system with the specified level
+  if (strcmp(level, "DBG") == 0) {
+    nng_log_set_level(NNG_LOG_DEBUG);
+  } else if (strcmp(level, "INF") == 0) {
+    nng_log_set_level(NNG_LOG_INFO);
+  } else if (strcmp(level, "WRN") == 0) {
+    nng_log_set_level(NNG_LOG_WARN);
+  } else if (strcmp(level, "ERR") == 0) {
+    nng_log_set_level(NNG_LOG_ERR);
+  } else {
+    nng_log_set_level(NNG_LOG_ERR); // Default to ERR
+  }
+  nng_log_set_logger(nng_stderr_logger);
+}
+
 void libnngio_log(const char *level, const char *routine, const char *file,
                   const int line, const int ctxid, const char *msg, ...) {
   // Allocate header and body strings
@@ -199,8 +215,14 @@ void libnngio_log(const char *level, const char *routine, const char *file,
   }
 
   // Create header string
-  snprintf(header, 1024, "%s >>> (Context ID: %d) [%s:%d]", routine, ctxid,
+  if (ctxid < 0) {
+    snprintf(header, 1024, "%s >>> [%s:%d]", routine,
            file, line);
+  }
+  else {
+    snprintf(header, 1024, "%s >>> (Context ID: %d) [%s:%d]", routine, ctxid,
+           file, line);
+  }
 
   // Create body string using variadic arguments
   va_list args;

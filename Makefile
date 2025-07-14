@@ -61,7 +61,7 @@ $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a:
 	echo "Building Static Library: $@"
 	mkdir -p $(BUILD_DIR)
 	$(CC) -c $*/lib$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) -fPIC
-	ar r $@ $(subst .a,.o,$@)
+	ar r $@ $(subst .a,.o,$@) >/dev/null 2>&1
 
 # Build shared libraries
 $(BUILD_DIR)/lib$(PROJECT_NAME)_%.so: $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a
@@ -71,19 +71,27 @@ $(BUILD_DIR)/lib$(PROJECT_NAME)_%.so: $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a
 
 MOCK_STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(MOCK_STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
 # Build test binaries
-$(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) $(MOCK_FLAGS)
+ifdef TEST_MOCK
+$(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) -D NNGIO_MOCK_MAIN=1
 $(BUILD_DIR)/test_%: $(BUILD_MOCK_LIBS)
 	echo "Building Test Binary: $@"
 	mkdir -p $(BUILD_DIR)
 	$(CC) $*/test_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
+else
+$(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(STATIC_LIBS_GROUPED)
+$(BUILD_DIR)/test_%: $(BUILD_LIBS)
+	echo "Building Test Binary: $@"
+	mkdir -p $(BUILD_DIR)
+	$(CC) $*/test_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
+endif
 
 # Build mock static libraries
 $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.a: NIX_CFLAGS_COMPILE += $(MOCK_FLAGS)
 $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.a:
 	echo "Building Mock Static Library: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) -c $*/lib$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) -fPIC
-	ar r $@ $(subst .a,.o,$@)
+	$(CC) -c $*/libmock$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) -isystem $* $(NIX_CFLAGS_COMPILE) -fPIC
+	ar r $@ $(subst .a,.o,$@) >/dev/null 2>&1
 
 # Build mock shared libraries
 $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.so: NIX_CFLAGS_COMPILE += $(MOCK_FLAGS)

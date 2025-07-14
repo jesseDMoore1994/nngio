@@ -46,13 +46,38 @@ void test_tcp_basic() {
   const char *hello = "hello-tcp";
   rv = libnngio_send(client, hello, strlen(hello) + 1);
   assert(rv == 0);
+#ifdef NNGIO_MOCK_MAIN
+  // Validate mock send
+  assert(mock_stats.last_send.ctx == client);
+  assert(mock_stats.last_send.buf == hello);
+  assert(mock_stats.last_send.len == strlen(hello) + 1);
+#endif
 
   msglen = sizeof(msg);
+#ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer
+  libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
+#endif
   rv = libnngio_recv(server, msg, &msglen);
   assert(rv == 0 && strcmp(msg, hello) == 0);
 
   libnngio_free(client);
   libnngio_free(server);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_calls == 1);
+  assert(mock_stats.recv_calls == 1);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_result == 0);
+  assert(mock_stats.last_recv_result == 0);
+  libnngio_log("INF", "TEST_TCP_BASIC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+  //
   libnngio_log("INF", "TEST_TCP_BASIC", __FILE__, __LINE__, -1,
                "TCP basic test completed successfully.\n");
 }
@@ -96,13 +121,38 @@ void test_tls_basic() {
   const char *hello = "hello-tls";
   rv = libnngio_send(client, hello, strlen(hello) + 1);
   assert(rv == 0);
+#ifdef NNGIO_MOCK_MAIN
+  // Validate mock send
+  assert(mock_stats.last_send.ctx == client);
+  assert(mock_stats.last_send.buf == hello);
+  assert(mock_stats.last_send.len == strlen(hello) + 1);
+#endif
 
+#ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer
+  libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
+#endif
   msglen = sizeof(msg);
   rv = libnngio_recv(server, msg, &msglen);
   assert(rv == 0 && strcmp(msg, hello) == 0);
 
   libnngio_free(client);
   libnngio_free(server);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_calls == 1);
+  assert(mock_stats.recv_calls == 1);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_result == 0);
+  assert(mock_stats.last_recv_result == 0);
+  libnngio_log("INF", "TEST_TLS_BASIC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+
   libnngio_log("INF", "TEST_TLS_BASIC", __FILE__, __LINE__, -1,
                "TLS basic test completed successfully.\n");
 }
@@ -166,6 +216,9 @@ void test_tcp_async() {
   const char *hello = "hello-tcp-async";
   async_test_sync send_sync = {0}, recv_sync = {0};
 
+#ifdef NNGIO_MOCK_MAIN
+  libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
+#endif
   recv_sync.len = sizeof(recv_sync.buf);
   rv = libnngio_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
                            &recv_sync);
@@ -174,6 +227,12 @@ void test_tcp_async() {
   rv = libnngio_send_async(client, hello, strlen(hello) + 1, async_send_cb,
                            &send_sync);
   assert(rv == 0);
+#ifdef NNGIO_MOCK_MAIN
+  // Validate mock send
+  assert(mock_stats.last_send_async.ctx == client);
+  assert(mock_stats.last_send_async.buf == hello);
+  assert(mock_stats.last_send_async.len == strlen(hello) + 1);
+#endif
 
   // Wait for send to finish
   while (!send_sync.done) {
@@ -190,6 +249,21 @@ void test_tcp_async() {
 
   libnngio_free(client);
   libnngio_free(server);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_async_calls == 1);
+  assert(mock_stats.recv_async_calls == 1);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_async_result == 0);
+  assert(mock_stats.last_recv_async_result == 0);
+  libnngio_log("INF", "TEST_TCP_ASYNC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+
   libnngio_log("INF", "TEST_TCP_ASYNC", __FILE__, __LINE__, -1,
                "TCP async test completed successfully.\n");
 }
@@ -228,6 +302,9 @@ void test_tls_async() {
   const char *hello = "hello-tls-async";
   async_test_sync send_sync = {0}, recv_sync = {0};
 
+#ifdef NNGIO_MOCK_MAIN
+  libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
+#endif
   recv_sync.len = sizeof(recv_sync.buf);
   rv = libnngio_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
                            &recv_sync);
@@ -252,6 +329,21 @@ void test_tls_async() {
 
   libnngio_free(client);
   libnngio_free(server);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_async_calls == 1);
+  assert(mock_stats.recv_async_calls == 1);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_async_result == 0);
+  assert(mock_stats.last_recv_async_result == 0);
+  libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+
   libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
                "TLS async test completed successfully.\n");
 }
@@ -286,6 +378,9 @@ void test_reqrep_basic() {
   assert(rv == 0);
 
   // Server receives request
+#ifdef NNGIO_MOCK_MAIN
+  libnngio_mock_set_recv_buffer(req, strlen(req) + 1);
+#endif
   msglen = sizeof(msg);
   rv = libnngio_recv(server, msg, &msglen);
   assert(rv == 0 && strcmp(msg, req) == 0);
@@ -296,12 +391,30 @@ void test_reqrep_basic() {
   assert(rv == 0);
 
   // Client receives reply
+#ifdef NNGIO_MOCK_MAIN
+  libnngio_mock_set_recv_buffer(rep, strlen(rep) + 1);
+#endif
   msglen = sizeof(msg);
   rv = libnngio_recv(client, msg, &msglen);
   assert(rv == 0 && strcmp(msg, rep) == 0);
 
   libnngio_free(client);
   libnngio_free(server);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_calls == 2);
+  assert(mock_stats.recv_calls == 2);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_result == 0);
+  assert(mock_stats.last_recv_result == 0);
+  libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+  //
   libnngio_log("INF", "TEST_REQREP_BASIC", __FILE__, __LINE__, -1,
                "REQ/REP basic test completed successfully.\n");
 }
@@ -331,6 +444,9 @@ void test_pubsub_basic() {
   const char *hello = "hello-sub";
   async_test_sync send_sync = {0}, recv_sync = {0};
 
+#ifdef NNGIO_MOCK_MAIN
+  libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
+#endif
   recv_sync.len = sizeof(recv_sync.buf);
   rv = libnngio_recv_async(client, recv_sync.buf, &recv_sync.len, async_recv_cb,
                            &recv_sync);
@@ -355,6 +471,21 @@ void test_pubsub_basic() {
 
   libnngio_free(client);
   libnngio_free(server);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_async_calls == 1);
+  assert(mock_stats.recv_async_calls == 1);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_async_result == 0);
+  assert(mock_stats.last_recv_async_result == 0);
+  libnngio_log("INF", "TEST_PUBSUB_BASIC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+
   libnngio_log("INF", "TEST_PUBSUB_BASIC", __FILE__, __LINE__, -1,
                "PUB/SUB basic test completed successfully.\n");
 }
@@ -387,12 +518,30 @@ void test_pushpull_basic() {
   rv = libnngio_send(push, payload, strlen(payload) + 1);
   assert(rv == 0);
 
+#ifdef NNGIO_MOCK_MAIN
+  libnngio_mock_set_recv_buffer(payload, strlen(payload) + 1);
+#endif
   msglen = sizeof(msg);
   rv = libnngio_recv(pull, msg, &msglen);
   assert(rv == 0 && strcmp(msg, payload) == 0);
 
   libnngio_free(push);
   libnngio_free(pull);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_calls == 1);
+  assert(mock_stats.recv_calls == 1);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_result == 0);
+  assert(mock_stats.last_recv_result == 0);
+  libnngio_log("INF", "TEST_PUSHPULL_BASIC", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.\n");
+  libnngio_mock_reset();
+#endif // NNGIO_MOCK_MAIN
+
   libnngio_log("INF", "TEST_PUSHPULL_BASIC", __FILE__, __LINE__, -1,
                "PUSH/PULL basic test completed successfully.\n");
 }
@@ -403,25 +552,10 @@ int main() {
 
   // Get the value associated with the variable
   const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
-  nng_log_level loglevel = NNG_LOG_INFO;  // Default log level
-  switch (loglevelstr ? loglevelstr[0] : 'E') {
-    case 'D':
-      loglevel = NNG_LOG_DEBUG;
-      break;
-    case 'I':
-      loglevel = NNG_LOG_INFO;
-      break;
-    case 'W':
-      loglevel = NNG_LOG_WARN;
-      break;
-    case 'E':
-      loglevel = NNG_LOG_ERR;
-      break;
-    default:
-      loglevel = NNG_LOG_ERR;  // Default if not set or invalid
-  }
-  nng_log_set_level(loglevel);
-  nng_log_set_logger(nng_stderr_logger);
+  printf("Beggining NNGIO tests...\n");
+  printf("NNGIO_LOGLEVEL: %s\n", loglevelstr ? loglevelstr : "ERR");
+  printf("To change the log level, set the NNGIO_LOGLEVEL environment variable.\n");
+  libnngio_log_init(loglevelstr ? loglevelstr : "ERR");
 
   test_tcp_basic();
   test_tls_basic();
@@ -430,6 +564,8 @@ int main() {
   test_reqrep_basic();
   test_pubsub_basic();
   test_pushpull_basic();
+
+  printf("All tests completed successfully.\n");
 
   return 0;
 }
