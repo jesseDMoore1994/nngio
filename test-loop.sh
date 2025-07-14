@@ -8,14 +8,31 @@ INDENT_2='s/^/  /'
 INDENT_4='s/^/    /'
 INDENT_8='s/^/        /'
 
+LOOP_DELAY=
+
+while getopts "h?l:" opt; do
+    case "$opt" in
+    h|\?)
+        echo "Usage: $0 [-l <loop delay>]"
+        exit 0
+        ;;
+    l)  LOOP_DELAY=$OPTARG
+        ;;
+    esac
+done
+
+if [ -z "$LOOP_DELAY" ]; then
+    echo "No loop delay specified, watching for changes."
+else
+    echo "Using loop delay of $LOOP_DELAY seconds."
+fi
+
 set -o pipefail
 
-inotifywait -m -r -e close_write \
-  --include '\.(c|h|cpp|hpp)$' \
-  $(pwd) | while read path action file; do
+# create a function that can encapsulate the body of the while loop
+# below
 
-    echo "🚨 Change detected: $file in $path with action $action"
-
+function execute_update_action() {
     echo "🔍 Running tests for the mock library" | sed "$INDENT_2"
 
     echo "🫧 Cleaning previous builds" | sed "$INDENT_4"
@@ -87,4 +104,21 @@ inotifywait -m -r -e close_write \
       fi
     fi
 
-done
+    TESTS_RUN=0
+    TESTS_PASSED=0
+}
+
+if [ -z "$LOOP_DELAY" ]; then
+  inotifywait -m -r -e close_write \
+    --include '\.(c|h|cpp|hpp)$' \
+    $(pwd) | while read path action file; do
+    echo "🚨 Change detected: $file in $path with action $action"
+    execute_update_action
+  done
+else
+  while true; do
+    echo "⏰ Time elapsed, starting tests"
+    execute_update_action
+    sleep $LOOP_DELAY
+  done
+fi

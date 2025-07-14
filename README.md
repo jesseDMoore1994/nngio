@@ -23,7 +23,7 @@ To use this library, you need to include the header file and link against the li
 
 // Example usage
 int main() {
-    // Initialize NNG library
+    libnngio_log_init("DBG")
     libnngio_ctx *ctx = NULL;
     libnngio_config_t config = {0};
 
@@ -72,6 +72,7 @@ Additional optional dependencies for testing and development:
 
 - [inotify-tools](https://github.com/inotify-tools/inotify-tools) - For file system monitoring
 - [valgrind](http://valgrind.org/) - For memory leak detection
+- [gdb](https://www.gnu.org/software/gdb/) - For debugging
 
 # Generating test certificates
 
@@ -100,6 +101,28 @@ To run the tests, you have multiple options:
    ```
    This will run the tests in a loop, which is useful for development and debugging.
 
+# Debugging
+
+To enable debugging, you can set the `DEBUG` environment variable to `1`
+and recompile the library. This will disable optimizations, enable debug symbols,
+and set a define a preprocessor definition called `NNGIO_DEBUG`. The defintion
+is currently unused, but it is there for future use if needed. If you build
+with `DEBUG=1`, you can also use the `TEST_MOCK=1` to enable mock testing, which
+is useful for testing the library without requiring running the actual NNG
+library itself. The mock library is also published by this project, so it
+can be used independently of the main library downstream for your own testing.
+
+# Logging
+
+To adust from the default logging level of `ERR`, you can set the
+`NNGIO_LOGLEVEL` environment variable to one of the following values:
+- `DBG` - Debug level logging
+- `INF` - Info level logging
+- `WRN` - Warning level logging
+- `ERR` - Error level logging (default)
+
+This also sets the logging in the NNG library, so you can use see the NNG logs
+as well.
 
 # License
 
