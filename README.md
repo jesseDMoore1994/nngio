@@ -6,7 +6,6 @@ Mostly, it provides a facade to the NNG library, similar to the nngcat command l
 provided upstream by the NNG project. Rather than using the command line to provide the
 options, tls credentials, etc. it provides a C API to do the same thing programmatically.
 
-
 # Features
 
 - Initialization and cleanup of NNG library
@@ -53,11 +52,54 @@ int main() {
 
 # Building
 
-I strongly recommend using [Nix](https://nixos.org/). You can also build this
-library using the Makefile provided in the repository, but you will need to
-install the NNG library and its dependencies manually. The nix flake provides
-a development environment with all the dependencies needed to build and run
-the library tests, publish the library, etc.
+I strongly recommend using [Nix](https://nixos.org/). I try to keep my code as
+generic as possible, so you can also try to build without Nix, but I cannot
+guarantee that it will work on your system without some manual adjustments.
+
+If you use Nix, you can also use `direnv` to automatically load the Nix
+environment when you enter the directory. I use this direnv to drive the
+makefile from the Nix environment, so you can use the Makefile without having
+to worry about the dependencies.
+
+To that end, if you elect to not use Nix, you will need to install the
+dependencies manually. The library depends on the following libraries:
+
+- [clang](https://clang.llvm.org/) - For building the library
+- [NNG](https://nng.nanomsg.org/) - The core networking library
+- [mbedtls](https://tls.mbed.org/) - For TLS support
+
+Additional optional dependencies for testing and development:
+
+- [inotify-tools](https://github.com/inotify-tools/inotify-tools) - For file system monitoring
+- [valgrind](http://valgrind.org/) - For memory leak detection
+
+# Generating test certificates
+
+I have provided a generated set of test certificates for TLS support. If they
+go stale, or you would like certificates with different parameters, you can
+check out my other repository [gen-dev-tls](https://github.com/jesseDMoore1994/gen-dev-tls).
+
+# Testing
+
+To run the tests, you have multiple options:
+
+1. **Using Nix**: If you are using the Nix flake, you can run the tests with:
+   ```bash
+   # The build command will automatically run the tests
+   nix build
+   ```
+   This is useful if you just want to do a spot check of the library.
+2. **Using Makefile**: If you prefer to use the Makefile, you can run:
+   ```bash
+   # Optionally, provide DEBUG=1 or TEST_MOCK=1 to enable debug builds or mock testing
+    make test
+    ```
+3. **Using test-loop.sh**: You can also run the tests using the provided script:
+   ```bash
+   ./test-loop.sh
+   ```
+   This will run the tests in a loop, which is useful for development and debugging.
+
 
 # License
 

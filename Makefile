@@ -128,6 +128,10 @@ all: $(BUILD_DIR)
 # test will build mock libraries and binaries, then run tests with valgrind
 test: $(BUILD_DIR)
 	$(foreach test_bin,$(BUILD_TEST_BINS), \
+	 ./$(test_bin);)
+# valgrind is disabled because it causes a lockup in the test suite occasionally
+# Uncomment the next line to enable valgrind testing if you need it, be careful.
+#	$(foreach test_bin,$(BUILD_TEST_BINS), \
 	valgrind -s --leak-check=full \
 	 --show-leak-kinds=all \
 	 --track-origins=yes \

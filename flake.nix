@@ -43,6 +43,8 @@
         src = ./.;
         nativeBuildInputs = deps;
         buildPhase = ''
+          TEST_MOCK=1 make test
+          make clean
           make test
         '';
         installPhase = ''
