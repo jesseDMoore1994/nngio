@@ -117,8 +117,8 @@ $(OUTPUT_DIR): $(BUILD_DIR)
 	mkdir -p $(OUTPUT_DIR)/lib
 	mv $(BUILD_LIBS) $(OUTPUT_DIR)/lib
 	mv $(BUILD_MOCK_LIBS) $(OUTPUT_DIR)/lib
-	mkdir -p $(OUTPUT_DIR)/include
-	cp -r $(INCLUDE)/* $(OUTPUT_DIR)/include
+	mkdir -p $(OUTPUT_DIR)/include/$(PROJECT_NAME)
+	cp -r $(INCLUDE)/* $(OUTPUT_DIR)/include/$(PROJECT_NAME)
 
 .PHONY: all test format clean
 
