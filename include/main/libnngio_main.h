@@ -84,37 +84,38 @@ void libnngio_cleanup(void);
 #endif
 
 // ===============================================================================
-// MOCKING SUPPORT BELOW -- These APIs are only available if using the mock library
+// MOCKING SUPPORT BELOW -- These APIs are only available if using the mock
+// library
 // ===============================================================================
 
 #ifdef NNGIO_MOCK_MAIN
 // Stores all function parameters for the most recent calls
 typedef struct libnngio_mock_call {
-    libnngio_ctx *ctx;
-    const void *buf;
-    size_t len;
-    size_t *len_ptr;
-    libnngio_async_cb cb;
-    void *user_data;
+  libnngio_ctx *ctx;
+  const void *buf;
+  size_t len;
+  size_t *len_ptr;
+  libnngio_async_cb cb;
+  void *user_data;
 } libnngio_mock_call;
 
 typedef struct libnngio_mock_stats {
-    int init_calls;
-    int send_calls;
-    int recv_calls;
-    int free_calls;
-    int send_async_calls;
-    int recv_async_calls;
-    int last_init_result;
-    int last_send_result;
-    int last_recv_result;
-    int last_send_async_result;
-    int last_recv_async_result;
-    libnngio_mock_call last_init;
-    libnngio_mock_call last_send;
-    libnngio_mock_call last_recv;
-    libnngio_mock_call last_send_async;
-    libnngio_mock_call last_recv_async;
+  int init_calls;
+  int send_calls;
+  int recv_calls;
+  int free_calls;
+  int send_async_calls;
+  int recv_async_calls;
+  int last_init_result;
+  int last_send_result;
+  int last_recv_result;
+  int last_send_async_result;
+  int last_recv_async_result;
+  libnngio_mock_call last_init;
+  libnngio_mock_call last_send;
+  libnngio_mock_call last_recv;
+  libnngio_mock_call last_send_async;
+  libnngio_mock_call last_recv_async;
 } libnngio_mock_stats;
 
 // Expose the stats object for assertions
@@ -132,6 +133,6 @@ void libnngio_mock_set_recv_buffer(const void *buf, size_t len);
 
 // Optionally clear/reset stats and buffers before/after tests
 void libnngio_mock_reset(void);
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
 
 #endif  // LIBNNGIO_MAIN_H

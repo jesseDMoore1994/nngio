@@ -76,7 +76,7 @@ void test_tcp_basic() {
   libnngio_log("INF", "TEST_TCP_BASIC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
   //
   libnngio_log("INF", "TEST_TCP_BASIC", __FILE__, __LINE__, -1,
                "TCP basic test completed successfully.\n");
@@ -151,7 +151,7 @@ void test_tls_basic() {
   libnngio_log("INF", "TEST_TLS_BASIC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
 
   libnngio_log("INF", "TEST_TLS_BASIC", __FILE__, __LINE__, -1,
                "TLS basic test completed successfully.\n");
@@ -262,7 +262,7 @@ void test_tcp_async() {
   libnngio_log("INF", "TEST_TCP_ASYNC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
 
   libnngio_log("INF", "TEST_TCP_ASYNC", __FILE__, __LINE__, -1,
                "TCP async test completed successfully.\n");
@@ -342,7 +342,7 @@ void test_tls_async() {
   libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
 
   libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
                "TLS async test completed successfully.\n");
@@ -413,7 +413,7 @@ void test_reqrep_basic() {
   libnngio_log("INF", "TEST_TLS_ASYNC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
   //
   libnngio_log("INF", "TEST_REQREP_BASIC", __FILE__, __LINE__, -1,
                "REQ/REP basic test completed successfully.\n");
@@ -484,7 +484,7 @@ void test_pubsub_basic() {
   libnngio_log("INF", "TEST_PUBSUB_BASIC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
 
   libnngio_log("INF", "TEST_PUBSUB_BASIC", __FILE__, __LINE__, -1,
                "PUB/SUB basic test completed successfully.\n");
@@ -540,7 +540,7 @@ void test_pushpull_basic() {
   libnngio_log("INF", "TEST_PUSHPULL_BASIC", __FILE__, __LINE__, -1,
                "Mock stats verified successfully.\n");
   libnngio_mock_reset();
-#endif // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_MAIN
 
   libnngio_log("INF", "TEST_PUSHPULL_BASIC", __FILE__, __LINE__, -1,
                "PUSH/PULL basic test completed successfully.\n");
@@ -554,7 +554,9 @@ int main() {
   const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
   printf("Beggining NNGIO tests...\n");
   printf("NNGIO_LOGLEVEL: %s\n", loglevelstr ? loglevelstr : "ERR");
-  printf("To change the log level, set the NNGIO_LOGLEVEL environment variable.\n");
+  printf(
+      "To change the log level, set the NNGIO_LOGLEVEL environment "
+      "variable.\n");
   libnngio_log_init(loglevelstr ? loglevelstr : "ERR");
 
   test_tcp_basic();

@@ -196,7 +196,7 @@ void libnngio_log_init(const char *level) {
   } else if (strcmp(level, "ERR") == 0) {
     nng_log_set_level(NNG_LOG_ERR);
   } else {
-    nng_log_set_level(NNG_LOG_ERR); // Default to ERR
+    nng_log_set_level(NNG_LOG_ERR);  // Default to ERR
   }
   nng_log_set_logger(nng_stderr_logger);
 }
@@ -216,12 +216,10 @@ void libnngio_log(const char *level, const char *routine, const char *file,
 
   // Create header string
   if (ctxid < 0) {
-    snprintf(header, 1024, "%s >>> [%s:%d]", routine,
-           file, line);
-  }
-  else {
+    snprintf(header, 1024, "%s >>> [%s:%d]", routine, file, line);
+  } else {
     snprintf(header, 1024, "%s >>> (Context ID: %d) [%s:%d]", routine, ctxid,
-           file, line);
+             file, line);
   }
 
   // Create body string using variadic arguments
@@ -251,13 +249,132 @@ void libnngio_log(const char *level, const char *routine, const char *file,
   }
 }
 
+static int validate_config(const libnngio_config *config) {
+  // Validate the configuration parameters, print an error message if invalid,
+  // and return an appropriate error code. Also, make sure protocol and mode
+  // are compatible
+  if (!config) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "Configuration is NULL.");
+    return NNG_EINVAL;
+  }
+  if (config->mode != LIBNNGIO_MODE_DIAL &&
+      config->mode != LIBNNGIO_MODE_LISTEN) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "Invalid mode: %d. Must be DIAL or LISTEN.", config->mode);
+    return NNG_EINVAL;
+  }
+  if (config->proto < LIBNNGIO_PROTO_PAIR ||
+      config->proto > LIBNNGIO_PROTO_BUS) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "Invalid protocol: %d.", config->proto);
+    return NNG_EINVAL;
+  }
+  if (!config->url || strlen(config->url) == 0) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "URL is NULL or empty.");
+    return NNG_EINVAL;
+  }
+  if (config->tls_cert && (!config->tls_key || !config->tls_ca_cert)) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "TLS certificate provided without key or CA certificate.");
+    return NNG_EINVAL;
+  }
+  if (config->tls_key && (!config->tls_cert || !config->tls_ca_cert)) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "TLS key provided without certificate or CA certificate.");
+    return NNG_EINVAL;
+  }
+  if (config->recv_timeout_ms < 0 || config->send_timeout_ms < 0 ||
+      config->max_msg_size < 0) {
+    libnngio_log(
+        "ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+        "Negative timeout or max message size: recv=%d, send=%d, max_msg=%d",
+        config->recv_timeout_ms, config->send_timeout_ms, config->max_msg_size);
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_PAIR &&
+      config->mode != LIBNNGIO_MODE_DIAL &&
+      config->mode != LIBNNGIO_MODE_LISTEN) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "PAIR protocol can only be used in DIAL or LISTEN mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_REQ &&
+      config->mode != LIBNNGIO_MODE_DIAL) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "REQ protocol can only be used in DIAL mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_REP &&
+      config->mode != LIBNNGIO_MODE_LISTEN) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "REP protocol can only be used in LISTEN mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_PUB &&
+      config->mode != LIBNNGIO_MODE_LISTEN) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "PUB protocol can only be used in LISTEN mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_SUB &&
+      config->mode != LIBNNGIO_MODE_DIAL) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "SUB protocol can only be used in DIAL mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_PUSH &&
+      config->mode != LIBNNGIO_MODE_LISTEN) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "PUSH protocol can only be used in LISTEN mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_PULL &&
+      config->mode != LIBNNGIO_MODE_DIAL) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "PULL protocol can only be used in DIAL mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_SURVEYOR &&
+      config->mode != LIBNNGIO_MODE_DIAL) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "SURVEYOR protocol can only be used in DIAL mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_RESPONDENT &&
+      config->mode != LIBNNGIO_MODE_LISTEN) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "RESPONDENT protocol can only be used in LISTEN mode.");
+    return NNG_EINVAL;
+  }
+  if (config->proto == LIBNNGIO_PROTO_BUS &&
+      config->mode != LIBNNGIO_MODE_LISTEN &&
+      config->mode != LIBNNGIO_MODE_DIAL) {
+    libnngio_log("ERR", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, -1,
+                 "BUS protocol can only be used in DIAL or LISTEN mode.");
+    return NNG_EINVAL;
+  }
+  libnngio_log(
+      "DBG", "LIBNNGIO_VALIDATE_CONFIG", __FILE__, __LINE__, free_id,
+      "Configuration validated successfully: mode=%s, proto=%s, url=%s",
+      libnngio_mode_name(config->mode), libnngio_proto_name(config->proto),
+      config->url);
+  return 0;
+}
+
 int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
   libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, free_id,
                "Initializing context.");
-  if (!ctxp || !config) return NNG_EINVAL;
   int rv;
   libnngio_ctx *ctx = calloc(1, sizeof(*ctx));
+  if (!ctxp || !config) return NNG_EINVAL;
   if (!ctx) return NNG_ENOMEM;
+  rv = validate_config(config);
+  if (rv != 0) {
+    free(ctx);
+    return rv;
+  }
 
   ctx->id = free_id++;
 
