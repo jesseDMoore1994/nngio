@@ -155,7 +155,10 @@ int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
 }
 
 void libnngio_cleanup(void) {
-  // Nothing to do in mock
+  if (test_logging_level) {
+    free(test_logging_level);
+    test_logging_level = NULL;
+  }
 }
 
 // ===============================================================================
