@@ -60,7 +60,7 @@ $(BUILD_DIR)/$(PROJECT_NAME)_%: $(BUILD_LIBS)
 $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a:
 	echo "Building Static Library: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) -c $*/lib$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) -fPIC
+	$(CC) -c $*/lib$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) $(NIX_CFLAGS_COMPILE) -fPIC
 	ar r $@ $(subst .a,.o,$@) >/dev/null 2>&1
 
 # Build shared libraries
