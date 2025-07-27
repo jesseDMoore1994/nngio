@@ -274,22 +274,26 @@ void test_tls_async() {
   const char *url = "tls+tcp://127.0.0.1:5558";
   int rv;
 
-  // Paths to PEM files (update as appropriate)
-  const char *cert = "test_certs/server.crt";
-  const char *key = "test_certs/server.key";
-  const char *ca = "test_certs/dev-ca.pem";
+  // Paths to server PEM files (update as appropriate)
+  const char *ca_cert = "test_certs/dev-ca.pem";
+  const char *s_cert = "test_certs/server.crt";
+  const char *s_key = "test_certs/server.key";
+  const char *c_cert = "test_certs/client.crt";
+  const char *c_key = "test_certs/client.key";
 
   server_cfg.mode = LIBNNGIO_MODE_LISTEN;
   server_cfg.proto = LIBNNGIO_PROTO_PAIR;
   server_cfg.url = url;
-  server_cfg.tls_cert = cert;
-  server_cfg.tls_key = key;
-  server_cfg.tls_ca_cert = ca;
+  server_cfg.tls_cert = s_cert;
+  server_cfg.tls_key = s_key;
+  server_cfg.tls_ca_cert = ca_cert;
 
   client_cfg.mode = LIBNNGIO_MODE_DIAL;
   client_cfg.proto = LIBNNGIO_PROTO_PAIR;
   client_cfg.url = url;
-  client_cfg.tls_ca_cert = ca;
+  // client_cfg.tls_cert = c_cert;
+  // client_cfg.tls_key = c_key;
+  client_cfg.tls_ca_cert = ca_cert;
 
   rv = libnngio_init(&server, &server_cfg);
   assert(rv == 0);

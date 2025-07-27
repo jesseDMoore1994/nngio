@@ -67,7 +67,7 @@ $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a:
 $(BUILD_DIR)/lib$(PROJECT_NAME)_%.so: $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a
 	echo "Building Shared Library: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) -shared -o $@ $(subst .so,.a,$@)
+	$(CC) -shared -o $@ $(subst .so,.o,$@)
 
 MOCK_STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(MOCK_STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
 # Build test binaries
@@ -98,7 +98,7 @@ $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.so: NIX_CFLAGS_COMPILE += $(MOCK_FLAGS)
 $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.so: $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.a
 	echo "Building Mock Shared Library: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) -shared -o $@ $(subst .so,.a,$@)
+	$(CC) -shared -o $@ $(subst .so,.o,$@)
 
 # Create the build directory if it does not exist
 $(BUILD_DIR): $(BUILD_LIBS) $(BUILD_BINS) $(BUILD_MOCK_LIBS) $(BUILD_TEST_BINS)
