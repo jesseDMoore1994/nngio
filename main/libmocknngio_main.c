@@ -28,7 +28,7 @@ static size_t mock_recv_buffer_len = 0;
 // libnngio public API
 // ========================
 
-char *test_logging_level;
+char *test_logging_level = NULL;
 void libnngio_log_init(const char *level) {
   // In mock, we just print to stdout
   if (level) {
@@ -65,6 +65,7 @@ void libnngio_log(const char *level, const char *tag, const char *file,
   }
 
   if (msg_level <= system_level) {
+    fprintf(stdout, "[%s]", test_logging_level);
     va_list args;
     va_start(args, fmt);
     fprintf(stdout, "[%s][%s][%s:%d][%d] ", level, tag, file, line, id);
