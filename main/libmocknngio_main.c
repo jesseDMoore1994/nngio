@@ -68,6 +68,7 @@ void libnngio_log(const char *level, const char *tag, const char *file,
     va_start(args, fmt);
     fprintf(stdout, "[%s][%s][%s:%d][%d] ", level, tag, file, line, id);
     vfprintf(stdout, fmt, args);
+    fprintf(stdout, "\n");
     va_end(args);
   }
 }
