@@ -187,7 +187,9 @@ static int libnngio_apply_options(nng_socket sock, const libnngio_option *opts,
 
 void libnngio_log_init(const char *level) {
   // Initialize logging system with the specified level
-  if (strcmp(level, "DBG") == 0) {
+  if (level == NULL || strlen(level) == 0) {
+    nng_log_set_level(NNG_LOG_ERR);  // Default to ERR if no level specified
+  } else if (strcmp(level, "DBG") == 0) {
     nng_log_set_level(NNG_LOG_DEBUG);
   } else if (strcmp(level, "INF") == 0) {
     nng_log_set_level(NNG_LOG_INFO);
@@ -196,6 +198,7 @@ void libnngio_log_init(const char *level) {
   } else if (strcmp(level, "ERR") == 0) {
     nng_log_set_level(NNG_LOG_ERR);
   } else {
+    fprintf(stderr, "Unknown log level '%s', defaulting to ERR.\n", level);
     nng_log_set_level(NNG_LOG_ERR);  // Default to ERR
   }
   nng_log_set_logger(nng_stderr_logger);

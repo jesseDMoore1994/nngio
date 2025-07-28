@@ -557,11 +557,7 @@ int main() {
   // Get the value associated with the variable
   const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
   printf("Beggining NNGIO tests...\n");
-  printf("NNGIO_LOGLEVEL: %s\n", loglevelstr ? loglevelstr : "ERR");
-  printf(
-      "To change the log level, set the NNGIO_LOGLEVEL environment "
-      "variable.\n");
-  libnngio_log_init(loglevelstr ? loglevelstr : "ERR");
+  libnngio_log_init(loglevelstr);
 
   test_tcp_basic();
   test_tls_basic();
