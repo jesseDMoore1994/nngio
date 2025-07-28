@@ -36,7 +36,7 @@ void libnngio_log_init(const char *level) {
     test_logging_level = strdup(level);
   } else {
     fprintf(stdout, "Logging initialized with level: ERR\n");
-    test_logging_level = "ERR";  // Default to ERR if NULL
+    test_logging_level = strdup("ERR");  // Default to ERR if NULL
   }
 }
 
