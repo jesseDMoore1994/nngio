@@ -247,6 +247,9 @@ void libnngio_log(const char *level, const char *routine, const char *file,
       fprintf(stderr, "Unknown log level '%s' in %s:%d\n", level, file, line);
       break;
   }
+
+  free(header);
+  free(body);
 }
 
 static int validate_config(const libnngio_config *config) {
