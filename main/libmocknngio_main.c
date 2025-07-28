@@ -65,10 +65,10 @@ void libnngio_log(const char *level, const char *tag, const char *file,
   }
 
   if (msg_level <= system_level) {
-    fprintf(stdout, "[%s]", test_logging_level);
+    fprintf(stdout, "[%s (%d)]", test_logging_level, system_level);
     va_list args;
     va_start(args, fmt);
-    fprintf(stdout, "[%s][%s][%s:%d][%d] ", level, tag, file, line, id);
+    fprintf(stdout, "[%s (%d)][%s][%s:%d][%d] ", level, msg_level, tag, file, line, id);
     vfprintf(stdout, fmt, args);
     fprintf(stdout, "\n");
     va_end(args);
