@@ -31,10 +31,11 @@ static size_t mock_recv_buffer_len = 0;
 char *test_logging_level;
 void libnngio_log_init(const char *level) {
   // In mock, we just print to stdout
-  fprintf(stdout, "Logging initialized with level: %s\n", level);
   if (level) {
+    fprintf(stdout, "Logging initialized with level: %s\n", level);
     test_logging_level = strdup(level);
   } else {
+    fprintf(stdout, "Logging initialized with level: ERR\n");
     test_logging_level = "ERR";  // Default to ERR if NULL
   }
 }
