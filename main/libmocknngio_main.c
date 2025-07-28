@@ -43,25 +43,39 @@ void libnngio_log_init(const char *level) {
 void libnngio_log(const char *level, const char *tag, const char *file,
                   int line, int id, const char *fmt, ...) {
   nng_log_level system_level = NNG_LOG_ERR;  // Default to ERR
-  if (strcmp(test_logging_level, "DBG") == 0) {
-    system_level = NNG_LOG_DEBUG;
-  } else if (strcmp(test_logging_level, "INF") == 0) {
-    system_level = NNG_LOG_INFO;
-  } else if (strcmp(test_logging_level, "WRN") == 0) {
-    system_level = NNG_LOG_WARN;
-  } else if (strcmp(test_logging_level, "ERR") == 0) {
-    system_level = NNG_LOG_ERR;
+  switch (test_logging_level[0]) {
+    case 'D':
+      system_level = NNG_LOG_DEBUG;
+      break;
+    case 'I':
+      system_level = NNG_LOG_INFO;
+      break;
+    case 'W':
+      system_level = NNG_LOG_WARN;
+      break;
+    case 'E':
+      system_level = NNG_LOG_ERR;
+      break;
+    default:
+      system_level = NNG_LOG_ERR;  // Default to ERR if unknown
   }
 
   nng_log_level msg_level = NNG_LOG_ERR;
-  if (strcmp(level, "DBG") == 0) {
-    msg_level = NNG_LOG_DEBUG;
-  } else if (strcmp(level, "INF") == 0) {
-    msg_level = NNG_LOG_INFO;
-  } else if (strcmp(level, "WRN") == 0) {
-    msg_level = NNG_LOG_WARN;
-  } else if (strcmp(level, "ERR") == 0) {
-    msg_level = NNG_LOG_ERR;
+  switch (level[0]) {
+    case 'D':
+      msg_level = NNG_LOG_DEBUG;
+      break;
+    case 'I':
+      msg_level = NNG_LOG_INFO;
+      break;
+    case 'W':
+      msg_level = NNG_LOG_WARN;
+      break;
+    case 'E':
+      msg_level = NNG_LOG_ERR;
+      break;
+    default:
+      msg_level = NNG_LOG_ERR;  // Default to ERR if unknown
   }
 
   if (msg_level <= system_level) {
