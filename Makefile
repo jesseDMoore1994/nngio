@@ -71,7 +71,7 @@ $(BUILD_DIR)/lib$(PROJECT_NAME)_%.so: $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a
 
 MOCK_STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(MOCK_STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
 # Build test binaries
-ifdef TEST_MOCK
+ifdef NNGIO_MOCK_MAIN
 $(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) -D NNGIO_MOCK_MAIN=1
 $(BUILD_DIR)/test_%: $(BUILD_MOCK_LIBS)
 	echo "Building Test Binary: $@"
