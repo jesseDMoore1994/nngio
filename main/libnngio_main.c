@@ -437,6 +437,14 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
                  config->tls_cert ? config->tls_cert : "NULL",
                  config->tls_key ? config->tls_key : "NULL",
                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
+  } else {
+    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "--tls-- Not enough information provided for TLS configuration.");
+    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "--tls-- cert: %s, key: %s, ca: %s",
+                  config->tls_cert ? config->tls_cert : "NULL",
+                  config->tls_key ? config->tls_key : "NULL",
+                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
   }
   rv = libnngio_configure_tls(ctx, ctx->dialer, ctx->listener, ctx->is_dial,
                               config->tls_cert, config->tls_key,
