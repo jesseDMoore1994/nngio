@@ -417,7 +417,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
   }
 
   if (ctx->is_dial) {
-    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
                  "Creating dialer for URL %s.\n", config->url);
     rv = nng_dialer_create(&ctx->dialer, ctx->sock, config->url);
     if (rv != 0) {
@@ -426,7 +426,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
       return rv;
     }
   } else {
-    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
                  "Creating listener for URL %s.\n", config->url);
     rv = nng_listener_create(&ctx->listener, ctx->sock, config->url);
     if (rv != 0) {
@@ -434,22 +434,6 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
       free(ctx);
       return rv;
     }
-  }
-
-  if (config->tls_cert && config->tls_key && config->tls_ca_cert) {
-    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
-                 "--tls-- cert: %s, key: %s, ca: %s",
-                 config->tls_cert ? config->tls_cert : "NULL",
-                 config->tls_key ? config->tls_key : "NULL",
-                 config->tls_ca_cert ? config->tls_ca_cert : "NULL");
-  } else {
-    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
-                 "--tls-- Not enough information provided for TLS configuration.");
-    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
-                 "--tls-- cert: %s, key: %s, ca: %s",
-                  config->tls_cert ? config->tls_cert : "NULL",
-                  config->tls_key ? config->tls_key : "NULL",
-                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
   }
   rv = libnngio_configure_tls(ctx, ctx->dialer, ctx->listener, ctx->is_dial,
                               config->tls_cert, config->tls_key,
@@ -497,6 +481,22 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
                  "Starting listener for URL: %s.\n", config->url);
     rv = nng_listener_start(ctx->listener, 0);
+  }
+
+  if (config->tls_cert && config->tls_key && config->tls_ca_cert) {
+    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "--tls-- cert: %s, key: %s, ca: %s",
+                 config->tls_cert ? config->tls_cert : "NULL",
+                 config->tls_key ? config->tls_key : "NULL",
+                 config->tls_ca_cert ? config->tls_ca_cert : "NULL");
+  } else {
+    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "--tls-- Not enough information provided for TLS configuration.");
+    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+                 "--tls-- cert: %s, key: %s, ca: %s",
+                  config->tls_cert ? config->tls_cert : "NULL",
+                  config->tls_key ? config->tls_key : "NULL",
+                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
   }
 
   if (rv != 0) {
