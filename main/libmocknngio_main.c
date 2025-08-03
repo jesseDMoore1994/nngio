@@ -50,6 +50,9 @@ void libnngio_log(const char *level, const char *tag, const char *file,
     case 'I':
       system_level = NNG_LOG_INFO;
       break;
+    case 'N':
+      system_level = NNG_LOG_NOTICE;
+      break;
     case 'W':
       system_level = NNG_LOG_WARN;
       break;
@@ -67,6 +70,9 @@ void libnngio_log(const char *level, const char *tag, const char *file,
       break;
     case 'I':
       msg_level = NNG_LOG_INFO;
+      break;
+    case 'N':
+      msg_level = NNG_LOG_NOTICE;
       break;
     case 'W':
       msg_level = NNG_LOG_WARN;

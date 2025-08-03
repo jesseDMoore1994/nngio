@@ -193,6 +193,8 @@ void libnngio_log_init(const char *level) {
     nng_log_set_level(NNG_LOG_DEBUG);
   } else if (strcmp(level, "INF") == 0) {
     nng_log_set_level(NNG_LOG_INFO);
+  } else if (strcmp(level, "NTC") == 0) {
+    nng_log_set_level(NNG_LOG_NOTICE);
   } else if (strcmp(level, "WRN") == 0) {
     nng_log_set_level(NNG_LOG_WARN);
   } else if (strcmp(level, "ERR") == 0) {
@@ -237,6 +239,9 @@ void libnngio_log(const char *level, const char *routine, const char *file,
       break;
     case 'I':
       nng_log_info(header, body);  // Info level
+      break;
+    case 'N':
+      nng_log_notice(header, body);  // Notice level
       break;
     case 'W':
       nng_log_warn(header, body);  // Warning level
