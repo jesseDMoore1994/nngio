@@ -550,6 +550,63 @@ void test_pushpull_basic() {
                "PUSH/PULL basic test completed successfully.");
 }
 
+static void test_libnngio_context_init() {
+  libnngio_transport *t = NULL;
+  libnngio_config config = {0};
+  config.url = "tcp://127.0.0.1:5563";
+  config.mode = LIBNNGIO_MODE_LISTEN;
+  config.proto = LIBNNGIO_PROTO_REP;
+  int rv = libnngio_transport_init(&t, &config);
+  assert(rv == 0);
+  libnngio_context *ctx = NULL;
+  rv = libnngio_context_init(&ctx, t, &config, NULL, NULL);
+  assert(rv == 0);
+  assert(ctx != NULL);
+  libnngio_context_free(ctx);
+  libnngio_transport_free(t);
+}
+
+typedef struct example_user_data {
+  int touched;
+} example_user_data;
+
+void example_ctx_cb(void* arg) {
+  libnngio_context *ctx = (libnngio_context *)arg;
+  example_user_data *data = (example_user_data *)libnngio_context_get_user_data(ctx);
+  libnngio_log("INF", "EXAMPLE_CTX_CB", __FILE__, __LINE__, -1,
+               "Example context callback invoked.");
+  data->touched = 1;
+}
+
+static void test_libnngio_multiple_contexts() {
+  libnngio_transport *t = NULL;
+  libnngio_config config = {0};
+  config.url = "tcp://127.0.0.1:5564";
+  config.mode = LIBNNGIO_MODE_LISTEN;
+  config.proto = LIBNNGIO_PROTO_REP;
+  int rv = libnngio_transport_init(&t, &config);
+  assert(rv == 0);
+  libnngio_context* ctxs[3] = {0};
+
+  example_user_data user_data[3] = {0};
+  for (int i = 0; i < 3; i++) {
+    user_data[i].touched = 0;
+    rv = libnngio_context_init(&ctxs[i], t, &config, example_ctx_cb, &user_data[i]);
+    assert(rv == 0);
+  }
+
+  for (int i = 0; i < 3; i++) {
+    example_user_data *data = (example_user_data *)libnngio_context_get_user_data(ctxs[i]);
+    assert(data == &user_data[i]);
+    assert(user_data[i].touched == 0);
+    libnngio_context_start(ctxs[i]);
+    assert(user_data[i].touched == 1);
+    libnngio_context_free(ctxs[i]);
+  }
+
+  libnngio_transport_free(t);
+}
+
 int main() {
   // Register cleanup for global NNG state
   atexit(libnngio_cleanup);
@@ -566,6 +623,9 @@ int main() {
   test_reqrep_basic();
   test_pubsub_basic();
   test_pushpull_basic();
+
+  test_libnngio_context_init();
+  test_libnngio_multiple_contexts();
 
   printf("All tests completed successfully.\n");
 

@@ -66,15 +66,26 @@ void libnngio_log(const char *level, const char *tag, const char *file,
                   int line, int id, const char *fmt, ...);
 
 // Profide functions for interacting with the transport directly
-int libnngio_transport_init(libnngio_transport **ctxp, const libnngio_config *config);
-int libnngio_transport_send(libnngio_transport *ctx, const void *buf, size_t len);
-int libnngio_transport_recv(libnngio_transport *ctx, void *buf, size_t *len);
+int libnngio_transport_init(libnngio_transport **tp, const libnngio_config *config);
+int libnngio_transport_send(libnngio_transport *t, const void *buf, size_t len);
+int libnngio_transport_recv(libnngio_transport *t, void *buf, size_t *len);
 // Async API
-int libnngio_transport_send_async(libnngio_transport *ctx, const void *buf, size_t len,
+int libnngio_transport_send_async(libnngio_transport *t, const void *buf, size_t len,
                         libnngio_async_cb cb, void *user_data);
-int libnngio_transport_recv_async(libnngio_transport *ctx, void *buf, size_t *len,
+int libnngio_transport_recv_async(libnngio_transport *t, void *buf, size_t *len,
                         libnngio_async_cb cb, void *user_data);
-void libnngio_transport_free(libnngio_transport *ctx);
+void libnngio_transport_free(libnngio_transport *t);
+
+typedef void (*libnngio_ctx_cb)(void *args);
+typedef struct libnngio_context libnngio_context;
+
+int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
+                          const libnngio_config *config, libnngio_ctx_cb cb,
+                          void *user_data);
+void libnngio_context_start(libnngio_context *ctx);
+void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data);
+void* libnngio_context_get_user_data(libnngio_context *ctx);
+void libnngio_context_free(libnngio_context *ctx);
 
 // Cleanup global NNG state (calls nng_fini). Safe to call multiple times.
 // After this, no more libnngio functions should be called.

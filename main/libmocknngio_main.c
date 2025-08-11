@@ -174,7 +174,7 @@ int libnngio_transport_recv(libnngio_transport *ctx, void *buf, size_t *len) {
   return 0;
 }
 
-void libnngio_free(libnngio_transport *ctx) {
+void libnngio_transport_free(libnngio_transport *ctx) {
   libnngio_log("DBG", "MOCK_LIBNNGIO_FREE", __FILE__, __LINE__, 0,
               "Freeing context: %p", (void *)ctx);
   mock_stats.free_calls++;
@@ -236,6 +236,7 @@ int libnngio_transport_recv_async(libnngio_transport *ctx, void *buf, size_t *le
                  "Forced receive async error: %d", forced_recv_async_result);
     return forced_recv_async_result;
   }
+
   int rv = libnngio_transport_recv(ctx, buf, len);
   if (cb) {
     libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, 0,
@@ -248,6 +249,70 @@ int libnngio_transport_recv_async(libnngio_transport *ctx, void *buf, size_t *le
                 "No async callback provided, returning result %d", rv);
   }
   return rv;
+}
+
+struct libnngio_context {
+  int id;  // Unique identifier for the context
+  void *user_data;  // Opaque user data pointer
+  libnngio_ctx_cb cb;  // Callback function for context events
+};
+static int free_context_id = 0;  // Global counter for context IDs
+
+int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *transport,
+                          const libnngio_config *config, libnngio_ctx_cb cb,
+                          void *user_data) {
+  if (!ctxp || !transport || !config) {
+    return NNG_EINVAL;
+  }
+
+  libnngio_context *ctx = calloc(1, sizeof(libnngio_context));
+  if (!ctx) {
+    return NNG_ENOMEM;
+  }
+
+  ctx->id = free_context_id++;  // Assign a random ID for simplicity
+  ctx->user_data = user_data;
+  ctx->cb = cb;
+  *ctxp = ctx;
+
+  return 0;
+}
+
+void libnngio_context_start(libnngio_context *ctx) {
+  if (!ctx) return;
+  libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
+              "Starting context with ID %d", ctx->id);
+  if (ctx->cb) {
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
+                "Invoking context callback for ID %d", ctx->id);
+    ctx->cb(ctx);  // Call the user-defined callback
+  } else {
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
+                "No callback defined for context ID %d", ctx->id);
+  }
+}
+
+void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data) {
+  if (ctx) {
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SET_USER_DATA", __FILE__, __LINE__,
+                ctx->id, "Setting user data for context ID %d", ctx->id);
+    ctx->user_data = user_data;
+  }
+}
+
+void *libnngio_context_get_user_data(libnngio_context *ctx) {
+  if (!ctx) return NULL;
+  libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_GET_USER_DATA", __FILE__, __LINE__,
+              ctx->id, "Retrieving user data for context ID %d", ctx->id);
+  return ctx->user_data;
+}
+
+void libnngio_context_free(libnngio_context *ctx) {
+  if (ctx) {
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_FREE", __FILE__, __LINE__, ctx->id,
+                "Freeing context with ID %d", ctx->id);
+    free(ctx);
+  }
 }
 
 void libnngio_cleanup(void) {
