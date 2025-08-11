@@ -16,7 +16,7 @@
 #endif
 
 void test_tcp_basic() {
-  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
   const char *url = "tcp://127.0.0.1:5555";
   char msg[256] = {0};
@@ -32,11 +32,11 @@ void test_tcp_basic() {
   client_cfg.url = url;
 
   // Server setup
-  rv = libnngio_init(&server, &server_cfg);
+  rv = libnngio_transport_init(&server, &server_cfg);
   assert(rv == 0);
 
   // Client setup
-  rv = libnngio_init(&client, &client_cfg);
+  rv = libnngio_transport_init(&client, &client_cfg);
   assert(rv == 0);
 
   // Allow time for connection
@@ -44,7 +44,7 @@ void test_tcp_basic() {
 
   // Communication
   const char *hello = "hello-tcp";
-  rv = libnngio_send(client, hello, strlen(hello) + 1);
+  rv = libnngio_transport_send(client, hello, strlen(hello) + 1);
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
@@ -58,11 +58,11 @@ void test_tcp_basic() {
   // Mocking: set expected receive buffer
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
-  rv = libnngio_recv(server, msg, &msglen);
+  rv = libnngio_transport_recv(server, msg, &msglen);
   assert(rv == 0 && strcmp(msg, hello) == 0);
 
-  libnngio_free(client);
-  libnngio_free(server);
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats
@@ -83,7 +83,7 @@ void test_tcp_basic() {
 }
 
 void test_tls_basic() {
-  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
   const char *url = "tls+tcp://127.0.0.1:5556";
   char msg[256] = {0};
@@ -109,17 +109,17 @@ void test_tls_basic() {
   client_cfg.url = url;
   client_cfg.tls_ca_cert = ca;
 
-  rv = libnngio_init(&server, &server_cfg);
+  rv = libnngio_transport_init(&server, &server_cfg);
   assert(rv == 0);
 
-  rv = libnngio_init(&client, &client_cfg);
+  rv = libnngio_transport_init(&client, &client_cfg);
   assert(rv == 0);
 
   // Allow time for TLS handshake
   sleep_ms(100);
 
   const char *hello = "hello-tls";
-  rv = libnngio_send(client, hello, strlen(hello) + 1);
+  rv = libnngio_transport_send(client, hello, strlen(hello) + 1);
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
@@ -133,11 +133,11 @@ void test_tls_basic() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   msglen = sizeof(msg);
-  rv = libnngio_recv(server, msg, &msglen);
+  rv = libnngio_transport_recv(server, msg, &msglen);
   assert(rv == 0 && strcmp(msg, hello) == 0);
 
-  libnngio_free(client);
-  libnngio_free(server);
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats
@@ -165,7 +165,7 @@ typedef struct {
   size_t len;
 } async_test_sync;
 
-void async_recv_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
+void async_recv_cb(libnngio_transport *ctx, int result, void *data, size_t len,
                    void *user_data) {
   libnngio_log("INF", "TEST_ASYNC_RECV_CB", __FILE__, __LINE__, -1,
                "Async recv callback called with result=%d, len=%zu", result,
@@ -181,7 +181,7 @@ void async_recv_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
   sync->done = 1;
 }
 
-void async_send_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
+void async_send_cb(libnngio_transport *ctx, int result, void *data, size_t len,
                    void *user_data) {
   libnngio_log("INF", "TEST_ASYNC_SEND_CB", __FILE__, __LINE__, -1,
                "Async send callback called with result=%d, len=%zu", result,
@@ -192,7 +192,7 @@ void async_send_cb(libnngio_ctx *ctx, int result, void *data, size_t len,
 }
 
 void test_tcp_async() {
-  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
   const char *url = "tcp://127.0.0.1:5557";
   int rv;
@@ -205,10 +205,10 @@ void test_tcp_async() {
   client_cfg.proto = LIBNNGIO_PROTO_PAIR;
   client_cfg.url = url;
 
-  rv = libnngio_init(&server, &server_cfg);
+  rv = libnngio_transport_init(&server, &server_cfg);
   assert(rv == 0);
 
-  rv = libnngio_init(&client, &client_cfg);
+  rv = libnngio_transport_init(&client, &client_cfg);
   assert(rv == 0);
 
   sleep_ms(100);
@@ -220,11 +220,11 @@ void test_tcp_async() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   recv_sync.len = sizeof(recv_sync.buf);
-  rv = libnngio_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
+  rv = libnngio_transport_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
                            &recv_sync);
   assert(rv == 0);
 
-  rv = libnngio_send_async(client, hello, strlen(hello) + 1, async_send_cb,
+  rv = libnngio_transport_send_async(client, hello, strlen(hello) + 1, async_send_cb,
                            &send_sync);
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
@@ -247,8 +247,8 @@ void test_tcp_async() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
-  libnngio_free(client);
-  libnngio_free(server);
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats
@@ -269,7 +269,7 @@ void test_tcp_async() {
 }
 
 void test_tls_async() {
-  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
   const char *url = "tls+tcp://127.0.0.1:5558";
   int rv;
@@ -295,10 +295,10 @@ void test_tls_async() {
   // client_cfg.tls_key = c_key;
   client_cfg.tls_ca_cert = ca_cert;
 
-  rv = libnngio_init(&server, &server_cfg);
+  rv = libnngio_transport_init(&server, &server_cfg);
   assert(rv == 0);
 
-  rv = libnngio_init(&client, &client_cfg);
+  rv = libnngio_transport_init(&client, &client_cfg);
   assert(rv == 0);
 
   sleep_ms(100);
@@ -310,13 +310,13 @@ void test_tls_async() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   recv_sync.len = sizeof(recv_sync.buf);
-  rv = libnngio_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
+  rv = libnngio_transport_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
                            &recv_sync);
   assert(rv == 0);
 
   sleep_ms(100);
 
-  rv = libnngio_send_async(client, hello, strlen(hello) + 1, async_send_cb,
+  rv = libnngio_transport_send_async(client, hello, strlen(hello) + 1, async_send_cb,
                            &send_sync);
   assert(rv == 0);
 
@@ -331,8 +331,8 @@ void test_tls_async() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
-  libnngio_free(client);
-  libnngio_free(server);
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats
@@ -353,7 +353,7 @@ void test_tls_async() {
 }
 
 void test_reqrep_basic() {
-  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
   const char *url = "tcp://127.0.0.1:5560";
   char msg[256] = {0};
@@ -368,17 +368,17 @@ void test_reqrep_basic() {
   client_cfg.proto = LIBNNGIO_PROTO_REQ;
   client_cfg.url = url;
 
-  rv = libnngio_init(&server, &server_cfg);
+  rv = libnngio_transport_init(&server, &server_cfg);
   assert(rv == 0);
 
-  rv = libnngio_init(&client, &client_cfg);
+  rv = libnngio_transport_init(&client, &client_cfg);
   assert(rv == 0);
 
   sleep_ms(100);
 
   // Client sends request
   const char *req = "request-data";
-  rv = libnngio_send(client, req, strlen(req) + 1);
+  rv = libnngio_transport_send(client, req, strlen(req) + 1);
   assert(rv == 0);
 
   // Server receives request
@@ -386,12 +386,12 @@ void test_reqrep_basic() {
   libnngio_mock_set_recv_buffer(req, strlen(req) + 1);
 #endif
   msglen = sizeof(msg);
-  rv = libnngio_recv(server, msg, &msglen);
+  rv = libnngio_transport_recv(server, msg, &msglen);
   assert(rv == 0 && strcmp(msg, req) == 0);
 
   // Server sends reply
   const char *rep = "reply-data";
-  rv = libnngio_send(server, rep, strlen(rep) + 1);
+  rv = libnngio_transport_send(server, rep, strlen(rep) + 1);
   assert(rv == 0);
 
   // Client receives reply
@@ -399,11 +399,11 @@ void test_reqrep_basic() {
   libnngio_mock_set_recv_buffer(rep, strlen(rep) + 1);
 #endif
   msglen = sizeof(msg);
-  rv = libnngio_recv(client, msg, &msglen);
+  rv = libnngio_transport_recv(client, msg, &msglen);
   assert(rv == 0 && strcmp(msg, rep) == 0);
 
-  libnngio_free(client);
-  libnngio_free(server);
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats
@@ -424,7 +424,7 @@ void test_reqrep_basic() {
 }
 
 void test_pubsub_basic() {
-  libnngio_ctx *server = NULL, *client = NULL;
+  libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
   const char *url = "tcp://127.0.0.1:5561";
   int rv;
@@ -437,10 +437,10 @@ void test_pubsub_basic() {
   client_cfg.proto = LIBNNGIO_PROTO_SUB;
   client_cfg.url = url;
 
-  rv = libnngio_init(&server, &server_cfg);
+  rv = libnngio_transport_init(&server, &server_cfg);
   assert(rv == 0);
 
-  rv = libnngio_init(&client, &client_cfg);
+  rv = libnngio_transport_init(&client, &client_cfg);
   assert(rv == 0);
 
   sleep_ms(100);
@@ -452,11 +452,11 @@ void test_pubsub_basic() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   recv_sync.len = sizeof(recv_sync.buf);
-  rv = libnngio_recv_async(client, recv_sync.buf, &recv_sync.len, async_recv_cb,
+  rv = libnngio_transport_recv_async(client, recv_sync.buf, &recv_sync.len, async_recv_cb,
                            &recv_sync);
   assert(rv == 0);
 
-  rv = libnngio_send_async(server, hello, strlen(hello) + 1, async_send_cb,
+  rv = libnngio_transport_send_async(server, hello, strlen(hello) + 1, async_send_cb,
                            &send_sync);
   assert(rv == 0);
 
@@ -473,8 +473,8 @@ void test_pubsub_basic() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
-  libnngio_free(client);
-  libnngio_free(server);
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats
@@ -495,7 +495,7 @@ void test_pubsub_basic() {
 }
 
 void test_pushpull_basic() {
-  libnngio_ctx *push = NULL, *pull = NULL;
+  libnngio_transport *push = NULL, *pull = NULL;
   libnngio_config push_cfg = {0}, pull_cfg = {0};
   const char *url = "tcp://127.0.0.1:5562";
   char msg[256] = {0};
@@ -510,27 +510,27 @@ void test_pushpull_basic() {
   pull_cfg.proto = LIBNNGIO_PROTO_PULL;
   pull_cfg.url = url;
 
-  rv = libnngio_init(&push, &push_cfg);
+  rv = libnngio_transport_init(&push, &push_cfg);
   assert(rv == 0);
 
-  rv = libnngio_init(&pull, &pull_cfg);
+  rv = libnngio_transport_init(&pull, &pull_cfg);
   assert(rv == 0);
 
   sleep_ms(100);
 
   const char *payload = "pushed-data";
-  rv = libnngio_send(push, payload, strlen(payload) + 1);
+  rv = libnngio_transport_send(push, payload, strlen(payload) + 1);
   assert(rv == 0);
 
 #ifdef NNGIO_MOCK_MAIN
   libnngio_mock_set_recv_buffer(payload, strlen(payload) + 1);
 #endif
   msglen = sizeof(msg);
-  rv = libnngio_recv(pull, msg, &msglen);
+  rv = libnngio_transport_recv(pull, msg, &msglen);
   assert(rv == 0 && strcmp(msg, payload) == 0);
 
-  libnngio_free(push);
-  libnngio_free(pull);
+  libnngio_transport_free(push);
+  libnngio_transport_free(pull);
 
 #ifdef NNGIO_MOCK_MAIN
   // Verify mock stats

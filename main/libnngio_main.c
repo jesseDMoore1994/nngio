@@ -19,7 +19,7 @@
 #include <string.h>
 
 // Context data structure
-struct libnngio_ctx {
+struct libnngio_transport {
   nng_socket sock;
   nng_dialer dialer;
   nng_listener listener;
@@ -131,7 +131,7 @@ static char *libnngio_mode_name(libnngio_mode mode) {
 }
 
 // Configure the TLS config object on dialer/listener
-static int libnngio_configure_tls(libnngio_ctx *ctx, nng_dialer dialer,
+static int libnngio_configure_tls(libnngio_transport *ctx, nng_dialer dialer,
                                   nng_listener listener, int is_dial,
                                   const char *certfile, const char *keyfile,
                                   const char *cacert) {
@@ -374,11 +374,11 @@ static int validate_config(const libnngio_config *config) {
   return 0;
 }
 
-int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
-  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, free_id,
-               "Initializing context.");
+int libnngio_transport_init(libnngio_transport **ctxp, const libnngio_config *config) {
+  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, free_id,
+               "Initializing transport.");
   int rv;
-  libnngio_ctx *ctx = calloc(1, sizeof(*ctx));
+  libnngio_transport *ctx = calloc(1, sizeof(*ctx));
   if (!ctxp || !config) return NNG_EINVAL;
   if (!ctx) return NNG_ENOMEM;
   rv = validate_config(config);
@@ -391,12 +391,12 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
 
   ctx->is_dial = (config->mode == LIBNNGIO_MODE_DIAL);
 
-  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
-               "Creating %s context.", libnngio_mode_name(config->mode));
-  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
+               "Creating %s transport.", libnngio_mode_name(config->mode));
+  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                "Protocol: %s, URL: %s", libnngio_proto_name(config->proto),
                config->url);
-  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                "Opening socket!");
   rv = libnngio_proto_open(&ctx->sock, config->proto);
   if (rv != 0) {
@@ -409,7 +409,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     int rv = nng_socket_set(ctx->sock, NNG_OPT_SUB_SUBSCRIBE, "", 0);
     if (rv != 0) {
       // Handle error (optional: log or abort)
-      libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+      libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                    "Failed to set SUB subscribe filter: %s\n",
                    nng_strerror(rv));
       return rv;
@@ -417,7 +417,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
   }
 
   if (ctx->is_dial) {
-    libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "Creating dialer for URL %s.\n", config->url);
     rv = nng_dialer_create(&ctx->dialer, ctx->sock, config->url);
     if (rv != 0) {
@@ -426,7 +426,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
       return rv;
     }
   } else {
-    libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "Creating listener for URL %s.\n", config->url);
     rv = nng_listener_create(&ctx->listener, ctx->sock, config->url);
     if (rv != 0) {
@@ -439,7 +439,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
                               config->tls_cert, config->tls_key,
                               config->tls_ca_cert);
   if (rv != 0) {
-    libnngio_log("ERR", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "Failed to configure TLS with error %d\n", rv);
     if (ctx->is_dial)
       nng_dialer_close(ctx->dialer);
@@ -454,7 +454,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     rv = libnngio_apply_options(ctx->sock, config->options,
                                 config->option_count);
     if (rv != 0) {
-      libnngio_log("ERR", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+      libnngio_log("ERR", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                    "Failed to apply options with error %d\n", rv);
       if (ctx->is_dial)
         nng_dialer_close(ctx->dialer);
@@ -474,25 +474,25 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
     nng_socket_set_size(ctx->sock, NNG_OPT_RECVMAXSZ, config->max_msg_size);
 
   if (ctx->is_dial) {
-    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("INF", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "Starting dialer for URL: %s.\n", config->url);
     rv = nng_dialer_start(ctx->dialer, 0);
   } else {
-    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("INF", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "Starting listener for URL: %s.\n", config->url);
     rv = nng_listener_start(ctx->listener, 0);
   }
 
   if (config->tls_cert && config->tls_key && config->tls_ca_cert) {
-    libnngio_log("INF", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("INF", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "--tls-- cert: %s, key: %s, ca: %s",
                  config->tls_cert ? config->tls_cert : "NULL",
                  config->tls_key ? config->tls_key : "NULL",
                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
   } else {
-    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("WRN", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "--tls-- Not enough information provided for TLS configuration.");
-    libnngio_log("WRN", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("WRN", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "--tls-- cert: %s, key: %s, ca: %s",
                   config->tls_cert ? config->tls_cert : "NULL",
                   config->tls_key ? config->tls_key : "NULL",
@@ -500,7 +500,7 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
   }
 
   if (rv != 0) {
-    libnngio_log("ERR", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
                  "Failed to start %s with error %d.\n",
                  libnngio_mode_name(config->mode), rv);
     if (ctx->is_dial)
@@ -515,24 +515,24 @@ int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config) {
   ctx->is_open = 1;
   *ctxp = ctx;
 
-  libnngio_log("DBG", "NNGIO_INIT", __FILE__, __LINE__, ctx->id,
-               "Context initialized successfully: %s %s %s",
+  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, ctx->id,
+               "Transport initialized successfully: %s %s %s",
                libnngio_mode_name(config->mode),
                libnngio_proto_name(config->proto), config->url);
   return 0;
 }
 
-int libnngio_send(libnngio_ctx *ctx, const void *buf, size_t len) {
+int libnngio_transport_send(libnngio_transport *ctx, const void *buf, size_t len) {
   if (!ctx || !ctx->is_open || !buf || len == 0) return NNG_EINVAL;
-  libnngio_log("INF", "NNGIO_SEND", __FILE__, __LINE__, ctx->id,
+  libnngio_log("INF", "NNGIO_TRANSPORT_SEND", __FILE__, __LINE__, ctx->id,
                "Sending %zu bytes.\n", len);
   return nng_send(ctx->sock, (void *)buf, len, 0);
 }
 
-int libnngio_recv(libnngio_ctx *ctx, void *buf, size_t *len) {
+int libnngio_transport_recv(libnngio_transport *ctx, void *buf, size_t *len) {
   if (!ctx || !ctx->is_open || !buf || !len || *len == 0) return NNG_EINVAL;
   size_t maxlen = *len;
-  libnngio_log("INF", "NNGIO_RECV", __FILE__, __LINE__, ctx->id,
+  libnngio_log("INF", "NNGIO_TRANSPORT_RECV", __FILE__, __LINE__, ctx->id,
                "Receiving up to %zu bytes.\n", maxlen);
   int rv = nng_recv(ctx->sock, buf, &maxlen, 0);
   if (rv == 0) *len = maxlen;
@@ -568,37 +568,37 @@ static void libnngio_send_aio_cb(void *arg) {
   libnngio_async_op_free(op);
 }
 
-int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
+int libnngio_transport_send_async(libnngio_transport *ctx, const void *buf, size_t len,
                         libnngio_async_cb cb, void *user_data) {
   if (!ctx) {
-    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
-                 "Invalid context.\n");
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid transport.\n");
     return NNG_EINVAL;
   }
   if (!ctx->is_open) {
-    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
-                 "Context is not open.\n");
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Transport is not open.\n");
     return NNG_EINVAL;
   }
   if (!buf || len == 0) {
-    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Invalid buffer or length.\n");
     return NNG_EINVAL;
   }
   if (!cb) {
-    libnngio_log("ERR", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Invalid callback function.\n");
     return NNG_EINVAL;
   }
   libnngio_async_op *op = libnngio_async_op_alloc();
   if (!op) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Failed to allocate async operation.\n");
     return NNG_ENOMEM;
   }
   int rv = nng_aio_alloc(&op->aio, libnngio_send_aio_cb, op);
   if (rv != 0) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Failed to allocate AIO with error %d.\n", rv);
     libnngio_async_op_free(op);
     return rv;
@@ -620,7 +620,7 @@ int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
   memcpy(nng_msg_body(msg), buf, len);
   nng_aio_set_msg(op->aio, msg);
 
-  libnngio_log("INF", "LIBNNGIO_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
+  libnngio_log("INF", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, ctx->id,
                "Setting up async send of %zu bytes.\n", len);
   nng_send_aio(ctx->sock, op->aio);
   return 0;
@@ -649,38 +649,38 @@ static void libnngio_recv_aio_cb(void *arg) {
   libnngio_async_op_free(op);
 }
 
-int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
+int libnngio_transport_recv_async(libnngio_transport *ctx, void *buf, size_t *len,
                         libnngio_async_cb cb, void *user_data) {
   if (!ctx) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
-                 "Invalid context.\n");
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Invalid transport.\n");
     return NNG_EINVAL;
   }
   if (!ctx->is_open) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
-                 "Context is not open.\n");
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+                 "Transport is not open.\n");
     return NNG_EINVAL;
   }
   if (!buf || !len || *len == 0) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Invalid buffer or length.\n");
     return NNG_EINVAL;
   }
   if (!cb) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Invalid callback function.\n");
     return NNG_EINVAL;
   }
 
   libnngio_async_op *op = libnngio_async_op_alloc();
   if (!op) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Failed to allocate async operation.\n");
     return NNG_ENOMEM;
   }
   int rv = nng_aio_alloc(&op->aio, libnngio_recv_aio_cb, op);
   if (rv != 0) {
-    libnngio_log("ERR", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                  "Failed to allocate AIO with error %d.\n", rv);
     libnngio_async_op_free(op);
     return rv;
@@ -691,7 +691,7 @@ int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
   op->cb = cb;
   op->user_data = user_data;
 
-  libnngio_log("INF", "LIBNNGIO_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
+  libnngio_log("INF", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, ctx->id,
                "Setting up async receive into buffer of size %zu.\n", *len);
   nng_aio_set_timeout(op->aio, -1);
   nng_recv_aio(ctx->sock, op->aio);
@@ -699,26 +699,26 @@ int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
 }
 
 // Free all resources associated with context
-void libnngio_free(libnngio_ctx *ctx) {
+void libnngio_transport_free(libnngio_transport *ctx) {
   if (!ctx) return;
-  libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+  libnngio_log("DBG", "LIBNNGIO_TRANSPORT_FREE", __FILE__, __LINE__, ctx->id,
                "Freeing context.\n");
   if (ctx->is_open) {
     if (ctx->is_dial) {
-      libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+      libnngio_log("DBG", "LIBNNGIO_TRANSPORT_FREE", __FILE__, __LINE__, ctx->id,
                    "Closing dialer for context.\n");
       nng_dialer_close(ctx->dialer);
     } else {
-      libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+      libnngio_log("DBG", "LIBNNGIO_TRANSPORT_FREE", __FILE__, __LINE__, ctx->id,
                    "Closing listener for context.\n");
       nng_listener_close(ctx->listener);
     }
-    libnngio_log("DBG", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+    libnngio_log("DBG", "LIBNNGIO_TRANSPORT_FREE", __FILE__, __LINE__, ctx->id,
                  "Closing socket for context.\n");
     nng_close(ctx->sock);
   }
 
-  libnngio_log("INF", "LIBNNGIO_FREE", __FILE__, __LINE__, ctx->id,
+  libnngio_log("INF", "LIBNNGIO_TRANSPORT_FREE", __FILE__, __LINE__, ctx->id,
                "Context freed successfully.\n");
   // Free TLS PEM buffers if allocated
   if (ctx->tls_cert_mem) free(ctx->tls_cert_mem);

@@ -33,7 +33,7 @@ typedef struct {
   const char *value;
 } libnngio_option;
 
-typedef struct libnngio_ctx libnngio_ctx;
+typedef struct libnngio_transport libnngio_transport;
 
 // User configuration
 typedef struct {
@@ -57,23 +57,24 @@ typedef struct {
 } libnngio_config;
 
 // Callback type for async send/recv
-typedef void (*libnngio_async_cb)(libnngio_ctx *ctx, int result, void *data,
+typedef void (*libnngio_async_cb)(libnngio_transport *ctx, int result, void *data,
                                   size_t len, void *user_data);
 
-// Core API (sync)
+// Logging made available for users as well
 void libnngio_log_init(const char *level);
 void libnngio_log(const char *level, const char *tag, const char *file,
                   int line, int id, const char *fmt, ...);
-int libnngio_init(libnngio_ctx **ctxp, const libnngio_config *config);
-int libnngio_send(libnngio_ctx *ctx, const void *buf, size_t len);
-int libnngio_recv(libnngio_ctx *ctx, void *buf, size_t *len);
-void libnngio_free(libnngio_ctx *ctx);
 
+// Profide functions for interacting with the transport directly
+int libnngio_transport_init(libnngio_transport **ctxp, const libnngio_config *config);
+int libnngio_transport_send(libnngio_transport *ctx, const void *buf, size_t len);
+int libnngio_transport_recv(libnngio_transport *ctx, void *buf, size_t *len);
 // Async API
-int libnngio_send_async(libnngio_ctx *ctx, const void *buf, size_t len,
+int libnngio_transport_send_async(libnngio_transport *ctx, const void *buf, size_t len,
                         libnngio_async_cb cb, void *user_data);
-int libnngio_recv_async(libnngio_ctx *ctx, void *buf, size_t *len,
+int libnngio_transport_recv_async(libnngio_transport *ctx, void *buf, size_t *len,
                         libnngio_async_cb cb, void *user_data);
+void libnngio_transport_free(libnngio_transport *ctx);
 
 // Cleanup global NNG state (calls nng_fini). Safe to call multiple times.
 // After this, no more libnngio functions should be called.
@@ -91,7 +92,7 @@ void libnngio_cleanup(void);
 #ifdef NNGIO_MOCK_MAIN
 // Stores all function parameters for the most recent calls
 typedef struct libnngio_mock_call {
-  libnngio_ctx *ctx;
+  libnngio_transport *ctx;
   const void *buf;
   size_t len;
   size_t *len_ptr;
