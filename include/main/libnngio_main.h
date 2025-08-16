@@ -86,6 +86,16 @@ void libnngio_context_start(libnngio_context *ctx);
 void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data);
 void* libnngio_context_get_user_data(libnngio_context *ctx);
 void libnngio_context_free(libnngio_context *ctx);
+int libnngio_contexts_init(
+    libnngio_context ***ctxs,
+    size_t n,
+    libnngio_transport *t,
+    const libnngio_config *config,
+    libnngio_ctx_cb cb,
+    void **user_datas
+);
+void libnngio_contexts_free(libnngio_context **ctxs, size_t n);
+void libnngio_contexts_start(libnngio_context **ctxs, size_t n);
 
 // Cleanup global NNG state (calls nng_fini). Safe to call multiple times.
 // After this, no more libnngio functions should be called.

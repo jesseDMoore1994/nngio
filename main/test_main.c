@@ -607,6 +607,54 @@ static void test_libnngio_multiple_contexts() {
   libnngio_transport_free(t);
 }
 
+typedef struct {
+  int id;
+  int started;
+} test_user_data;
+
+void test_ctx_cb(void *arg) {
+  libnngio_context *ctx = (libnngio_context *)arg;
+  test_user_data *ud = (test_user_data *)libnngio_context_get_user_data(ctx);
+  if (ud) ud->started = 1;
+}
+
+void test_libnngio_multiple_contexts2() {
+  libnngio_transport *t = NULL;
+  libnngio_config config = {0};
+  config.url = "tcp://127.0.0.1:12345";
+  config.mode = LIBNNGIO_MODE_LISTEN;
+  config.proto = LIBNNGIO_PROTO_REP;
+
+  int rv = libnngio_transport_init(&t, &config);
+  assert(rv == 0);
+
+  size_t n = 4;
+  libnngio_context **ctxs = NULL;
+  test_user_data user_datas[4] = {0};
+  void *ud_ptrs[4] = {&user_datas[0], &user_datas[1], &user_datas[2], &user_datas[3]};
+
+  rv = libnngio_contexts_init(&ctxs, n, t, &config, test_ctx_cb, ud_ptrs);
+  assert(rv == 0 && ctxs);
+
+  for (size_t i = 0; i < n; ++i) {
+      assert(ctxs[i] != NULL);
+      user_datas[i].id = (int)i;
+      user_datas[i].started = 0;
+  }
+
+  libnngio_contexts_start(ctxs, n);
+
+  for (size_t i = 0; i < n; ++i) {
+      assert(user_datas[i].started == 1); // callback should have set started to 1
+  }
+
+  libnngio_contexts_free(ctxs, n);
+  libnngio_transport_free(t);
+
+
+  printf("test_multiple_contexts_utils: PASS\n");
+}
+
 int main() {
   // Register cleanup for global NNG state
   atexit(libnngio_cleanup);
@@ -626,6 +674,7 @@ int main() {
 
   test_libnngio_context_init();
   test_libnngio_multiple_contexts();
+  test_libnngio_multiple_contexts2();
 
   printf("All tests completed successfully.\n");
 

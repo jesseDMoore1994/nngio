@@ -844,6 +844,47 @@ void libnngio_context_free(libnngio_context *ctx) {
                "Context freed successfully.\n");
 }
 
+int libnngio_contexts_init(
+    libnngio_context ***ctxs,
+    size_t n,
+    libnngio_transport *t,
+    const libnngio_config *config,
+    libnngio_ctx_cb cb,
+    void **user_datas
+) {
+    if (!ctxs || n == 0) return -1;
+    *ctxs = calloc(n, sizeof(libnngio_context *));
+    if (!*ctxs) return -2;
+
+    for (size_t i = 0; i < n; ++i) {
+        int rv = libnngio_context_init(&(*ctxs)[i], t, config, cb, user_datas ? user_datas[i] : NULL);
+        if (rv != 0) {
+            // Roll back and free any already-initialized contexts
+            for (size_t j = 0; j < i; ++j)
+                libnngio_context_free((*ctxs)[j]);
+            free(*ctxs);
+            *ctxs = NULL;
+            return rv;
+        }
+    }
+    return 0;
+}
+
+void libnngio_contexts_free(libnngio_context **ctxs, size_t n) {
+    if (!ctxs) return;
+    for (size_t i = 0; i < n; ++i) {
+        if (ctxs[i]) libnngio_context_free(ctxs[i]);
+    }
+    free(ctxs);
+}
+
+void libnngio_contexts_start(libnngio_context **ctxs, size_t n) {
+    if (!ctxs) return;
+    for (size_t i = 0; i < n; ++i) {
+        if (ctxs[i]) libnngio_context_start(ctxs[i]);
+    }
+}
+
 // User-invoked cleanup for global NNG state
 void libnngio_cleanup(void) {
   libnngio_log("INF", "LIBNNGIO_CLEANUP", __FILE__, __LINE__, -1,

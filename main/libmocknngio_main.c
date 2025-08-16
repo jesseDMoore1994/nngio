@@ -315,6 +315,60 @@ void libnngio_context_free(libnngio_context *ctx) {
   }
 }
 
+int libnngio_contexts_init(libnngio_context ***ctxs, size_t n,
+                           libnngio_transport *transport,
+                           const libnngio_config *config, libnngio_ctx_cb cb,
+                           void **user_datas) {
+  if (!ctxs || !transport || !config || n == 0) {
+    return NNG_EINVAL;
+  }
+
+  *ctxs = calloc(n, sizeof(libnngio_context *));
+  if (!*ctxs) {
+    return NNG_ENOMEM;
+  }
+
+  for (size_t i = 0; i < n; i++) {
+    libnngio_context *ctx;
+    int rv = libnngio_context_init(&ctx, transport, config, cb,
+                                   user_datas ? user_datas[i] : NULL);
+    if (rv != 0) {
+      for (size_t j = 0; j < i; j++) {
+        libnngio_context_free((*ctxs)[j]);
+      }
+      free(*ctxs);
+      *ctxs = NULL;
+      return rv;
+    }
+    (*ctxs)[i] = ctx;
+  }
+
+  return 0;
+}
+
+void libnngio_contexts_free(libnngio_context **ctxs, size_t n) {
+  if (!ctxs) return;
+  for (size_t i = 0; i < n; i++) {
+    if (ctxs[i]) {
+      libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXTS_FREE", __FILE__, __LINE__, i,
+                  "Freeing context with ID %d", ctxs[i]->id);
+      libnngio_context_free(ctxs[i]);
+    }
+  }
+  free(ctxs);
+}
+
+void libnngio_contexts_start(libnngio_context **ctxs, size_t n) {
+  if (!ctxs || n == 0) return;
+  for (size_t i = 0; i < n; i++) {
+    if (ctxs[i]) {
+      libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXTS_START", __FILE__, __LINE__, i,
+                  "Starting context with ID %d", ctxs[i]->id);
+      libnngio_context_start(ctxs[i]);
+    }
+  }
+}
+
 void libnngio_cleanup(void) {
   if (test_logging_level) {
     free(test_logging_level);
