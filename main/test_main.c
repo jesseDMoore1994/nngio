@@ -220,12 +220,12 @@ void test_tcp_async() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   recv_sync.len = sizeof(recv_sync.buf);
-  rv = libnngio_transport_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
-                           &recv_sync);
+  rv = libnngio_transport_recv_async(server, recv_sync.buf, &recv_sync.len,
+                                     async_recv_cb, &recv_sync);
   assert(rv == 0);
 
-  rv = libnngio_transport_send_async(client, hello, strlen(hello) + 1, async_send_cb,
-                           &send_sync);
+  rv = libnngio_transport_send_async(client, hello, strlen(hello) + 1,
+                                     async_send_cb, &send_sync);
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
@@ -310,14 +310,14 @@ void test_tls_async() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   recv_sync.len = sizeof(recv_sync.buf);
-  rv = libnngio_transport_recv_async(server, recv_sync.buf, &recv_sync.len, async_recv_cb,
-                           &recv_sync);
+  rv = libnngio_transport_recv_async(server, recv_sync.buf, &recv_sync.len,
+                                     async_recv_cb, &recv_sync);
   assert(rv == 0);
 
   sleep_ms(100);
 
-  rv = libnngio_transport_send_async(client, hello, strlen(hello) + 1, async_send_cb,
-                           &send_sync);
+  rv = libnngio_transport_send_async(client, hello, strlen(hello) + 1,
+                                     async_send_cb, &send_sync);
   assert(rv == 0);
 
   while (!send_sync.done) {
@@ -452,12 +452,12 @@ void test_pubsub_basic() {
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
 #endif
   recv_sync.len = sizeof(recv_sync.buf);
-  rv = libnngio_transport_recv_async(client, recv_sync.buf, &recv_sync.len, async_recv_cb,
-                           &recv_sync);
+  rv = libnngio_transport_recv_async(client, recv_sync.buf, &recv_sync.len,
+                                     async_recv_cb, &recv_sync);
   assert(rv == 0);
 
-  rv = libnngio_transport_send_async(server, hello, strlen(hello) + 1, async_send_cb,
-                           &send_sync);
+  rv = libnngio_transport_send_async(server, hello, strlen(hello) + 1,
+                                     async_send_cb, &send_sync);
   assert(rv == 0);
 
   // Wait for send to finish
@@ -570,9 +570,10 @@ typedef struct example_user_data {
   int touched;
 } example_user_data;
 
-void example_ctx_cb(void* arg) {
+void example_ctx_cb(void *arg) {
   libnngio_context *ctx = (libnngio_context *)arg;
-  example_user_data *data = (example_user_data *)libnngio_context_get_user_data(ctx);
+  example_user_data *data =
+      (example_user_data *)libnngio_context_get_user_data(ctx);
   libnngio_log("INF", "EXAMPLE_CTX_CB", __FILE__, __LINE__, -1,
                "Example context callback invoked.");
   data->touched = 1;
@@ -586,17 +587,19 @@ static void test_libnngio_multiple_contexts() {
   config.proto = LIBNNGIO_PROTO_REP;
   int rv = libnngio_transport_init(&t, &config);
   assert(rv == 0);
-  libnngio_context* ctxs[3] = {0};
+  libnngio_context *ctxs[3] = {0};
 
   example_user_data user_data[3] = {0};
   for (int i = 0; i < 3; i++) {
     user_data[i].touched = 0;
-    rv = libnngio_context_init(&ctxs[i], t, &config, example_ctx_cb, &user_data[i]);
+    rv = libnngio_context_init(&ctxs[i], t, &config, example_ctx_cb,
+                               &user_data[i]);
     assert(rv == 0);
   }
 
   for (int i = 0; i < 3; i++) {
-    example_user_data *data = (example_user_data *)libnngio_context_get_user_data(ctxs[i]);
+    example_user_data *data =
+        (example_user_data *)libnngio_context_get_user_data(ctxs[i]);
     assert(data == &user_data[i]);
     assert(user_data[i].touched == 0);
     libnngio_context_start(ctxs[i]);
@@ -631,28 +634,203 @@ void test_libnngio_multiple_contexts2() {
   size_t n = 4;
   libnngio_context **ctxs = NULL;
   test_user_data user_datas[4] = {0};
-  void *ud_ptrs[4] = {&user_datas[0], &user_datas[1], &user_datas[2], &user_datas[3]};
+  void *ud_ptrs[4] = {&user_datas[0], &user_datas[1], &user_datas[2],
+                      &user_datas[3]};
 
   rv = libnngio_contexts_init(&ctxs, n, t, &config, test_ctx_cb, ud_ptrs);
   assert(rv == 0 && ctxs);
 
   for (size_t i = 0; i < n; ++i) {
-      assert(ctxs[i] != NULL);
-      user_datas[i].id = (int)i;
-      user_datas[i].started = 0;
+    assert(ctxs[i] != NULL);
+    user_datas[i].id = (int)i;
+    user_datas[i].started = 0;
   }
 
   libnngio_contexts_start(ctxs, n);
 
   for (size_t i = 0; i < n; ++i) {
-      assert(user_datas[i].started == 1); // callback should have set started to 1
+    assert(user_datas[i].started ==
+           1);  // callback should have set started to 1
   }
 
   libnngio_contexts_free(ctxs, n);
   libnngio_transport_free(t);
 
-
   printf("test_multiple_contexts_utils: PASS\n");
+}
+
+#define REQREP_TEST_MSG_COUNT 4
+#define REQREP_TEST_TCP_PORT 5567
+
+typedef struct {
+  int index;
+  int received;
+  int replied;
+  char req_buf[128];
+  size_t req_len;
+  char rep_buf[128];
+  size_t rep_len;
+  libnngio_context *ctx;
+  libnngio_transport *transport;
+} reqrep_user_data;
+
+void reqrep_service_routine(void *arg);
+
+// Async reply completion handler
+void reqrep_reply_cb(libnngio_transport *t, int result, void *data, size_t len,
+                     void *user_data) {
+  reqrep_user_data *ud = (reqrep_user_data *)user_data;
+  libnngio_log("DBG", "REPLY_CB", __FILE__, __LINE__, ud->index,
+               "Context %d: reply sent: %s", ud->index, ud->rep_buf);
+  assert(result == 0);
+  ud->replied++;
+  // After reply sent, post another receive by re-entering the service routine
+  reqrep_service_routine(ud->ctx);
+}
+
+// Async receive callback for requests
+void reqrep_recv_cb(libnngio_transport *t, int result, void *data, size_t len,
+                    void *user_data) {
+  reqrep_user_data *ud = (reqrep_user_data *)user_data;
+  libnngio_log("DBG", "RECV_CB", __FILE__, __LINE__, ud->index,
+               "Context %d: received request: %s", ud->index, (char *)data);
+  if (result != 0) {
+    libnngio_log("ERR", "RECV_CB", __FILE__, __LINE__, ud->index,
+                 "Context %d: receive error: %d", ud->index, result);
+  }
+  assert(result == 0);
+  if (ud && data && len <= sizeof(ud->req_buf)) {
+    memcpy(ud->req_buf, data, len);
+    ud->req_len = len;
+    ud->received++;
+    libnngio_log("DBG", "RECV_CB", __FILE__, __LINE__, ud->index,
+                 "Context %d received request: %s", ud->index, ud->req_buf);
+    // Prepare reply
+    snprintf(ud->rep_buf, sizeof(ud->rep_buf), "reply-%d", ud->index);
+    ud->rep_len = strlen(ud->rep_buf) + 1;
+    // Send reply asynchronously
+    int rv = libnngio_transport_send_async(t, ud->rep_buf, ud->rep_len,
+                                           reqrep_reply_cb, ud);
+    assert(rv == 0);
+  }
+}
+
+// Context service routine: posts an async receive for this context
+void reqrep_service_routine(void *arg) {
+  libnngio_context *ctx = (libnngio_context *)arg;
+  reqrep_user_data *ud =
+      (reqrep_user_data *)libnngio_context_get_user_data(ctx);
+  ud->ctx = ctx;  // store the context pointer (optional if not already set)
+  ud->req_len = sizeof(ud->req_buf);
+  libnngio_log("DBG", "SERVICE_ROUTINE", __FILE__, __LINE__, ud->index,
+               "Context %d starting async receive", ud->index);
+  int rv = libnngio_transport_recv_async(ud->transport, ud->req_buf,
+                                         &ud->req_len, reqrep_recv_cb, ud);
+  assert(rv == 0);
+}
+
+void test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp() {
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_config rep_cfg = {0}, req_cfg = {0};
+  char url[64];
+  snprintf(url, sizeof(url), "tcp://127.0.0.1:%d", REQREP_TEST_TCP_PORT);
+
+  rep_cfg.url = url;
+  rep_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  rep_cfg.proto = LIBNNGIO_PROTO_REP;
+  req_cfg.url = url;
+  req_cfg.mode = LIBNNGIO_MODE_DIAL;
+  req_cfg.proto = LIBNNGIO_PROTO_REQ;
+
+  int rv = libnngio_transport_init(&rep, &rep_cfg);
+  assert(rv == 0);
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "REP transport initialized on %s", url);
+  rv = libnngio_transport_init(&req, &req_cfg);
+  assert(rv == 0);
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "REQ transport initialized on %s", url);
+
+  // Prepare contexts for REP side
+  size_t n = REQREP_TEST_MSG_COUNT;
+  libnngio_context **ctxs = NULL;
+  reqrep_user_data user_datas[REQREP_TEST_MSG_COUNT] = {0};
+  void *ud_ptrs[REQREP_TEST_MSG_COUNT];
+  for (size_t i = 0; i < n; ++i) {
+    user_datas[i].index = (int)i;
+    user_datas[i].transport = rep;
+    ud_ptrs[i] = &user_datas[i];
+  }
+  rv = libnngio_contexts_init(&ctxs, n, rep, &rep_cfg, reqrep_service_routine,
+                              ud_ptrs);
+  assert(rv == 0);
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "%zu REP contexts initialized", n);
+
+  // Start service routines for all contexts
+  libnngio_contexts_start(ctxs, n);
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "All REP context service routines started");
+
+  // Wait for TCP connect to establish
+#ifdef _WIN32
+  Sleep(100);
+#else
+  usleep(100000);
+#endif
+
+  // Send requests from REQ side and receive replies synchronously
+  for (size_t i = 0; i < n; ++i) {
+    char req_msg[32], rep_msg[128];
+    size_t rep_len = sizeof(rep_msg);
+    snprintf(req_msg, sizeof(req_msg), "request-%zu", i);
+
+    libnngio_log("DBG", "TEST_CTX_CB_TCP", __FILE__, __LINE__, i,
+                 "REQ sending: %s", req_msg);
+    rv = libnngio_transport_send(req, req_msg, strlen(req_msg) + 1);
+    assert(rv == 0);
+
+    rv = libnngio_transport_recv(req, rep_msg, &rep_len);
+    assert(rv == 0);
+    libnngio_log("DBG", "TEST_CTX_CB_TCP", __FILE__, __LINE__, i,
+                 "REQ %zu got reply: %s", i, rep_msg);
+  }
+
+  // Wait for all contexts to finish at least one request/reply
+  int all_done = 0;
+  for (int tries = 0; tries < 100 && !all_done; ++tries) {
+    all_done = 1;
+    for (size_t i = 0; i < n; ++i) {
+      if (!(user_datas[i].received >= 1 && user_datas[i].replied >= 1))
+        all_done = 0;
+    }
+    if (!all_done) {
+#ifdef _WIN32
+      Sleep(10);
+#else
+      usleep(10000);
+#endif
+    }
+  }
+
+  for (size_t i = 0; i < n; ++i) {
+    assert(user_datas[i].received >= 1);
+    assert(user_datas[i].replied >= 1);
+    libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, i,
+                 "Context %zu handled request: %s -> reply: %s", i,
+                 user_datas[i].req_buf, user_datas[i].rep_buf);
+  }
+
+  libnngio_contexts_free(ctxs, n);
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "REP contexts freed");
+  libnngio_transport_free(rep);
+  libnngio_transport_free(req);
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "REP and REQ transports freed");
+
+  libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
+               "test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp: PASS");
 }
 
 int main() {
@@ -671,6 +849,8 @@ int main() {
   test_reqrep_basic();
   test_pubsub_basic();
   test_pushpull_basic();
+
+  test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp();
 
   test_libnngio_context_init();
   test_libnngio_multiple_contexts();

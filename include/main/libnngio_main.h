@@ -56,44 +56,38 @@ typedef struct {
   size_t option_count;
 } libnngio_config;
 
-// Callback type for async send/recv
-typedef void (*libnngio_async_cb)(libnngio_transport *ctx, int result, void *data,
-                                  size_t len, void *user_data);
-
 // Logging made available for users as well
 void libnngio_log_init(const char *level);
 void libnngio_log(const char *level, const char *tag, const char *file,
                   int line, int id, const char *fmt, ...);
 
 // Profide functions for interacting with the transport directly
-int libnngio_transport_init(libnngio_transport **tp, const libnngio_config *config);
+int libnngio_transport_init(libnngio_transport **tp,
+                            const libnngio_config *config);
 int libnngio_transport_send(libnngio_transport *t, const void *buf, size_t len);
 int libnngio_transport_recv(libnngio_transport *t, void *buf, size_t *len);
-// Async API
-int libnngio_transport_send_async(libnngio_transport *t, const void *buf, size_t len,
-                        libnngio_async_cb cb, void *user_data);
-int libnngio_transport_recv_async(libnngio_transport *t, void *buf, size_t *len,
-                        libnngio_async_cb cb, void *user_data);
 void libnngio_transport_free(libnngio_transport *t);
 
-typedef void (*libnngio_ctx_cb)(void *args);
 typedef struct libnngio_context libnngio_context;
+typedef void (*libnngio_ctx_cb)(void *args);
+typedef void (*libnngio_async_cb)(libnngio_context *ctx, int result, void *data,
+                                  size_t len, void *user_data);
 
 int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
                           const libnngio_config *config, libnngio_ctx_cb cb,
                           void *user_data);
 void libnngio_context_start(libnngio_context *ctx);
+int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
+                                size_t len, libnngio_async_cb cb,
+                                void *user_data);
+int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
+                                libnngio_async_cb cb, void *user_data);
 void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data);
-void* libnngio_context_get_user_data(libnngio_context *ctx);
+void *libnngio_context_get_user_data(libnngio_context *ctx);
 void libnngio_context_free(libnngio_context *ctx);
-int libnngio_contexts_init(
-    libnngio_context ***ctxs,
-    size_t n,
-    libnngio_transport *t,
-    const libnngio_config *config,
-    libnngio_ctx_cb cb,
-    void **user_datas
-);
+int libnngio_contexts_init(libnngio_context ***ctxs, size_t n,
+                           libnngio_transport *t, const libnngio_config *config,
+                           libnngio_ctx_cb cb, void **user_datas);
 void libnngio_contexts_free(libnngio_context **ctxs, size_t n);
 void libnngio_contexts_start(libnngio_context **ctxs, size_t n);
 

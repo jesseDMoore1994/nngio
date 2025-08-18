@@ -223,8 +223,7 @@ void libnngio_log(const char *level, const char *routine, const char *file,
   if (id < 0) {
     snprintf(header, 1024, "%s >>> [%s:%d]", routine, file, line);
   } else {
-    snprintf(header, 1024, "%s >>> (ID: %d) [%s:%d]", routine, id,
-             file, line);
+    snprintf(header, 1024, "%s >>> (ID: %d) [%s:%d]", routine, id, file, line);
   }
 
   // Create body string using variadic arguments
@@ -374,9 +373,10 @@ static int validate_config(const libnngio_config *config) {
   return 0;
 }
 
-int libnngio_transport_init(libnngio_transport **tp, const libnngio_config *config) {
-  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, free_transport_id,
-               "Initializing transport.");
+int libnngio_transport_init(libnngio_transport **tp,
+                            const libnngio_config *config) {
+  libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__,
+               free_transport_id, "Initializing transport.");
   int rv;
   libnngio_transport *t = calloc(1, sizeof(*t));
   if (!tp || !config) return NNG_EINVAL;
@@ -451,8 +451,7 @@ int libnngio_transport_init(libnngio_transport **tp, const libnngio_config *conf
   }
 
   if (config->options && config->option_count > 0) {
-    rv = libnngio_apply_options(t->sock, config->options,
-                                config->option_count);
+    rv = libnngio_apply_options(t->sock, config->options, config->option_count);
     if (rv != 0) {
       libnngio_log("ERR", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, t->id,
                    "Failed to apply options with error %d\n", rv);
@@ -490,13 +489,14 @@ int libnngio_transport_init(libnngio_transport **tp, const libnngio_config *conf
                  config->tls_key ? config->tls_key : "NULL",
                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
   } else {
-    libnngio_log("WRN", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, t->id,
-                 "--tls-- Not enough information provided for TLS configuration.");
+    libnngio_log(
+        "WRN", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, t->id,
+        "--tls-- Not enough information provided for TLS configuration.");
     libnngio_log("WRN", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__, t->id,
                  "--tls-- cert: %s, key: %s, ca: %s",
-                  config->tls_cert ? config->tls_cert : "NULL",
-                  config->tls_key ? config->tls_key : "NULL",
-                  config->tls_ca_cert ? config->tls_ca_cert : "NULL");
+                 config->tls_cert ? config->tls_cert : "NULL",
+                 config->tls_key ? config->tls_key : "NULL",
+                 config->tls_ca_cert ? config->tls_ca_cert : "NULL");
   }
 
   if (rv != 0) {
@@ -522,7 +522,8 @@ int libnngio_transport_init(libnngio_transport **tp, const libnngio_config *conf
   return 0;
 }
 
-int libnngio_transport_send(libnngio_transport *t, const void *buf, size_t len) {
+int libnngio_transport_send(libnngio_transport *t, const void *buf,
+                            size_t len) {
   if (!t || !t->is_open || !buf || len == 0) return NNG_EINVAL;
   libnngio_log("INF", "NNGIO_TRANSPORT_SEND", __FILE__, __LINE__, t->id,
                "Sending %zu bytes.\n", len);
@@ -537,165 +538,6 @@ int libnngio_transport_recv(libnngio_transport *t, void *buf, size_t *len) {
   int rv = nng_recv(t->sock, buf, &maxlen, 0);
   if (rv == 0) *len = maxlen;
   return rv;
-}
-
-// --- Async context extension ---
-typedef struct libnngio_async_op {
-  nng_aio *aio;
-  void *buf;             // User-provided buffer
-  size_t *lenp;          // User-provided length pointer (for recv)
-  libnngio_async_cb cb;  // User callback
-  void *user_data;       // Opaque user pointer
-} libnngio_async_op;
-
-static libnngio_async_op *libnngio_async_op_alloc(void) {
-  libnngio_async_op *op = calloc(1, sizeof(*op));
-  return op;
-}
-
-static void libnngio_async_op_free(libnngio_async_op *op) {
-  if (!op) return;
-  if (op->aio) nng_aio_reap(op->aio);
-  free(op);
-}
-
-// --- Async SEND ---
-static void libnngio_send_aio_cb(void *arg) {
-  libnngio_async_op *op = (libnngio_async_op *)arg;
-  int rv = nng_aio_result(op->aio);
-  // For send, just inform user of result, data, and length
-  op->cb(NULL, rv, op->buf, op->lenp ? *op->lenp : 0, op->user_data);
-  libnngio_async_op_free(op);
-}
-
-int libnngio_transport_send_async(libnngio_transport *t, const void *buf, size_t len,
-                        libnngio_async_cb cb, void *user_data) {
-  if (!t) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, t->id,
-                 "Invalid transport.\n");
-    return NNG_EINVAL;
-  }
-  if (!t->is_open) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, t->id,
-                 "Transport is not open.\n");
-    return NNG_EINVAL;
-  }
-  if (!buf || len == 0) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, t->id,
-                 "Invalid buffer or length.\n");
-    return NNG_EINVAL;
-  }
-  if (!cb) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, t->id,
-                 "Invalid callback function.\n");
-    return NNG_EINVAL;
-  }
-  libnngio_async_op *op = libnngio_async_op_alloc();
-  if (!op) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Failed to allocate async operation.\n");
-    return NNG_ENOMEM;
-  }
-  int rv = nng_aio_alloc(&op->aio, libnngio_send_aio_cb, op);
-  if (rv != 0) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Failed to allocate AIO with error %d.\n", rv);
-    libnngio_async_op_free(op);
-    return rv;
-  }
-
-  op->buf = (void *)buf;
-  op->cb = cb;
-  op->user_data = user_data;
-  op->lenp = NULL;  // Not used for send
-
-  nng_aio_set_timeout(op->aio, -1);
-
-  nng_msg *msg = NULL;
-  rv = nng_msg_alloc(&msg, len);
-  if (rv != 0) {
-    libnngio_async_op_free(op);
-    return rv;
-  }
-  memcpy(nng_msg_body(msg), buf, len);
-  nng_aio_set_msg(op->aio, msg);
-
-  libnngio_log("INF", "LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__, __LINE__, t->id,
-               "Setting up async send of %zu bytes.\n", len);
-  nng_send_aio(t->sock, op->aio);
-  return 0;
-}
-
-// --- Async RECV ---
-static void libnngio_recv_aio_cb(void *arg) {
-  libnngio_async_op *op = (libnngio_async_op *)arg;
-  int rv = nng_aio_result(op->aio);
-
-  size_t actual = 0;
-  if (rv == 0) {
-    nng_msg *msg = nng_aio_get_msg(op->aio);
-    size_t msglen = nng_msg_len(msg);
-    if (op->buf && op->lenp && *(op->lenp) >= msglen) {
-      memcpy(op->buf, nng_msg_body(msg), msglen);
-      actual = msglen;
-      *(op->lenp) = msglen;
-    } else if (op->lenp) {
-      *(op->lenp) = 0;
-      rv = NNG_EMSGSIZE;
-    }
-    nng_msg_free(msg);
-  }
-  op->cb(NULL, rv, op->buf, op->lenp ? *(op->lenp) : 0, op->user_data);
-  libnngio_async_op_free(op);
-}
-
-int libnngio_transport_recv_async(libnngio_transport *t, void *buf, size_t *len,
-                        libnngio_async_cb cb, void *user_data) {
-  if (!t) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Invalid transport.\n");
-    return NNG_EINVAL;
-  }
-  if (!t->is_open) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Transport is not open.\n");
-    return NNG_EINVAL;
-  }
-  if (!buf || !len || *len == 0) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Invalid buffer or length.\n");
-    return NNG_EINVAL;
-  }
-  if (!cb) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Invalid callback function.\n");
-    return NNG_EINVAL;
-  }
-
-  libnngio_async_op *op = libnngio_async_op_alloc();
-  if (!op) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Failed to allocate async operation.\n");
-    return NNG_ENOMEM;
-  }
-  int rv = nng_aio_alloc(&op->aio, libnngio_recv_aio_cb, op);
-  if (rv != 0) {
-    libnngio_log("ERR", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-                 "Failed to allocate AIO with error %d.\n", rv);
-    libnngio_async_op_free(op);
-    return rv;
-  }
-
-  op->buf = buf;
-  op->lenp = len;
-  op->cb = cb;
-  op->user_data = user_data;
-
-  libnngio_log("INF", "LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__, __LINE__, t->id,
-               "Setting up async receive into buffer of size %zu.\n", *len);
-  nng_aio_set_timeout(op->aio, -1);
-  nng_recv_aio(t->sock, op->aio);
-  return 0;
 }
 
 // Free all resources associated with context
@@ -722,8 +564,7 @@ void libnngio_transport_free(libnngio_transport *t) {
                "Transport freed successfully.\n");
   // Free TLS PEM buffers if allocated
   if (t->tls_cert_mem) free(t->tls_cert_mem);
-  if (t->tls_key_mem && t->tls_key_mem != t->tls_cert_mem)
-    free(t->tls_key_mem);
+  if (t->tls_key_mem && t->tls_key_mem != t->tls_cert_mem) free(t->tls_key_mem);
   if (t->tls_ca_mem) free(t->tls_ca_mem);
 
   free(t);
@@ -733,10 +574,10 @@ typedef struct libnngio_context {
   int id;                         // Unique ID for this context
   libnngio_transport *transport;  // Associated transport
   libnngio_config config;         // Configuration for this context
-  libnngio_ctx_cb cb;
-  nng_ctx nng_ctx;  // NNG context handle
-  nng_aio *aio;  // AIO for async operations
-  void *user_data;  // Opaque user data pointer
+  libnngio_ctx_cb cb;  // User-defined callback, called when context starts and
+                       // when messages are received
+  nng_ctx nng_ctx;     // NNG context handle
+  void *user_data;     // Opaque user data pointer
 } libnngio_context;
 
 static int free_context_id = 0;  // Global ID counter for contexts
@@ -745,8 +586,9 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
                           void *user_data) {
   if (!ctxp || !t || !config) return NNG_EINVAL;
 
-  libnngio_log("DBG", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, free_context_id,
-               "Initializing context with transport ID %d.", t->id);
+  libnngio_log("DBG", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__,
+               free_context_id, "Initializing context with transport ID %d.",
+               t->id);
   libnngio_context *ctx = calloc(1, sizeof(*ctx));
   if (!ctx) return NNG_ENOMEM;
 
@@ -769,40 +611,23 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
     return rv;
   }
 
-  libnngio_log("DBG", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
-               "NNG context opened successfully for transport ID %d.",
-               t->id);
-
-  // Allocate AIO for async operations
-  rv = nng_aio_alloc(&ctx->aio, ctx->cb, ctx);
-  if (rv != 0) {
-    libnngio_log("ERR", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
-                 "Failed to allocate AIO with error %d.\n", rv);
-    nng_ctx_close(ctx->nng_ctx);
-    free(ctx);
-    return rv;
-  }
-
-  libnngio_log("DBG", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
-               "AIO allocated successfully for context ID %d.", ctx->id);
-
   libnngio_log("INF", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
-               "Context initialized successfully with transport ID %d.",
-               t->id);
+               "Context initialized successfully with transport ID %d.", t->id);
 
   return 0;
 }
 
 void libnngio_context_start(libnngio_context *ctx) {
   if (!ctx || !ctx->transport || !ctx->transport->is_open) {
-    libnngio_log("ERR", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx ? ctx->id : -1,
+    libnngio_log("ERR", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__,
+                 ctx ? ctx->id : -1,
                  "Invalid context or transport not open.\n");
     return;
   }
 
   libnngio_log("INF", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
                "Starting context with transport ID %d.", ctx->transport->id);
-  
+
   // Start the context by invoking the callback
   if (ctx->cb) {
     libnngio_log("DBG", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
@@ -814,17 +639,187 @@ void libnngio_context_start(libnngio_context *ctx) {
   }
 }
 
+typedef struct {
+  libnngio_async_cb user_cb;
+  libnngio_context *ctx;
+  void *user_buf;
+  size_t *user_len;
+  void *user_data;
+  nng_aio *aio;
+} libnngio_recv_async_cbdata;
+
+typedef struct {
+  libnngio_async_cb user_cb;
+  libnngio_context *ctx;
+  void *user_data;
+  nng_aio *aio;
+} libnngio_send_async_cbdata;
+
+// --- Receive Async Callback ---
+
+static void nngio_recv_aio_cb(void *arg) {
+  libnngio_recv_async_cbdata *cbdata = (libnngio_recv_async_cbdata *)arg;
+
+  int result = nng_aio_result(cbdata->aio);
+  void *msg_data = NULL;
+  size_t msg_len = 0;
+
+  libnngio_log("DBG", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+               "nngio_recv_aio_cb called with result=%d", result);
+
+  if (result == 0) {
+    nng_msg *msg = nng_aio_get_msg(cbdata->aio);
+    msg_data = nng_msg_body(msg);
+    msg_len = nng_msg_len(msg);
+    libnngio_log("DBG", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+                 "Received message of length %zu", msg_len);
+
+    if (cbdata->user_buf && cbdata->user_len) {
+      size_t copy_len =
+          (*cbdata->user_len < msg_len) ? *cbdata->user_len : msg_len;
+      memcpy(cbdata->user_buf, msg_data, copy_len);
+      *cbdata->user_len = copy_len;
+      libnngio_log("DBG", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+                   "Copied %zu bytes to user buffer", copy_len);
+    }
+    nng_msg_free(msg);
+  } else {
+    libnngio_log("ERR", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+                 "Receive failed: %s", nng_strerror(result));
+  }
+
+  // Call user callback
+  cbdata->user_cb(cbdata->ctx, result, cbdata->user_buf,
+                  cbdata->user_len ? *cbdata->user_len : 0, cbdata->user_data);
+
+  nng_aio_reap(cbdata->aio);  // Clean up AIO
+  free(cbdata);
+}
+
+int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
+                                libnngio_async_cb cb, void *user_data) {
+  libnngio_log("DBG", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Entering libnngio_context_recv_async");
+
+  if (!ctx || !cb || !buf || !len || *len == 0) {
+    libnngio_log("ERR", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Invalid arguments to libnngio_context_recv_async");
+    return NNG_EINVAL;
+  }
+
+  libnngio_recv_async_cbdata *cbdata = calloc(1, sizeof(*cbdata));
+  if (!cbdata) {
+    libnngio_log("ERR", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate cbdata");
+    return NNG_ENOMEM;
+  }
+
+  cbdata->user_cb = cb;
+  cbdata->ctx = ctx;
+  cbdata->user_buf = buf;
+  cbdata->user_len = len;
+  cbdata->user_data = user_data;
+
+  int rv = nng_aio_alloc(&cbdata->aio, nngio_recv_aio_cb, cbdata);
+  if (rv != 0) {
+    libnngio_log("ERR", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate aio: %s", nng_strerror(rv));
+    free(cbdata);
+    return rv;
+  }
+
+  libnngio_log("DBG", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Posting nng_ctx_recv for context id %d",
+               nng_ctx_id(ctx->nng_ctx));
+
+  nng_ctx_recv(ctx->nng_ctx, cbdata->aio);
+  return 0;
+}
+
+// --- Send Async Callback ---
+
+static void nngio_send_aio_cb(void *arg) {
+  libnngio_send_async_cbdata *cbdata = (libnngio_send_async_cbdata *)arg;
+
+  int result = nng_aio_result(cbdata->aio);
+
+  libnngio_log("DBG", "CTX_SEND_CB", __FILE__, __LINE__, -1,
+               "nngio_send_aio_cb called with result=%d", result);
+
+  if (result != 0) {
+    libnngio_log("ERR", "CTX_SEND_CB", __FILE__, __LINE__, -1,
+                 "Send failed: %s", nng_strerror(result));
+  }
+
+  cbdata->user_cb(cbdata->ctx, result, NULL, 0, cbdata->user_data);
+
+  nng_aio_reap(cbdata->aio);  // Clean up AIO
+  free(cbdata);
+}
+
+int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
+                                size_t len, libnngio_async_cb cb,
+                                void *user_data) {
+  libnngio_log("DBG", "CTX_SEND_ASYNC", __FILE__, __LINE__, -1,
+               "Entering libnngio_context_send_async");
+
+  if (!ctx || !cb || !buf || len == 0) {
+    libnngio_log("ERR", "CTX_SEND_ASYNC", __FILE__, __LINE__, -1,
+                 "Invalid arguments to libnngio_context_send_async");
+    return NNG_EINVAL;
+  }
+
+  libnngio_send_async_cbdata *cbdata = calloc(1, sizeof(*cbdata));
+  if (!cbdata) {
+    libnngio_log("ERR", "CTX_SEND_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate cbdata");
+    return NNG_ENOMEM;
+  }
+
+  cbdata->user_cb = cb;
+  cbdata->ctx = ctx;
+  cbdata->user_data = user_data;
+
+  int rv = nng_aio_alloc(&cbdata->aio, nngio_send_aio_cb, cbdata);
+  if (rv != 0) {
+    libnngio_log("ERR", "CTX_SEND_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate aio: %s", nng_strerror(rv));
+    free(cbdata);
+    return rv;
+  }
+
+  nng_msg *msg;
+  rv = nng_msg_alloc(&msg, len);
+  if (rv != 0) {
+    libnngio_log("ERR", "CTX_SEND_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate nng_msg: %s", nng_strerror(rv));
+    nng_aio_free(cbdata->aio);
+    free(cbdata);
+    return rv;
+  }
+  memcpy(nng_msg_body(msg), buf, len);
+
+  nng_aio_set_msg(cbdata->aio, msg);
+
+  libnngio_log("DBG", "CTX_SEND_ASYNC", __FILE__, __LINE__, -1,
+               "Posting nng_ctx_send for context id %d",
+               nng_ctx_id(ctx->nng_ctx));
+
+  nng_ctx_send(ctx->nng_ctx, cbdata->aio);
+  return 0;
+}
+
 void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data) {
   if (!ctx) return;
-  libnngio_log("DBG", "LIBNNGIO_CONTEXT_SET_USER_DATA", __FILE__, __LINE__, ctx->id,
-               "Setting user data for context ID %d.", ctx->id);
+  libnngio_log("DBG", "LIBNNGIO_CONTEXT_SET_USER_DATA", __FILE__, __LINE__,
+               ctx->id, "Setting user data for context ID %d.", ctx->id);
   ctx->user_data = user_data;
 }
 
-void* libnngio_context_get_user_data(libnngio_context *ctx) {
+void *libnngio_context_get_user_data(libnngio_context *ctx) {
   if (!ctx) return NULL;
-  libnngio_log("DBG", "LIBNNGIO_CONTEXT_GET_USER_DATA", __FILE__, __LINE__, ctx->id,
-               "Retrieving user data for context ID %d.", ctx->id);
+  libnngio_log("DBG", "LIBNNGIO_CONTEXT_GET_USER_DATA", __FILE__, __LINE__,
+               ctx->id, "Retrieving user data for context ID %d.", ctx->id);
   return ctx->user_data;
 }
 
@@ -834,55 +829,47 @@ void libnngio_context_free(libnngio_context *ctx) {
                "Freeing context with transport ID %d.", ctx->transport->id);
   // transport is not freed here, as it may be shared by multiple contexts
   // Caller should take care of freeing the transport if needed
-  if (ctx->aio) {
-    nng_aio_reap(ctx->aio);  // Clean up AIO
-  }
   nng_ctx_close(ctx->nng_ctx);  // Close NNG context
-  int id = ctx->id;  // hold ID on stack before freeing
+  int id = ctx->id;             // hold ID on stack before freeing
   free(ctx);
   libnngio_log("INF", "LIBNNGIO_CONTEXT_FREE", __FILE__, __LINE__, id,
                "Context freed successfully.\n");
 }
 
-int libnngio_contexts_init(
-    libnngio_context ***ctxs,
-    size_t n,
-    libnngio_transport *t,
-    const libnngio_config *config,
-    libnngio_ctx_cb cb,
-    void **user_datas
-) {
-    if (!ctxs || n == 0) return -1;
-    *ctxs = calloc(n, sizeof(libnngio_context *));
-    if (!*ctxs) return -2;
+int libnngio_contexts_init(libnngio_context ***ctxs, size_t n,
+                           libnngio_transport *t, const libnngio_config *config,
+                           libnngio_ctx_cb cb, void **user_datas) {
+  if (!ctxs || n == 0) return -1;
+  *ctxs = calloc(n, sizeof(libnngio_context *));
+  if (!*ctxs) return -2;
 
-    for (size_t i = 0; i < n; ++i) {
-        int rv = libnngio_context_init(&(*ctxs)[i], t, config, cb, user_datas ? user_datas[i] : NULL);
-        if (rv != 0) {
-            // Roll back and free any already-initialized contexts
-            for (size_t j = 0; j < i; ++j)
-                libnngio_context_free((*ctxs)[j]);
-            free(*ctxs);
-            *ctxs = NULL;
-            return rv;
-        }
+  for (size_t i = 0; i < n; ++i) {
+    int rv = libnngio_context_init(&(*ctxs)[i], t, config, cb,
+                                   user_datas ? user_datas[i] : NULL);
+    if (rv != 0) {
+      // Roll back and free any already-initialized contexts
+      for (size_t j = 0; j < i; ++j) libnngio_context_free((*ctxs)[j]);
+      free(*ctxs);
+      *ctxs = NULL;
+      return rv;
     }
-    return 0;
+  }
+  return 0;
 }
 
 void libnngio_contexts_free(libnngio_context **ctxs, size_t n) {
-    if (!ctxs) return;
-    for (size_t i = 0; i < n; ++i) {
-        if (ctxs[i]) libnngio_context_free(ctxs[i]);
-    }
-    free(ctxs);
+  if (!ctxs) return;
+  for (size_t i = 0; i < n; ++i) {
+    if (ctxs[i]) libnngio_context_free(ctxs[i]);
+  }
+  free(ctxs);
 }
 
 void libnngio_contexts_start(libnngio_context **ctxs, size_t n) {
-    if (!ctxs) return;
-    for (size_t i = 0; i < n; ++i) {
-        if (ctxs[i]) libnngio_context_start(ctxs[i]);
-    }
+  if (!ctxs) return;
+  for (size_t i = 0; i < n; ++i) {
+    if (ctxs[i]) libnngio_context_start(ctxs[i]);
+  }
 }
 
 // User-invoked cleanup for global NNG state
