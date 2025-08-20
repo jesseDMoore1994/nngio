@@ -684,8 +684,14 @@ static void nngio_recv_aio_cb(void *arg) {
     }
     nng_msg_free(msg);
   } else {
-    libnngio_log("ERR", "CTX_RECV_CB", __FILE__, __LINE__, -1,
-                 "Receive failed: %s", nng_strerror(result));
+    if (result == NNG_ECLOSED) {
+      libnngio_log("WRN", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+                   "Receive operation closed, no message received.");
+    } else {
+      libnngio_log("ERR", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+                   "Receive operation failed with error: %s",
+                   nng_strerror(result));
+    }
   }
 
   // Call user callback

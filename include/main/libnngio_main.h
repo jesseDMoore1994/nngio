@@ -115,6 +115,15 @@ typedef struct libnngio_mock_call {
   void *user_data;
 } libnngio_mock_call;
 
+typedef struct libnngio_mock_ctx_call {
+  libnngio_context *ctx;
+  const void *buf;
+  size_t len;
+  size_t *len_ptr;
+  libnngio_async_cb cb;
+  void *user_data;
+} libnngio_mock_ctx_call;
+
 typedef struct libnngio_mock_stats {
   int init_calls;
   int send_calls;
@@ -130,8 +139,8 @@ typedef struct libnngio_mock_stats {
   libnngio_mock_call last_init;
   libnngio_mock_call last_send;
   libnngio_mock_call last_recv;
-  libnngio_mock_call last_send_async;
-  libnngio_mock_call last_recv_async;
+  libnngio_mock_ctx_call last_send_async;
+  libnngio_mock_ctx_call last_recv_async;
 } libnngio_mock_stats;
 
 // Expose the stats object for assertions

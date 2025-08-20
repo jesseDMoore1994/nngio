@@ -193,6 +193,7 @@ void libnngio_transport_free(libnngio_transport *ctx) {
 }
 
 struct libnngio_context {
+  libnngio_transport *transport;  // Associated transport
   int id;              // Unique identifier for the context
   void *user_data;     // Opaque user data pointer
   libnngio_ctx_cb cb;  // Callback function for context events
@@ -212,6 +213,7 @@ int libnngio_context_init(libnngio_context **ctxp,
     return NNG_ENOMEM;
   }
 
+  ctx->transport = transport;
   ctx->id = free_context_id++;  // Assign a random ID for simplicity
   ctx->user_data = user_data;
   ctx->cb = cb;
@@ -253,7 +255,7 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
                  forced_send_async_result);
     return forced_send_async_result;
   }
-  int rv = libnngio_transport_send(ctx, buf, len);
+  int rv = libnngio_transport_send(ctx->transport, buf, len);
   if (cb) {
     libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__,
                  __LINE__, 0, "Calling async callback with result %d", rv);
@@ -287,7 +289,7 @@ int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
     return forced_recv_async_result;
   }
 
-  int rv = libnngio_transport_recv(ctx, buf, len);
+  int rv = libnngio_transport_recv(ctx->transport, buf, len);
   if (cb) {
     libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__,
                  __LINE__, 0, "Calling async callback with result %d", rv);
