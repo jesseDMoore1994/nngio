@@ -107,7 +107,7 @@ void libnngio_cleanup(void);
 #ifdef NNGIO_MOCK_MAIN
 // Stores all function parameters for the most recent calls
 typedef struct libnngio_mock_call {
-  libnngio_transport *ctx;
+  libnngio_transport *transport;
   const void *buf;
   size_t len;
   size_t *len_ptr;

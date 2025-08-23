@@ -100,7 +100,7 @@ int libnngio_transport_init(libnngio_transport **ctxp,
                             const libnngio_config *config) {
   mock_stats.init_calls++;
   mock_stats.last_init_result = forced_init_result;
-  mock_stats.last_init.ctx = NULL;
+  mock_stats.last_init.transport = NULL;
   mock_stats.last_init.buf = config;
   mock_stats.last_init.len = 0;
 
@@ -129,7 +129,7 @@ int libnngio_transport_send(libnngio_transport *ctx, const void *buf,
                             size_t len) {
   mock_stats.send_calls++;
   mock_stats.last_send_result = forced_send_result;
-  mock_stats.last_send.ctx = ctx;
+  mock_stats.last_send.transport = ctx;
   mock_stats.last_send.buf = buf;
   mock_stats.last_send.len = len;
 
@@ -153,7 +153,7 @@ int libnngio_transport_send(libnngio_transport *ctx, const void *buf,
 int libnngio_transport_recv(libnngio_transport *ctx, void *buf, size_t *len) {
   mock_stats.recv_calls++;
   mock_stats.last_recv_result = forced_recv_result;
-  mock_stats.last_recv.ctx = ctx;
+  mock_stats.last_recv.transport = ctx;
   mock_stats.last_recv.buf = buf;
   mock_stats.last_recv.len_ptr = len;
 

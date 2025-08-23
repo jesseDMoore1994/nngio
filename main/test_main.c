@@ -48,7 +48,7 @@ void test_tcp_basic() {
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
-  assert(mock_stats.last_send.ctx == client);
+  assert(mock_stats.last_send.transport == client);
   assert(mock_stats.last_send.buf == hello);
   assert(mock_stats.last_send.len == strlen(hello) + 1);
 #endif
@@ -123,7 +123,7 @@ void test_tls_basic() {
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
-  assert(mock_stats.last_send.ctx == client);
+  assert(mock_stats.last_send.transport == client);
   assert(mock_stats.last_send.buf == hello);
   assert(mock_stats.last_send.len == strlen(hello) + 1);
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
@@ -232,7 +232,7 @@ void test_tcp_async() {
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
-  assert(mock_stats.last_send_async.ctx == client);
+  assert(mock_stats.last_send_async.ctx == client_ctx);
   assert(mock_stats.last_send_async.buf == hello);
   assert(mock_stats.last_send_async.len == strlen(hello) + 1);
 #endif
@@ -250,6 +250,8 @@ void test_tcp_async() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
+  libnngio_context_free(client_ctx);
+  libnngio_context_free(server_ctx);
   libnngio_transport_free(client);
   libnngio_transport_free(server);
 
@@ -341,6 +343,8 @@ void test_tls_async() {
   assert(recv_sync.result == 0);
   assert(strcmp(recv_sync.buf, hello) == 0);
 
+  libnngio_context_free(client_ctx);
+  libnngio_context_free(server_ctx);
   libnngio_transport_free(client);
   libnngio_transport_free(server);
 
@@ -462,7 +466,7 @@ void test_pubsub_basic() {
   assert(rv == 0);
 #ifdef NNGIO_MOCK_MAIN
   // Validate mock send
-  assert(mock_stats.last_send.ctx == client);
+  assert(mock_stats.last_send.transport == server);
   assert(mock_stats.last_send.buf == hello);
   assert(mock_stats.last_send.len == strlen(hello) + 1);
   libnngio_mock_set_recv_buffer(hello, strlen(hello) + 1);
@@ -683,8 +687,11 @@ void reqrep_reply_cb(libnngio_context *t, int result, void *data, size_t len,
                "Context %d: reply sent: %s", ud->index, ud->rep_buf);
   assert(result == 0);
   ud->replied++;
+
+#ifndef NNGIO_MOCK_MAIN
   // After reply sent, post another receive by re-entering the service routine
   reqrep_service_routine(ud->ctx);
+#endif
 }
 
 // Async receive callback for requests
@@ -727,6 +734,13 @@ void reqrep_service_routine(void *arg) {
       (reqrep_user_data *)libnngio_context_get_user_data(ctx);
   ud->ctx = ctx;  // store the context pointer (optional if not already set)
   ud->req_len = sizeof(ud->req_buf);
+
+# ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer for REP contexts
+  char expected_req[32];
+  snprintf(expected_req, sizeof(expected_req), "request-%d", ud->index);
+  libnngio_mock_set_recv_buffer(expected_req, strlen(expected_req) + 1);
+#endif
   libnngio_log("DBG", "SERVICE_ROUTINE", __FILE__, __LINE__, ud->index,
                "Context %d starting async receive", ud->index);
   int rv = libnngio_context_recv_async(ctx, ud->req_buf,
@@ -854,12 +868,10 @@ int main() {
   test_reqrep_basic();
   test_pubsub_basic();
   test_pushpull_basic();
-
-  test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp();
-
   test_libnngio_context_init();
   test_libnngio_multiple_contexts();
   test_libnngio_multiple_contexts2();
+  test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp();
 
   libnngio_log("INF", "MAIN", __FILE__, __LINE__, -1,
                "All tests completed successfully.");
