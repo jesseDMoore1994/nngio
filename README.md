@@ -223,4 +223,4 @@ Contributions are welcome! Please feel free to submit issues, pull requests, or 
 
 # Contact
 
-For any questions or issues, please open an issue on the GitHub.
+For any questions or issues, please open an issue on GitHub.

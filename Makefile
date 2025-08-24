@@ -118,7 +118,7 @@ OUTPUT_DIR         ?= out
 $(OUTPUT_DIR): $(BUILD_DIR)
 	mkdir -p $(OUTPUT_DIR)
 	mkdir -p $(OUTPUT_DIR)/bin
-	mv $(BUILD_BINS) $(OUTPUT_DIR)/bin
+	# mv $(BUILD_BINS) $(OUTPUT_DIR)/bin
 	mkdir -p $(OUTPUT_DIR)/bin/test
 	mv $(BUILD_TEST_BINS) $(OUTPUT_DIR)/bin/test
 	mkdir -p $(OUTPUT_DIR)/lib

@@ -5,8 +5,8 @@
     nixpkgs.url = "github:NixOS/nixpkgs";
     utils.url = "github:numtide/flake-utils";
     # You can add c libraries here, or use the ones from nixpkgs.
-     mbedtls.url = "github:jesseDMoore1994/mbedtls/nix3.6.3";
-     nng.url = "github:jesseDMoore1994/nng/nix1.11";
+    mbedtls.url = "git+ssh://git@github.com/jesseDMoore1994/mbedtls.git?ref=nix3.6.4&submodules=1";
+    nng.url = "github:jesseDMoore1994/nng/nix1.11";
     # libauthorized-keys.url = "github:jesseDMoore1994/libauthorized_keys";
   };
 
