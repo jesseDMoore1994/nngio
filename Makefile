@@ -8,7 +8,7 @@ PROJECT_NAME_UPPERCASE = NNGIO
 
 # Define the binaries and libraries to build
 # BINS are the list of production binaries to build
-BINS                   = main
+BINS                   =
 # TEST_BINS are the list of test binaries to build
 TEST_BINS              = main
 # LIBS are the list of production libraries to build
@@ -35,7 +35,7 @@ MOCK_LIBS_UPPERCASE    = $(shell echo $(MOCK_LIBS) | tr '[:lower:]' '[:upper:]')
 MOCK_FLAGS             = $(foreach lib,$(MOCK_LIBS_UPPERCASE),-D $(PROJECT_NAME_UPPERCASE)_MOCK_$(lib)=1)
 
 # if we are debugging, we want to add debug flags
-ifdef DEBUG
+ifdef $(PROJECT_NAME_UPPERCASE)_DEBUG
 # if you want to look at postprocessed output, uncomment the next line
 #NIX_CFLAGS_COMPILE += -C -E
 NIX_CFLAGS_COMPILE    += -g -O0 -D $(PROJECT_NAME_UPPERCASE)_DEBUG=1
@@ -100,8 +100,15 @@ $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.so: $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.
 	mkdir -p $(BUILD_DIR)
 	$(CC) -shared -o $@ $(subst .so,.o,$@)
 
+# Generate documentation using Doxygen
+$(BUILD_DIR)/docs:
+	mkdir -p $(BUILD_DIR)/docs
+	doxygen Doxyfile
+	mv html $(BUILD_DIR)/docs/html
+	mv latex $(BUILD_DIR)/docs/latex
+
 # Create the build directory if it does not exist
-$(BUILD_DIR): $(BUILD_LIBS) $(BUILD_BINS) $(BUILD_MOCK_LIBS) $(BUILD_TEST_BINS)
+$(BUILD_DIR): $(BUILD_LIBS) $(BUILD_BINS) $(BUILD_MOCK_LIBS) $(BUILD_TEST_BINS) $(BUILD_DIR)/docs
 
 # Allow overriding the target output directory
 # For my purposes, this is overridden by the nix build system so that it can
@@ -119,8 +126,10 @@ $(OUTPUT_DIR): $(BUILD_DIR)
 	mv $(BUILD_MOCK_LIBS) $(OUTPUT_DIR)/lib
 	mkdir -p $(OUTPUT_DIR)/include/$(PROJECT_NAME)
 	cp -r $(INCLUDE)/* $(OUTPUT_DIR)/include/$(PROJECT_NAME)
+	mkdir -p $(OUTPUT_DIR)/docs
+	cp -r $(BUILD_DIR)/docs $(OUTPUT_DIR)/docs
 
-.PHONY: all test format clean
+.PHONY: all test format docs clean
 
 # default target builds production binaries and libraries
 all: $(BUILD_DIR)
@@ -143,5 +152,5 @@ format:
 
 # Clean up generated files and directories from local development
 clean:
-	-rm -fr $(BUILD_DIR) $(OUTPUT_DIR) **/*.o vgcore.* result
+	-rm -fr $(BUILD_DIR) $(OUTPUT_DIR) **/*.o vgcore.* result html latex
 

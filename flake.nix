@@ -31,6 +31,7 @@
       package_name = "nngio";
       deps = [
         pkgs.clang
+        pkgs.doxygen
         pkgs.inotify-tools
         pkgs.valgrind
         nng_out

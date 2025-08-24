@@ -1,3 +1,18 @@
+/**
+ * @file libmocknngio_main.c
+ * @brief Mock implementation of libnngio for testing purposes.
+ * This file provides a mock version of the libnngio library, allowing for
+ * controlled testing of applications that depend on libnngio without requiring
+ * actual network operations.
+ * The mock implementation includes functions to initialize transports,
+ * send and receive data, manage contexts, and simulate errors.
+ * It also includes logging functionality to trace operations and their outcomes.
+ * The mock library maintains statistics on function calls and allows for
+ * setting forced results for various operations.
+ *
+ * @note This implementation is intended for testing and should not be used
+ * in production environments.
+ */
 #include <nng/nng.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -8,10 +23,14 @@
 
 // Mock context structure
 struct libnngio_transport {
-  int is_open;
+  int is_open;             /**< Indicates if the transport is open */
 };
 
-// Mock stats and helpers (no conditional guards needed in this file)
+/**
+ * @brief Structure to hold statistics for mock operations.
+ * This structure tracks the number of calls to various functions,
+ * the last results returned, and the parameters used in the last calls.
+ */
 libnngio_mock_stats mock_stats = {0};
 
 static int forced_init_result = 0;
@@ -28,7 +47,7 @@ static size_t mock_recv_buffer_len = 0;
 // libnngio public API
 // ========================
 
-char *test_logging_level = NULL;
+static char *test_logging_level = NULL;
 void libnngio_log_init(const char *level) {
   // In mock, we just print to stdout
   if (level) {
@@ -193,12 +212,12 @@ void libnngio_transport_free(libnngio_transport *ctx) {
 }
 
 struct libnngio_context {
-  libnngio_transport *transport;  // Associated transport
-  int id;              // Unique identifier for the context
-  void *user_data;     // Opaque user data pointer
-  libnngio_ctx_cb cb;  // Callback function for context events
+  libnngio_transport *transport;  /**< Associated transport */
+  int id;                         /**< Context ID */
+  void *user_data;                /**< User data pointer */
+  libnngio_ctx_cb cb;             /**< Context callback */
 };
-static int free_context_id = 0;  // Global counter for context IDs
+static int free_context_id = 0;  /**< Simple ID generator */
 
 int libnngio_context_init(libnngio_context **ctxp,
                           libnngio_transport *transport,
@@ -394,16 +413,69 @@ void libnngio_cleanup(void) {
 // library
 // ===============================================================================
 
+/**
+ * @brief Set forced results for various operations in the mock library.
+ * These functions allow tests to simulate different scenarios by forcing
+ * specific return values for initialization, sending, receiving, and
+ * asynchronous operations.
+ *
+ * @param result The result code to force for the respective operation.
+ */
 void libnngio_mock_set_init_result(int result) { forced_init_result = result; }
+
+/**
+ * @brief Set forced results for various operations in the mock library.
+ * These functions allow tests to simulate different scenarios by forcing
+ * specific return values for initialization, sending, receiving, and
+ * asynchronous operations.
+ *
+ * @param result The result code to force for the respective operation.
+ */
 void libnngio_mock_set_send_result(int result) { forced_send_result = result; }
+
+/**
+ * @brief Set forced results for various operations in the mock library.
+ * These functions allow tests to simulate different scenarios by forcing
+ * specific return values for initialization, sending, receiving, and
+ * asynchronous operations.
+ *
+ * @param result The result code to force for the respective operation.
+ */
 void libnngio_mock_set_recv_result(int result) { forced_recv_result = result; }
+
+/**
+ * @brief Set forced results for various operations in the mock library.
+ * These functions allow tests to simulate different scenarios by forcing
+ * specific return values for initialization, sending, receiving, and
+ * asynchronous operations.
+ *
+ * @param result The result code to force for the respective operation.
+ */
 void libnngio_mock_set_send_async_result(int result) {
   forced_send_async_result = result;
 }
+
+/**
+ * @brief Set forced results for various operations in the mock library.
+ * These functions allow tests to simulate different scenarios by forcing
+ * specific return values for initialization, sending, receiving, and
+ * asynchronous operations.
+ *
+ * @param result The result code to force for the respective operation.
+ */
 void libnngio_mock_set_recv_async_result(int result) {
   forced_recv_async_result = result;
 }
 
+/**
+ * @brief Set the buffer to be used for mocked receive operations.
+ * This function allows tests to define the data that will be "received"
+ * by the mock library when a receive operation is performed.
+ *
+ * @param buf Pointer to the buffer containing the data to be used for
+ *            receiving.
+ * @param len Length of the data in the buffer.
+ */
 void libnngio_mock_set_recv_buffer(const void *buf, size_t len) {
   size_t copy_len =
       len < sizeof(mock_recv_buffer) ? len : sizeof(mock_recv_buffer);
@@ -411,6 +483,12 @@ void libnngio_mock_set_recv_buffer(const void *buf, size_t len) {
   mock_recv_buffer_len = copy_len;
 }
 
+/**
+ * @brief Reset the mock library state.
+ * This function clears all statistics, buffers, and forced results,
+ * returning the mock library to its initial state. It is useful for
+ * ensuring a clean slate between tests.
+ */
 void libnngio_mock_reset(void) {
   memset(&mock_stats, 0, sizeof(mock_stats));
   memset(mock_recv_buffer, 0, sizeof(mock_recv_buffer));

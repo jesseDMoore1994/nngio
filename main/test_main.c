@@ -1,3 +1,13 @@
+/**
+ * @file test_main.c
+ * @brief Unit tests for libnngio transport and context functionalities.
+ *      Tests include TCP and TLS transports, synchronous and asynchronous
+ *      operations, and various messaging patterns (REQ/REP, PUB/SUB, PUSH/PULL).
+ *      Uses assertions to validate expected behaviors.
+ *      Tests can be run with or without mocking support.
+ *      Compile with -DNNGIO_MOCK_MAIN to enable mocking.
+ */
+ 
 #include <assert.h>
 #include <nng/nng.h>
 #include <stdio.h>
@@ -6,15 +16,17 @@
 
 #include "main/libnngio_main.h"
 
-// Helper: sleep for a short time (ms) for connect
-#ifdef _WIN32
-#include <windows.h>
-#define sleep_ms(ms) Sleep(ms)
-#else
 #include <unistd.h>
-#define sleep_ms(ms) usleep((ms) * 1000)
-#endif
 
+/**
+ * @brief Sleep for specified milliseconds.
+ */
+#define sleep_ms(ms) usleep((ms) * 1000)
+
+/**
+ * @brief Basic TCP transport test: server listens, client dials, sends and
+ *        receives a message.
+ */
 void test_tcp_basic() {
   libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
@@ -82,6 +94,10 @@ void test_tcp_basic() {
                "TCP basic test completed successfully.");
 }
 
+/**
+ * @brief Basic TLS transport test: server listens with TLS, client dials with TLS,
+          sends and receives a message.
+ */
 void test_tls_basic() {
   libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
@@ -153,14 +169,19 @@ void test_tls_basic() {
                "TLS basic test completed successfully.");
 }
 
-// ---------- ASYNC TESTING SUPPORT -----------
+/**
+ * @brief A simple structure to synchronize async test state.
+ */ 
 typedef struct {
-  volatile int done;
-  int result;
-  char buf[256];
-  size_t len;
+  volatile int done; /**< Flag to indicate completion */
+  int result;        /**< Result of the async operation */
+  char buf[256];     /**< Buffer to hold received data */
+  size_t len;        /**< Length of received data */
 } async_test_sync;
 
+/**
+ * @brief Test async recv callback
+ */
 void async_recv_cb(libnngio_context *ctx, int result, void *data, size_t len,
                    void *user_data) {
   libnngio_log("INF", "TEST_ASYNC_RECV_CB", __FILE__, __LINE__, -1,
@@ -177,6 +198,9 @@ void async_recv_cb(libnngio_context *ctx, int result, void *data, size_t len,
   sync->done = 1;
 }
 
+/**
+ * @brief Test async send callback
+ */
 void async_send_cb(libnngio_context *ctx, int result, void *data, size_t len,
                    void *user_data) {
   libnngio_log("INF", "TEST_ASYNC_SEND_CB", __FILE__, __LINE__, -1,
@@ -187,6 +211,9 @@ void async_send_cb(libnngio_context *ctx, int result, void *data, size_t len,
   sync->done = 1;
 }
 
+/**
+ * @brief Test TCP transport with async send/recv
+ */
 void test_tcp_async() {
   libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
@@ -273,6 +300,9 @@ void test_tcp_async() {
                "TCP async test completed successfully.");
 }
 
+/**
+ * @brief Test TLS transport with async send/recv
+ */
 void test_tls_async() {
   libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
@@ -297,8 +327,8 @@ void test_tls_async() {
   client_cfg.mode = LIBNNGIO_MODE_DIAL;
   client_cfg.proto = LIBNNGIO_PROTO_REQ;
   client_cfg.url = url;
-  // client_cfg.tls_cert = c_cert;
-  // client_cfg.tls_key = c_key;
+  client_cfg.tls_cert = c_cert;
+  client_cfg.tls_key = c_key;
   client_cfg.tls_ca_cert = ca_cert;
 
   rv = libnngio_transport_init(&server, &server_cfg);
@@ -366,6 +396,10 @@ void test_tls_async() {
                "TLS async test completed successfully.");
 }
 
+/**
+ * @brief Basic REQ/REP test: server (REP) listens, client (REQ) dials,
+ *        client sends request, server replies, client receives reply.
+ */
 void test_reqrep_basic() {
   libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
@@ -437,6 +471,10 @@ void test_reqrep_basic() {
                "REQ/REP basic test completed successfully.");
 }
 
+/**
+ * @brief Basic PUB/SUB test: server (PUB) listens, client (SUB) dials,
+ *        server sends message, client receives message.
+ */
 void test_pubsub_basic() {
   libnngio_transport *server = NULL, *client = NULL;
   libnngio_config server_cfg = {0}, client_cfg = {0};
@@ -496,6 +534,10 @@ void test_pubsub_basic() {
                "PUB/SUB basic test completed successfully.");
 }
 
+/**
+ * @brief Basic PUSH/PULL test: server (PUSH) listens, client (PULL) dials,
+ *        server pushes message, client pulls message.
+ */
 void test_pushpull_basic() {
   libnngio_transport *push = NULL, *pull = NULL;
   libnngio_config push_cfg = {0}, pull_cfg = {0};
@@ -552,6 +594,9 @@ void test_pushpull_basic() {
                "PUSH/PULL basic test completed successfully.");
 }
 
+/**
+ * @brief Test libnngio_context_init and libnngio_context_free
+ */
 static void test_libnngio_context_init() {
   libnngio_transport *t = NULL;
   libnngio_config config = {0};
@@ -568,10 +613,16 @@ static void test_libnngio_context_init() {
   libnngio_transport_free(t);
 }
 
+/**
+ * @brief simple user data structure for example_ctx_cb
+ */
 typedef struct example_user_data {
-  int touched;
-} example_user_data;
+  int touched;       /**< Flag to indicate if callback was invoked */
+} example_user_data; 
 
+/**
+ * @brief Example context callback that sets touched flag in user data
+ */
 void example_ctx_cb(void *arg) {
   libnngio_context *ctx = (libnngio_context *)arg;
   example_user_data *data =
@@ -581,6 +632,9 @@ void example_ctx_cb(void *arg) {
   data->touched = 1;
 }
 
+/**
+ * @brief Test multiple contexts with individual user data and callbacks
+ */
 static void test_libnngio_multiple_contexts() {
   libnngio_transport *t = NULL;
   libnngio_config config = {0};
@@ -612,17 +666,26 @@ static void test_libnngio_multiple_contexts() {
   libnngio_transport_free(t);
 }
 
+/**
+ * @brief User data structure for test_ctx_cb
+ */
 typedef struct {
-  int id;
-  int started;
+  int id;      /**< Context identifier */
+  int started; /**< Flag to indicate if context has started */
 } test_user_data;
 
+/**
+ * @brief Context callback that sets started flag in user data
+ */
 void test_ctx_cb(void *arg) {
   libnngio_context *ctx = (libnngio_context *)arg;
   test_user_data *ud = (test_user_data *)libnngio_context_get_user_data(ctx);
   if (ud) ud->started = 1;
 }
 
+/**
+ * @brief Test multiple contexts initialization, starting, and freeing
+ */
 void test_libnngio_multiple_contexts2() {
   libnngio_transport *t = NULL;
   libnngio_config config = {0};
@@ -662,24 +725,36 @@ void test_libnngio_multiple_contexts2() {
                "test_multiple_contexts_utils: PASS");
 }
 
+/**
+ * @brief Number of messages/contexts for REQ/REP test
+ */
 #define REQREP_TEST_MSG_COUNT 4
+/**
+ * @brief TCP port for REQ/REP test
+ */
 #define REQREP_TEST_TCP_PORT 5567
 
+/**
+ * @brief User data structure for REQ/REP test with multiple contexts
+ */
 typedef struct {
-  int index;
-  int received;
-  int replied;
-  char req_buf[128];
-  size_t req_len;
-  char rep_buf[128];
-  size_t rep_len;
-  libnngio_context *ctx;
-  libnngio_transport *transport;
+  int index;                     /**< Context index */
+  int received;                  /**< Number of requests received */
+  int replied;                   /**< Number of replies sent */
+  char req_buf[128];             /**< Buffer to hold received request */
+  size_t req_len;                /**< Length of received request */
+  char rep_buf[128];             /**< Buffer to hold reply */
+  size_t rep_len;                /**< Length of reply */
+  libnngio_context *ctx;         /**< Pointer to the context */
+  libnngio_transport *transport; /**< Pointer to the transport */
 } reqrep_user_data;
 
+// Forward declaration of service routine
 void reqrep_service_routine(void *arg);
 
-// Async reply completion handler
+/**
+ * @brief Async reply callback for requests
+ */
 void reqrep_reply_cb(libnngio_context *t, int result, void *data, size_t len,
                      void *user_data) {
   reqrep_user_data *ud = (reqrep_user_data *)user_data;
@@ -694,7 +769,9 @@ void reqrep_reply_cb(libnngio_context *t, int result, void *data, size_t len,
 #endif
 }
 
-// Async receive callback for requests
+/**
+ * @brief Async receive callback for requests
+ */
 void reqrep_recv_cb(libnngio_context *t, int result, void *data, size_t len,
                     void *user_data) {
   reqrep_user_data *ud = (reqrep_user_data *)user_data;
@@ -727,7 +804,9 @@ void reqrep_recv_cb(libnngio_context *t, int result, void *data, size_t len,
   }
 }
 
-// Context service routine: posts an async receive for this context
+/**
+ * @brief Service routine for REQ/REP context: starts async receive
+ */
 void reqrep_service_routine(void *arg) {
   libnngio_context *ctx = (libnngio_context *)arg;
   reqrep_user_data *ud =
@@ -748,6 +827,9 @@ void reqrep_service_routine(void *arg) {
   assert(rv == 0);
 }
 
+/**
+ * @brief Test multiple REQ/REP contexts with concurrent request handling
+ */
 void test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp() {
   libnngio_transport *rep = NULL, *req = NULL;
   libnngio_config rep_cfg = {0}, req_cfg = {0};
@@ -791,12 +873,7 @@ void test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp() {
   libnngio_log("INF", "TEST_CTX_CB_TCP", __FILE__, __LINE__, -1,
                "All REP context service routines started");
 
-  // Wait for TCP connect to establish
-#ifdef _WIN32
-  Sleep(100);
-#else
   usleep(100000);
-#endif
 
   // Send requests from REQ side and receive replies synchronously
   for (size_t i = 0; i < n; ++i) {
@@ -824,11 +901,7 @@ void test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp() {
         all_done = 0;
     }
     if (!all_done) {
-#ifdef _WIN32
-      Sleep(10);
-#else
       usleep(10000);
-#endif
     }
   }
 
@@ -852,6 +925,9 @@ void test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp() {
                "test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp: PASS");
 }
 
+/**
+ * @brief Main function to run all tests
+ */
 int main() {
   // Register cleanup for global NNG state
   atexit(libnngio_cleanup);

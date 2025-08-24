@@ -1,3 +1,11 @@
+/**
+ * @file libnngio_main.c
+ * @brief Implementation file for the libnngio transport and context API.
+ *      This file contains the core logic for initializing, managing, and freeing
+ *      NNG transports and contexts, including protocol selection, TLS handling,
+ *      synchronous/asynchronous I/O, and logging.
+ */
+
 #include "main/libnngio_main.h"
 
 #include <nng/nng.h>
@@ -18,23 +26,69 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Context data structure
+// Global ID counter for transports and contexts
+static int free_transport_id = 0;  
+static int free_context_id = 0;  
+
+/**
+ * @struct libnngio_transport
+ * @brief Opaque structure holding the state of a transport (socket, dialer/listener, TLS).
+ */
 struct libnngio_transport {
-  nng_socket sock;
-  nng_dialer dialer;
-  nng_listener listener;
-  int is_open;
-  int is_dial;
-  int id;  // Unique ID for this context
-  // Store allocated PEM buffers to free on ctx free
-  char *tls_cert_mem;
-  char *tls_key_mem;
-  char *tls_ca_mem;
+  nng_socket sock;          /**< NNG socket handle */
+  nng_dialer dialer;        /**< Dialer handle (if in dial mode) */
+  nng_listener listener;    /**< Listener handle (if in listen mode) */
+  int is_open;              /**< 1 if transport is open, 0 if closed */
+  int is_dial;              /**< 1 if dialer, 0 if listener */
+  int id;                   /**< Unique ID for this transport */
+  char *tls_cert_mem;       /**< In-memory TLS certificate (if loaded) */
+  char *tls_key_mem;        /**< In-memory TLS private key (if loaded) */
+  char *tls_ca_mem;         /**< In-memory TLS CA certificate (if loaded) */
 };
 
-static int free_transport_id = 0;  // Global ID counter for contexts
+/**
+ * @struct libnngio_context
+ * @brief Opaque structure holding the state of a context (NNG context, config, callback).
+ */
+struct libnngio_context {
+  int id;                          /**< Unique ID for this context */
+  libnngio_transport *transport;   /**< Associated transport */
+  libnngio_config config;          /**< Configuration used to create context */
+  libnngio_ctx_cb cb;              /**< User-defined callback function */
+  nng_ctx nng_ctx;                 /**< NNG context handle */
+  void *user_data;                 /**< Opaque user data pointer for callback */
+};
 
-// Helper: Read a file into a NUL-terminated string buffer
+/**
+ * @struct libnngio_recv_async_cbdata
+ * @brief Internal structure to hold data for asynchronous receive callback info.
+ */
+typedef struct {
+  libnngio_async_cb user_cb; /**< User-defined callback function */
+  libnngio_context *ctx;     /**< Associated context */
+  void *user_buf;            /**< User buffer to receive data into */
+  size_t *user_len;          /**< Pointer to user length variable */
+  void *user_data;           /**< Opaque user data pointer for callback */
+  nng_aio *aio;              /**< NNG AIO handle */
+} libnngio_recv_async_cbdata;
+
+/**
+ * @struct libnngio_send_async_cbdata
+ * @brief Internal structure to hold data for asynchronous send callback info.
+ */
+typedef struct {
+  libnngio_async_cb user_cb; /**< User-defined callback function */
+  libnngio_context *ctx;     /**< Associated context */
+  void *user_data;           /**< Opaque user data pointer for callback */
+  nng_aio *aio;              /**< NNG AIO handle */
+} libnngio_send_async_cbdata;
+
+/**
+ * @brief Read the entire contents of a file into a newly allocated buffer.
+ * @param filename Path to the file to read.
+ * @return Pointer to allocated buffer containing file contents, or NULL on error.
+ *         The caller is responsible for freeing the returned buffer.
+ */
 static char *libnngio_read_file(const char *filename) {
   FILE *f = fopen(filename, "rb");
   char *buf = NULL;
@@ -65,6 +119,12 @@ static char *libnngio_read_file(const char *filename) {
   return buf;
 }
 
+/**
+ * @brief Open an NNG socket with the specified protocol.
+ * @param sock Pointer to nng_socket to initialize.
+ * @param proto Protocol enum specifying which protocol to use.
+ * @return 0 on success, nonzero error code on failure.
+ */
 static int libnngio_proto_open(nng_socket *sock, libnngio_proto proto) {
   switch (proto) {
     case LIBNNGIO_PROTO_PAIR:
@@ -92,6 +152,11 @@ static int libnngio_proto_open(nng_socket *sock, libnngio_proto proto) {
   }
 }
 
+/**
+ * @brief Get the string name of a protocol enum.
+ * @param proto Protocol enum.
+ * @return String name of the protocol, or NULL if unknown.
+ */
 static char *libnngio_proto_name(libnngio_proto proto) {
   switch (proto) {
     case LIBNNGIO_PROTO_PAIR:
@@ -119,6 +184,11 @@ static char *libnngio_proto_name(libnngio_proto proto) {
   }
 }
 
+/**
+ * @brief Get the string name of a mode enum.
+ * @param mode Mode enum.
+ * @return String name of the mode, or NULL if unknown.
+ */
 static char *libnngio_mode_name(libnngio_mode mode) {
   switch (mode) {
     case LIBNNGIO_MODE_DIAL:
@@ -130,7 +200,17 @@ static char *libnngio_mode_name(libnngio_mode mode) {
   }
 }
 
-// Configure the TLS config object on dialer/listener
+/**
+ * @brief Configure TLS for a dialer or listener based on provided file paths.
+ * @param t Transport structure to hold in-memory cert/key data.
+ * @param dialer Dialer handle (if is_dial is 1).
+ * @param listener Listener handle (if is_dial is 0).
+ * @param is_dial 1 if configuring a dialer, 0 if listener.
+ * @param certfile Path to TLS certificate file (or NULL).
+ * @param keyfile Path to TLS private key file (or NULL).
+ * @param cacert Path to TLS CA certificate file (or NULL).
+ * @return 0 on success, nonzero error code on failure.
+ */
 static int libnngio_configure_tls(libnngio_transport *t, nng_dialer dialer,
                                   nng_listener listener, int is_dial,
                                   const char *certfile, const char *keyfile,
@@ -143,9 +223,6 @@ static int libnngio_configure_tls(libnngio_transport *t, nng_dialer dialer,
     rv = nng_dialer_get_ptr(dialer, NNG_OPT_TLS_CONFIG, (void **)&tls);
   } else {
     rv = nng_listener_get_ptr(listener, NNG_OPT_TLS_CONFIG, (void **)&tls);
-  }
-  if (rv != 0 || tls == NULL) {
-    return 0;  // No TLS config; not an error unless TLS is required
   }
 
   // Read cert and key if supplied
@@ -174,6 +251,13 @@ static int libnngio_configure_tls(libnngio_transport *t, nng_dialer dialer,
   return 0;
 }
 
+/**
+ * @brief Apply an array of arbitrary nng socket options to a socket.
+ * @param sock NNG socket handle.
+ * @param opts Array of libnngio_option structures.
+ * @param nopts Number of options in the array.
+ * @return 0 on success, nonzero error code on failure.
+ */
 static int libnngio_apply_options(nng_socket sock, const libnngio_option *opts,
                                   size_t nopts) {
   int rv = 0;
@@ -185,6 +269,10 @@ static int libnngio_apply_options(nng_socket sock, const libnngio_option *opts,
   return 0;
 }
 
+/**
+ * @brief Initialize logging for libnngio.
+ * @param level Logging level as a string ("DBG", "INF", "NTC", "WRN", "ERR").
+ */
 void libnngio_log_init(const char *level) {
   // Initialize logging system with the specified level
   if (level == NULL || strlen(level) == 0) {
@@ -206,6 +294,16 @@ void libnngio_log_init(const char *level) {
   nng_log_set_logger(nng_stderr_logger);
 }
 
+/**
+ * @brief Log a message using libnngio's logging subsystem. (wraps nng_log)
+ * @param level Logging level ("DBG", "INF", "NTC", "WRN", "ERR").
+ * @param routine Routine or function name generating the log.
+ * @param file Source file name.
+ * @param line Source line number.
+ * @param id Context or transport id (or -1 if not applicable).
+ * @param msg printf-style format string.
+ * @param ... Arguments for format string.
+ */
 void libnngio_log(const char *level, const char *routine, const char *file,
                   const int line, const int id, const char *msg, ...) {
   // Allocate header and body strings
@@ -259,6 +357,11 @@ void libnngio_log(const char *level, const char *routine, const char *file,
   free(body);
 }
 
+/**
+ * @brief Validate a libnngio_config structure.
+ * @param config Pointer to configuration structure to validate.
+ * @return 0 if valid, nonzero error code if invalid.
+ */
 static int validate_config(const libnngio_config *config) {
   // Validate the configuration parameters, print an error message if invalid,
   // and return an appropriate error code. Also, make sure protocol and mode
@@ -373,6 +476,12 @@ static int validate_config(const libnngio_config *config) {
   return 0;
 }
 
+/**
+ * @brief Initialize a libnngio transport based on the provided configuration.
+ * @param tp Pointer to transport pointer to initialize.
+ * @param config Pointer to configuration structure.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_transport_init(libnngio_transport **tp,
                             const libnngio_config *config) {
   libnngio_log("DBG", "NNGIO_TRANSPORT_INIT", __FILE__, __LINE__,
@@ -522,6 +631,13 @@ int libnngio_transport_init(libnngio_transport **tp,
   return 0;
 }
 
+/**
+ * @brief Send data over the transport synchronously.
+ * @param t Pointer to transport structure.
+ * @param buf Pointer to data buffer to send.
+ * @param len Length of data buffer in bytes.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_transport_send(libnngio_transport *t, const void *buf,
                             size_t len) {
   if (!t || !t->is_open || !buf || len == 0) return NNG_EINVAL;
@@ -530,6 +646,14 @@ int libnngio_transport_send(libnngio_transport *t, const void *buf,
   return nng_send(t->sock, (void *)buf, len, 0);
 }
 
+/**
+ * @brief Receive data from the transport synchronously.
+ * @param t Pointer to transport structure.
+ * @param buf Pointer to buffer to receive data into.
+ * @param len Pointer to size_t variable holding the size of the buffer on
+ *             input, and updated with the number of bytes received on output.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_transport_recv(libnngio_transport *t, void *buf, size_t *len) {
   if (!t || !t->is_open || !buf || !len || *len == 0) return NNG_EINVAL;
   size_t maxlen = *len;
@@ -540,7 +664,10 @@ int libnngio_transport_recv(libnngio_transport *t, void *buf, size_t *len) {
   return rv;
 }
 
-// Free all resources associated with context
+/**
+ * @brief Free a libnngio transport, closing any open sockets and freeing resources.
+ * @param t Pointer to transport structure to free.
+ */
 void libnngio_transport_free(libnngio_transport *t) {
   if (!t) return;
   libnngio_log("DBG", "LIBNNGIO_TRANSPORT_FREE", __FILE__, __LINE__, t->id,
@@ -570,17 +697,16 @@ void libnngio_transport_free(libnngio_transport *t) {
   free(t);
 }
 
-typedef struct libnngio_context {
-  int id;                         // Unique ID for this context
-  libnngio_transport *transport;  // Associated transport
-  libnngio_config config;         // Configuration for this context
-  libnngio_ctx_cb cb;  // User-defined callback, called when context starts and
-                       // when messages are received
-  nng_ctx nng_ctx;     // NNG context handle
-  void *user_data;     // Opaque user data pointer
-} libnngio_context;
-
-static int free_context_id = 0;  // Global ID counter for contexts
+/**
+ * @brief Initialize a libnngio context with the specified transport and configuration.
+ * @param ctxp Pointer to context pointer to initialize.
+ * @param t Pointer to transport structure to associate with the context.
+ * @param config Pointer to configuration structure for the context.
+ * @param cb User-defined callback function to invoke when the context starts and
+ *           when messages are received.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
                           const libnngio_config *config, libnngio_ctx_cb cb,
                           void *user_data) {
@@ -617,6 +743,10 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
   return 0;
 }
 
+/**
+ * @brief Start the libnngio context, invoking the user-defined callback.
+ * @param ctx Pointer to context to start.
+ */
 void libnngio_context_start(libnngio_context *ctx) {
   if (!ctx || !ctx->transport || !ctx->transport->is_open) {
     libnngio_log("ERR", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__,
@@ -639,24 +769,11 @@ void libnngio_context_start(libnngio_context *ctx) {
   }
 }
 
-typedef struct {
-  libnngio_async_cb user_cb;
-  libnngio_context *ctx;
-  void *user_buf;
-  size_t *user_len;
-  void *user_data;
-  nng_aio *aio;
-} libnngio_recv_async_cbdata;
-
-typedef struct {
-  libnngio_async_cb user_cb;
-  libnngio_context *ctx;
-  void *user_data;
-  nng_aio *aio;
-} libnngio_send_async_cbdata;
-
-// --- Receive Async Callback ---
-
+/** 
+ *  @brief nngio internal callback to manage async recv callback data.
+ *  @param arg Pointer to the libnngio recv callback data (void*) for parity
+ *              with nng_aio cb signature.
+ */
 static void nngio_recv_aio_cb(void *arg) {
   libnngio_recv_async_cbdata *cbdata = (libnngio_recv_async_cbdata *)arg;
 
@@ -702,6 +819,17 @@ static void nngio_recv_aio_cb(void *arg) {
   free(cbdata);
 }
 
+/**
+ * @brief Asynchronously receive data using the libnngio context.
+ * @param ctx Pointer to libnngio context.
+ * @param buf Pointer to buffer to receive data into.
+ * @param len Pointer to size_t variable holding the size of the buffer on
+ *            input, and updated with the number of bytes received on output.
+ * @param cb User-defined callback function to invoke when the receive operation
+ *           completes.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
                                 libnngio_async_cb cb, void *user_data) {
   libnngio_log("DBG", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
@@ -742,8 +870,11 @@ int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
   return 0;
 }
 
-// --- Send Async Callback ---
-
+/**
+ * @brief nngio internal callback to manage async send callback data.
+ * @param arg Pointer to the libnngio send callback data (void*) for parity
+ *              with nng_aio cb signature.
+ */
 static void nngio_send_aio_cb(void *arg) {
   libnngio_send_async_cbdata *cbdata = (libnngio_send_async_cbdata *)arg;
 
@@ -763,6 +894,16 @@ static void nngio_send_aio_cb(void *arg) {
   free(cbdata);
 }
 
+/**
+ * @brief Asynchronously send data using the libnngio context.
+ * @param ctx Pointer to libnngio context.
+ * @param buf Pointer to data buffer to send.
+ * @param len Length of data buffer in bytes.
+ * @param cb User-defined callback function to invoke when the send operation
+ *           completes.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
                                 size_t len, libnngio_async_cb cb,
                                 void *user_data) {
@@ -815,6 +956,11 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
   return 0;
 }
 
+/**
+ * @brief Set user data pointer for the libnngio context.
+ * @param ctx Pointer to libnngio context.
+ * @param user_data Opaque user data pointer to associate with the context.
+ */
 void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data) {
   if (!ctx) return;
   libnngio_log("DBG", "LIBNNGIO_CONTEXT_SET_USER_DATA", __FILE__, __LINE__,
@@ -822,6 +968,11 @@ void libnngio_context_set_user_data(libnngio_context *ctx, void *user_data) {
   ctx->user_data = user_data;
 }
 
+/**
+ * @brief Get user data pointer associated with the libnngio context.
+ * @param ctx Pointer to libnngio context.
+ * @return Opaque user data pointer associated with the context, or NULL if none.
+ */
 void *libnngio_context_get_user_data(libnngio_context *ctx) {
   if (!ctx) return NULL;
   libnngio_log("DBG", "LIBNNGIO_CONTEXT_GET_USER_DATA", __FILE__, __LINE__,
@@ -829,6 +980,13 @@ void *libnngio_context_get_user_data(libnngio_context *ctx) {
   return ctx->user_data;
 }
 
+/**
+ * @brief Free a libnngio context, closing the associated NNG context and
+ *        freeing resources. The associated transport is not freed here, as it
+ *        may be shared by multiple contexts. Caller should take care of
+ *        freeing the transport if needed.
+ * @param ctx Pointer to libnngio context to free.
+ */
 void libnngio_context_free(libnngio_context *ctx) {
   if (!ctx) return;
   libnngio_log("DBG", "LIBNNGIO_CONTEXT_FREE", __FILE__, __LINE__, ctx->id,
@@ -842,6 +1000,19 @@ void libnngio_context_free(libnngio_context *ctx) {
                "Context freed successfully.\n");
 }
 
+/**
+ * @brief Initialize multiple libnngio contexts with the specified transport
+ *        and configuration.
+ * @param ctxs Pointer to array of context pointers to initialize.
+ * @param n Number of contexts to initialize.
+ * @param t Pointer to transport structure to associate with the contexts.
+ * @param config Pointer to configuration structure for the contexts.
+ * @param cb User-defined callback function to invoke when each context starts
+ *           and when messages are received.
+ * @param user_datas Array of opaque user data pointers to pass to each context's
+ *                   callback. Can be NULL if no user data is needed.
+ * @return 0 on success, nonzero error code on failure.
+ */
 int libnngio_contexts_init(libnngio_context ***ctxs, size_t n,
                            libnngio_transport *t, const libnngio_config *config,
                            libnngio_ctx_cb cb, void **user_datas) {
@@ -863,6 +1034,11 @@ int libnngio_contexts_init(libnngio_context ***ctxs, size_t n,
   return 0;
 }
 
+/**
+ * @brief Free multiple libnngio contexts.
+ * @param ctxs Pointer to array of context pointers to free.
+ * @param n Number of contexts in the array.
+ */
 void libnngio_contexts_free(libnngio_context **ctxs, size_t n) {
   if (!ctxs) return;
   for (size_t i = 0; i < n; ++i) {
@@ -871,6 +1047,11 @@ void libnngio_contexts_free(libnngio_context **ctxs, size_t n) {
   free(ctxs);
 }
 
+/**
+ * @brief Start multiple libnngio contexts, invoking their user-defined callbacks.
+ * @param ctxs Pointer to array of context pointers to start.
+ * @param n Number of contexts in the array.
+ */
 void libnngio_contexts_start(libnngio_context **ctxs, size_t n) {
   if (!ctxs) return;
   for (size_t i = 0; i < n; ++i) {
@@ -878,7 +1059,10 @@ void libnngio_contexts_start(libnngio_context **ctxs, size_t n) {
   }
 }
 
-// User-invoked cleanup for global NNG state
+/**
+ * @brief Initialize global libnngio state. Must be called before any other
+ *        libnngio functions.
+ */
 void libnngio_cleanup(void) {
   libnngio_log("INF", "LIBNNGIO_CLEANUP", __FILE__, __LINE__, -1,
                "Cleaning up global NNG state.\n");
