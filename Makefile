@@ -25,8 +25,9 @@ SHARED_LIBS            = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuff
 MOCK_SHARED_LIBS       = $(addprefix $(BUILD_DIR)/libmock$(PROJECT_NAME)_, $(addsuffix .so, $(LIBS)))
 BUILD_BINS             = $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(BINS))
 BUILD_TEST_BINS        = $(addprefix $(BUILD_DIR)/test_, $(TEST_BINS))
-BUILD_LIBS             = $(STATIC_LIBS) $(SHARED_LIBS)
-BUILD_MOCK_LIBS        = $(MOCK_STATIC_LIBS) $(MOCK_SHARED_LIBS)
+# Note: I only want static libs, but you can enable shared libs if you want
+BUILD_LIBS             = $(STATIC_LIBS) # $(SHARED_LIBS)
+BUILD_MOCK_LIBS        = $(MOCK_STATIC_LIBS) # $(MOCK_SHARED_LIBS)
 
 
 # uppercase all letters in the mock libs variable
