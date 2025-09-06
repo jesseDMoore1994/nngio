@@ -2,7 +2,7 @@ CC                     = clang
 CFLAGS                 = $(NIX_CFLAGS_COMPILE)
 
 #add your library dependencies here
-DEPS                   = -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509 # -lauthorized_keys -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509
+DEPS                   = -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509 -lprotobuf-c# -lauthorized_keys -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509
 PROJECT_NAME           = nngio
 PROJECT_NAME_UPPERCASE = NNGIO
 
@@ -10,24 +10,28 @@ PROJECT_NAME_UPPERCASE = NNGIO
 # BINS are the list of production binaries to build
 BINS                   =
 # TEST_BINS are the list of test binaries to build
-TEST_BINS              = main
+TEST_BINS              = main protobuf
 # LIBS are the list of production libraries to build
-LIBS                   = main
+LIBS                   = main protobuf
 # MOCK_LIBS are the list of mock libraries to build
 MOCK_LIBS              = main
+# HAS_PROTO are the libraries that have protobuf definitions
+HAS_PROTO              = protobuf
 
 # Define how we are going to build the project
 BUILD_DIR             ?= build
 INCLUDE                = ./include
 STATIC_LIBS            = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix .a, $(LIBS)))
-MOCK_STATIC_LIBS       = $(addprefix $(BUILD_DIR)/libmock$(PROJECT_NAME)_, $(addsuffix .a, $(LIBS)))
+MOCK_STATIC_LIBS       = $(addprefix $(BUILD_DIR)/libmock$(PROJECT_NAME)_, $(addsuffix .a, $(MOCK_LIBS)))
 SHARED_LIBS            = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix .so, $(LIBS)))
-MOCK_SHARED_LIBS       = $(addprefix $(BUILD_DIR)/libmock$(PROJECT_NAME)_, $(addsuffix .so, $(LIBS)))
-BUILD_BINS             = $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(BINS))
+MOCK_SHARED_LIBS       = $(addprefix $(BUILD_DIR)/libmock$(PROJECT_NAME)_, $(addsuffix .so, $(MOCK_LIBS)))
+BUILD_BINS             = $(filter-out %.pb-c.o, $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(BINS)))
 BUILD_TEST_BINS        = $(addprefix $(BUILD_DIR)/test_, $(TEST_BINS))
 # Note: I only want static libs, but you can enable shared libs if you want
 BUILD_LIBS             = $(STATIC_LIBS) # $(SHARED_LIBS)
 BUILD_MOCK_LIBS        = $(MOCK_STATIC_LIBS) # $(MOCK_SHARED_LIBS)
+BUILD_PROTO            = $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(addsuffix .pb-c.o, $(HAS_PROTO)))
+INCLUDE_PROTO          = $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(addsuffix .pb-c.h, $(HAS_PROTO)))
 
 
 # uppercase all letters in the mock libs variable
@@ -44,24 +48,35 @@ endif
 
 # add local include directory to the include path so that our libraries and
 # binaries can find the headers
-NIX_CFLAGS_COMPILE    += -isystem $(INCLUDE)
+# also addd binary directory to the include path so that generated protobuf
+# files can be found
+NIX_CFLAGS_COMPILE    += -isystem $(INCLUDE) -isystem $(BUILD_DIR)
 
 # The default goal is to build, test, and generate an install directory
 .DEFAULT_GOAL         := all
 
 STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
+
+# Build protobuf files
+$(INCLUDE_PROTO): $(BUILD_PROTO)
+$(BUILD_PROTO): $(BUILD_DIR)/$(PROJECT_NAME)_%.pb-c.o:
+	echo "Generating protobuf files: $@"
+	mkdir -p $(BUILD_DIR)
+	protoc --c_out=$(BUILD_DIR) --proto_path=$* $*/$(PROJECT_NAME)_$*.proto
+	$(CC) -c $(BUILD_DIR)/$(PROJECT_NAME)_$*.pb-c.c -o $@ -fPIC
+
 # Build binaries
 $(BUILD_DIR)/$(PROJECT_NAME)_%: NIX_CFLAGS_COMPILE += $(STATIC_LIBS_GROUPED)
 $(BUILD_DIR)/$(PROJECT_NAME)_%: $(BUILD_LIBS)
 	echo "Building Binary: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) $*/$(PROJECT_NAME)_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
+	$(CC) $(BUILD_PROTO) $*/$(PROJECT_NAME)_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
 
 # Build static libraries
 $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a:
 	echo "Building Static Library: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) -c $*/lib$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) $(NIX_CFLAGS_COMPILE) -fPIC
+	$(CC) -c $(BUILD_PROTO) $*/lib$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) $(NIX_CFLAGS_COMPILE) -fPIC
 	ar r $@ $(subst .a,.o,$@) >/dev/null 2>&1
 
 # Build shared libraries
@@ -77,13 +92,13 @@ $(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) -D NNGIO_
 $(BUILD_DIR)/test_%: $(BUILD_MOCK_LIBS)
 	echo "Building Test Binary: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) $*/test_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
+	$(CC) $(BUILD_PROTO) $*/test_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
 else
 $(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(STATIC_LIBS_GROUPED)
 $(BUILD_DIR)/test_%: $(BUILD_LIBS)
 	echo "Building Test Binary: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) $*/test_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
+	$(CC) $(BUILD_PROTO) $*/test_$*.c -o $@ -L. -isystem $* $(NIX_CFLAGS_COMPILE) $(DEPS)
 endif
 
 # Build mock static libraries
@@ -91,7 +106,7 @@ $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.a: NIX_CFLAGS_COMPILE += $(MOCK_FLAGS)
 $(BUILD_DIR)/libmock$(PROJECT_NAME)_%.a:
 	echo "Building Mock Static Library: $@"
 	mkdir -p $(BUILD_DIR)
-	$(CC) -c $*/libmock$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) -isystem $* $(NIX_CFLAGS_COMPILE) -fPIC
+	$(CC) -c $(BUILD_PROTO) $*/libmock$(PROJECT_NAME)_$*.c -o $(subst .a,.o,$@) -isystem $* $(NIX_CFLAGS_COMPILE) -fPIC
 	ar r $@ $(subst .a,.o,$@) >/dev/null 2>&1
 
 # Build mock shared libraries
@@ -133,7 +148,7 @@ $(OUTPUT_DIR): $(BUILD_DIR)
 .PHONY: all test format docs clean
 
 # default target builds production binaries and libraries
-all: $(BUILD_DIR)
+all: $(BUILD_PROTO) $(BUILD_DIR)
 
 # test will build mock libraries and binaries, then run tests with valgrind
 test: $(BUILD_DIR)
@@ -146,6 +161,8 @@ test: $(BUILD_DIR)
 	 --show-leak-kinds=all \
 	 --track-origins=yes \
 	 ./$(test_bin);)
+
+proto: $(BUILD_PROTO)
 
 # Format source code using clang-format
 format:

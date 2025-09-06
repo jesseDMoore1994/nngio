@@ -23,6 +23,8 @@
   let 
       mbedtls_out = mbedtls.defaultPackage.${system}.out;
       nng_out = nng.defaultPackage.${system}.out;
+      protobuf = nixpkgs.legacyPackages.${system}.protobuf;
+      protobufc = nixpkgs.legacyPackages.${system}.protobufc;
       #libauthorized-keys_out = libauthorized-keys.defaultPackage.${system}.out;
       pkgs = import nixpkgs {
         inherit system;
@@ -34,6 +36,8 @@
         pkgs.doxygen
         pkgs.inotify-tools
         pkgs.valgrind
+        protobuf
+        protobufc
         nng_out
         mbedtls_out
         #libauthorized-keys_out
@@ -44,8 +48,10 @@
         src = ./.;
         nativeBuildInputs = deps;
         buildPhase = ''
+          make proto
           TEST_MOCK=1 make test
           make clean
+          make proto
           make test
         '';
         installPhase = ''
@@ -58,6 +64,7 @@
         src = ./.;
         nativeBuildInputs = deps;
         buildPhase = ''
+          make proto
           DEBUG=1 make test
         '';
         installPhase = ''

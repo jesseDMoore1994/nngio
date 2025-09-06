@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package NngioProtobuf;
+
+// Example usage:
+// 1. A server defines its services and RPC methods using protobuf.
+// 2. The server also implements the ServiceDiscoveryService to advertise its services.
+// 3. A client connects to the server and calls GetServices to get the list of services.
+// 4. The client can then construct RpcRequestMessage messages to call the desired RPC methods.
+// 5. The server processes the RpcRequestMessage and responds with an RpcResponseMessage.
+// 6. Both client and server can also use RawMessage for sending arbitrary binary data if needed.
+// 7. The NngioMessage wrapper is used to encapsulate the different message types.
+
+message Service {
+    string name = 1; // Name of the service
+    repeated string methods = 2; // List of RPC methods provided by the service
+}
+
+message ServiceDiscoveryRequest {
+    // Empty message for requesting service discovery
+}
+
+message ServiceDiscoveryResponse {
+    repeated Service services = 1; // List of available services
+}
+
+message RpcRequestMessage {
+    string service_name = 1; // Name of the service to call
+    string method_name = 2; // Name of the method to call
+    bytes payload = 3; // Serialized request payload
+}
+
+message RpcResponseMessage {
+    bytes payload = 1; // Serialized response payload
+    string error_message = 2; // Error message if the RPC call failed
+}
+
+message RawMessage {
+    bytes data = 1; // Arbitrary binary data
+}
+
+message NngioMessage {
+    oneof msg {
+        ServiceDiscoveryRequest service_discovery_request = 1;
+        ServiceDiscoveryResponse service_discovery_response = 2;
+        RpcRequestMessage rpc_request = 3;
+        RpcResponseMessage rpc_response = 4;
+        RawMessage raw_message = 5;
+    }
+}
