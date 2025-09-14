@@ -25,6 +25,7 @@
       nng_out = nng.defaultPackage.${system}.out;
       protobuf = nixpkgs.legacyPackages.${system}.protobuf;
       protobufc = nixpkgs.legacyPackages.${system}.protobufc;
+      libossp_uuid = nixpkgs.legacyPackages.${system}.libossp_uuid;
       #libauthorized-keys_out = libauthorized-keys.defaultPackage.${system}.out;
       pkgs = import nixpkgs {
         inherit system;
@@ -38,6 +39,7 @@
         pkgs.valgrind
         protobuf
         protobufc
+        libossp_uuid
         nng_out
         mbedtls_out
         #libauthorized-keys_out

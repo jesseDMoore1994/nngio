@@ -6,9 +6,9 @@
  * actual network operations.
  * The mock implementation includes functions to initialize transports,
  * send and receive data, manage contexts, and simulate errors.
- * It also includes logging functionality to trace operations and their outcomes.
- * The mock library maintains statistics on function calls and allows for
- * setting forced results for various operations.
+ * It also includes logging functionality to trace operations and their
+ * outcomes. The mock library maintains statistics on function calls and allows
+ * for setting forced results for various operations.
  *
  * @note This implementation is intended for testing and should not be used
  * in production environments.
@@ -23,7 +23,7 @@
 
 // Mock context structure
 struct libnngio_transport {
-  int is_open;             /**< Indicates if the transport is open */
+  int is_open; /**< Indicates if the transport is open */
 };
 
 /**
@@ -119,7 +119,7 @@ int libnngio_transport_init(libnngio_transport **ctxp,
                             const libnngio_config *config) {
   mock_stats.init_calls++;
   mock_stats.last_init_result = forced_init_result;
-  mock_stats.last_init.transport = NULL;
+  mock_stats.last_init.ctx = NULL;
   mock_stats.last_init.buf = config;
   mock_stats.last_init.len = 0;
 
@@ -144,59 +144,6 @@ int libnngio_transport_init(libnngio_transport **ctxp,
   return 0;
 }
 
-int libnngio_transport_send(libnngio_transport *ctx, const void *buf,
-                            size_t len) {
-  mock_stats.send_calls++;
-  mock_stats.last_send_result = forced_send_result;
-  mock_stats.last_send.transport = ctx;
-  mock_stats.last_send.buf = buf;
-  mock_stats.last_send.len = len;
-
-  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
-               "Sending %zu bytes", len);
-  if (forced_send_result != 0) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
-                 "Forced send error: %d", forced_send_result);
-    return forced_send_result;
-  }
-  if (!ctx || !ctx->is_open) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
-                 "Invalid context or context not open");
-    return -1;
-  }
-  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
-               "Sent %zu bytes successfully", len);
-  return 0;
-}
-
-int libnngio_transport_recv(libnngio_transport *ctx, void *buf, size_t *len) {
-  mock_stats.recv_calls++;
-  mock_stats.last_recv_result = forced_recv_result;
-  mock_stats.last_recv.transport = ctx;
-  mock_stats.last_recv.buf = buf;
-  mock_stats.last_recv.len_ptr = len;
-
-  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
-               "Receiving data");
-  if (forced_recv_result != 0) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
-                 "Forced receive error: %d", forced_recv_result);
-    return forced_recv_result;
-  }
-  if (!ctx || !ctx->is_open || !buf || !len) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
-                 "Invalid context, buffer, or length pointer");
-    return -1;
-  }
-
-  size_t copy_len = mock_recv_buffer_len < *len ? mock_recv_buffer_len : *len;
-  memcpy(buf, mock_recv_buffer, copy_len);
-  *len = copy_len;
-  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
-               "Received %zu bytes successfully", copy_len);
-  return 0;
-}
-
 void libnngio_transport_free(libnngio_transport *ctx) {
   libnngio_log("DBG", "MOCK_LIBNNGIO_FREE", __FILE__, __LINE__, 0,
                "Freeing context: %p", (void *)ctx);
@@ -212,12 +159,12 @@ void libnngio_transport_free(libnngio_transport *ctx) {
 }
 
 struct libnngio_context {
-  libnngio_transport *transport;  /**< Associated transport */
-  int id;                         /**< Context ID */
-  void *user_data;                /**< User data pointer */
-  libnngio_ctx_cb cb;             /**< Context callback */
+  libnngio_transport *transport; /**< Associated transport */
+  int id;                        /**< Context ID */
+  void *user_data;               /**< User data pointer */
+  libnngio_ctx_cb cb;            /**< Context callback */
 };
-static int free_context_id = 0;  /**< Simple ID generator */
+static int free_context_id = 0; /**< Simple ID generator */
 
 int libnngio_context_init(libnngio_context **ctxp,
                           libnngio_transport *transport,
@@ -241,6 +188,11 @@ int libnngio_context_init(libnngio_context **ctxp,
   return 0;
 }
 
+int libnngio_context_id(libnngio_context *ctx) {
+  if (!ctx) return -1;
+  return ctx->id;
+}
+
 void libnngio_context_start(libnngio_context *ctx) {
   if (!ctx) return;
   libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_START", __FILE__, __LINE__,
@@ -253,6 +205,58 @@ void libnngio_context_start(libnngio_context *ctx) {
     libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_START", __FILE__, __LINE__,
                  ctx->id, "No callback defined for context ID %d", ctx->id);
   }
+}
+
+int libnngio_context_send(libnngio_context *ctx, const void *buf, size_t len) {
+  mock_stats.send_calls++;
+  mock_stats.last_send_result = forced_send_result;
+  mock_stats.last_send.ctx = ctx;
+  mock_stats.last_send.buf = buf;
+  mock_stats.last_send.len = len;
+
+  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
+               "Sending %zu bytes", len);
+  if (forced_send_result != 0) {
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
+                 "Forced send error: %d", forced_send_result);
+    return forced_send_result;
+  }
+  if (!ctx || !ctx->transport->is_open) {
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
+                 "Invalid context or context not open");
+    return -1;
+  }
+  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_SEND", __FILE__, __LINE__, 0,
+               "Sent %zu bytes successfully", len);
+  return 0;
+}
+
+int libnngio_context_recv(libnngio_context *ctx, void *buf, size_t *len) {
+  mock_stats.recv_calls++;
+  mock_stats.last_recv_result = forced_recv_result;
+  mock_stats.last_recv.ctx = ctx;
+  mock_stats.last_recv.buf = buf;
+  mock_stats.last_recv.len_ptr = len;
+
+  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
+               "Receiving data");
+  if (forced_recv_result != 0) {
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
+                 "Forced receive error: %d", forced_recv_result);
+    return forced_recv_result;
+  }
+  if (!ctx || !ctx->transport->is_open || !buf || !len) {
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
+                 "Invalid context, buffer, or length pointer");
+    return -1;
+  }
+
+  size_t copy_len = mock_recv_buffer_len < *len ? mock_recv_buffer_len : *len;
+  memcpy(buf, mock_recv_buffer, copy_len);
+  *len = copy_len;
+  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV", __FILE__, __LINE__, 0,
+               "Received %zu bytes successfully", copy_len);
+  return 0;
 }
 
 int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
@@ -274,7 +278,7 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
                  forced_send_async_result);
     return forced_send_async_result;
   }
-  int rv = libnngio_transport_send(ctx->transport, buf, len);
+  int rv = libnngio_context_send(ctx, buf, len);
   if (cb) {
     libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_SEND_ASYNC", __FILE__,
                  __LINE__, 0, "Calling async callback with result %d", rv);
@@ -308,7 +312,7 @@ int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
     return forced_recv_async_result;
   }
 
-  int rv = libnngio_transport_recv(ctx->transport, buf, len);
+  int rv = libnngio_context_recv(ctx, buf, len);
   if (cb) {
     libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_ASYNC", __FILE__,
                  __LINE__, 0, "Calling async callback with result %d", rv);

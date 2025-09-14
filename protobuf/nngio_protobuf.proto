@@ -31,8 +31,16 @@ message RpcRequestMessage {
 }
 
 message RpcResponseMessage {
-    bytes payload = 1; // Serialized response payload
-    string error_message = 2; // Error message if the RPC call failed
+    enum Status {
+       Success = 0; // RPC call was successful
+       ServiceNotFound = 1; // Service not found
+       MethodNotFound = 2; // Method not found
+       InvalidRequest = 3; // Request payload was invalid
+       InternalError = 4; // Internal server error
+    }
+    Status status = 1; // Status of the RPC call
+    bytes payload = 2; // Serialized response payload
+    string error_message = 3; // Error message if the RPC call failed
 }
 
 message RawMessage {
@@ -47,4 +55,9 @@ message NngioMessage {
         RpcResponseMessage rpc_response = 4;
         RawMessage raw_message = 5;
     }
+    string uuid = 6; // Unique identifier for the message
+}
+
+service ServiceDiscoveryService {
+    rpc GetServices(ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse);
 }

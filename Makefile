@@ -2,7 +2,7 @@ CC                     = clang
 CFLAGS                 = $(NIX_CFLAGS_COMPILE)
 
 #add your library dependencies here
-DEPS                   = -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509 -lprotobuf-c# -lauthorized_keys -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509
+DEPS                   = -lnng -lmbedtls -lmbedcrypto -leverest -lmbedx509 -lprotobuf-c -luuid
 PROJECT_NAME           = nngio
 PROJECT_NAME_UPPERCASE = NNGIO
 
@@ -85,7 +85,11 @@ $(BUILD_DIR)/lib$(PROJECT_NAME)_%.so: $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a
 	mkdir -p $(BUILD_DIR)
 	$(CC) -shared -o $@ $(subst .so,.o,$@)
 
-MOCK_STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(MOCK_STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
+# Create list of librariest that do not have mock versions
+NON_MOCK_LIBS = $(filter-out $(MOCK_LIBS),$(LIBS))
+NON_MOCK_STATIC_LIBS = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix .a, $(NON_MOCK_LIBS)))
+MOCK_AND_NON_MOCK_STATIC_LIBS = $(MOCK_STATIC_LIBS) $(NON_MOCK_STATIC_LIBS)
+MOCK_STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(MOCK_AND_NON_MOCK_STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
 # Build test binaries
 ifdef NNGIO_MOCK_MAIN
 $(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) -D NNGIO_MOCK_MAIN=1
@@ -151,16 +155,17 @@ $(OUTPUT_DIR): $(BUILD_DIR)
 all: $(BUILD_PROTO) $(BUILD_DIR)
 
 # test will build mock libraries and binaries, then run tests with valgrind
-test: $(BUILD_DIR)
+test: $(BUILD_PROTO) $(BUILD_DIR)
+ifdef NNGIO_MOCK_MAIN
 	$(foreach test_bin,$(BUILD_TEST_BINS), \
-	 ./$(test_bin);)
-# valgrind is disabled because it causes a lockup in the test suite occasionally
-# Uncomment the next line to enable valgrind testing if you need it, be careful.
-#	$(foreach test_bin,$(BUILD_TEST_BINS), \
 	valgrind -s --leak-check=full \
 	 --show-leak-kinds=all \
 	 --track-origins=yes \
 	 ./$(test_bin);)
+else
+	$(foreach test_bin,$(BUILD_TEST_BINS), \
+	 ./$(test_bin);)
+endif
 
 proto: $(BUILD_PROTO)
 

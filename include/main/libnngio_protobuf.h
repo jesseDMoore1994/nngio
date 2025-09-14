@@ -2,7 +2,7 @@
  * @file libnngio_protobuf.h
  * @brief Protobuf message definitions for libnngio.
  *      This file defines an API for working with protobuf messages over nng
-*       transports. It includes message structures for service discovery,
+ *       transports. It includes message structures for service discovery,
  *      RPC requests/responses, and raw messages, along with functions for
  *      serialization and deserialization.
  *
@@ -16,8 +16,8 @@
 
 #ifndef LIBNNGIO_PROTOBUF_H
 #define LIBNNGIO_PROTOBUF_H
-#include "nngio_protobuf.pb-c.h"
 #include "main/libnngio_main.h"
+#include "nngio_protobuf.pb-c.h"
 
 /**
  * @brief Enum indicating which type of message is contained in a NngioMessage.
@@ -83,19 +83,18 @@ int libnngio_protobuf_serialize(const libnngio_protobuf_message *message,
 int libnngio_protobuf_deserialize(const uint8_t *buf, size_t len,
                                   libnngio_protobuf_message **message);
 
-
 typedef struct linbnngio_proto_ctx libnngio_protobuf_ctx;
 
 // Define context init/free functions
 /**
  * @brief Initialize a libnngio_protobuf context.
  *
- * @param[out] ctx      Pointer to receive allocated context pointer.
- * @param[in]  config   Configuration structure pointer.
+ * @param[out] proto_ctx      Pointer to receive allocated context pointer.
+ * @param[in]  ctx            Pointer to the underlying libnngio context to use.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_context_init(libnngio_protobuf_ctx **ctx,
-                                  const libnngio_config *config);
+int libnngio_protobuf_context_init(libnngio_protobuf_ctx **proto_ctx,
+                                   libnngio_context *ctx);
 
 /**
  * @brief Free a libnngio_protobuf context and release resources.
@@ -122,12 +121,14 @@ void libnngio_protobuf_context_free(libnngio_protobuf_ctx *ctx);
  *
  * @param ctx           Context to use for sending/receiving.
  * @param request       Pointer to the service discovery request message.
- * @param response      Pointer to receive allocated service discovery response message.
+ * @param response      Pointer to receive allocated service discovery response
+ * message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_send_service_discovery_request(libnngio_protobuf_ctx *ctx,
-                                                    const NngioProtobuf__ServiceDiscoveryRequest *request,
-                                                    NngioProtobuf__ServiceDiscoveryResponse **response);
+int libnngio_protobuf_send_service_discovery_request(
+    libnngio_protobuf_ctx *ctx,
+    const NngioProtobuf__ServiceDiscoveryRequest *request,
+    NngioProtobuf__ServiceDiscoveryResponse **response);
 
 /**
  * @brief Send a service discovery request asynchronously.
@@ -138,19 +139,22 @@ int libnngio_protobuf_send_service_discovery_request(libnngio_protobuf_ctx *ctx,
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_send_service_discovery_request_async(libnngio_protobuf_ctx *ctx,
-                                                          const NngioProtobuf__ServiceDiscoveryRequest *request,
-                                                          libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_send_service_discovery_request_async(
+    libnngio_protobuf_ctx *ctx,
+    const NngioProtobuf__ServiceDiscoveryRequest *request, libnngio_async_cb cb,
+    void *user_data);
 
 /**
  * @brief Receive a service discovery request.
  *
  * @param ctx           Context to use for receiving.
- * @param request       Pointer to receive allocated service discovery request message.
+ * @param request       Pointer to receive allocated service discovery request
+ * message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_recv_service_discovery_request(libnngio_protobuf_ctx *ctx,
-                                                    NngioProtobuf__ServiceDiscoveryRequest **request);
+int libnngio_protobuf_recv_service_discovery_request(
+    libnngio_protobuf_ctx *ctx,
+    NngioProtobuf__ServiceDiscoveryRequest **request);
 
 /**
  * @brief Receive a service discovery request asynchronously.
@@ -160,8 +164,8 @@ int libnngio_protobuf_recv_service_discovery_request(libnngio_protobuf_ctx *ctx,
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_recv_service_discovery_request_async(libnngio_protobuf_ctx *ctx,
-                                                          libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_recv_service_discovery_request_async(
+    libnngio_protobuf_ctx *ctx, libnngio_async_cb cb, void *user_data);
 
 /**
  * @brief Send a service discovery response.
@@ -170,8 +174,9 @@ int libnngio_protobuf_recv_service_discovery_request_async(libnngio_protobuf_ctx
  * @param response      Pointer to the service discovery response message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_send_service_discovery_response(libnngio_protobuf_ctx *ctx,
-                                                     const NngioProtobuf__ServiceDiscoveryResponse *response);
+int libnngio_protobuf_send_service_discovery_response(
+    libnngio_protobuf_ctx *ctx,
+    const NngioProtobuf__ServiceDiscoveryResponse *response);
 
 /**
  * @brief Send a service discovery response asynchronously.
@@ -182,19 +187,22 @@ int libnngio_protobuf_send_service_discovery_response(libnngio_protobuf_ctx *ctx
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_send_service_discovery_response_async(libnngio_protobuf_ctx *ctx,
-                                                           const NngioProtobuf__ServiceDiscoveryResponse *response,
-                                                           libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_send_service_discovery_response_async(
+    libnngio_protobuf_ctx *ctx,
+    const NngioProtobuf__ServiceDiscoveryResponse *response,
+    libnngio_async_cb cb, void *user_data);
 
 /**
  * @brief Receive a service discovery response.
  *
  * @param ctx           Context to use for receiving.
- * @param response      Pointer to receive allocated service discovery response message.
+ * @param response      Pointer to receive allocated service discovery response
+ * message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_recv_service_discovery_response(libnngio_protobuf_ctx *ctx,
-                                                     NngioProtobuf__ServiceDiscoveryResponse **response);
+int libnngio_protobuf_recv_service_discovery_response(
+    libnngio_protobuf_ctx *ctx,
+    NngioProtobuf__ServiceDiscoveryResponse **response);
 
 /**
  * @brief Receive a service discovery response asynchronously.
@@ -204,8 +212,8 @@ int libnngio_protobuf_recv_service_discovery_response(libnngio_protobuf_ctx *ctx
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_recv_service_discovery_response_async(libnngio_protobuf_ctx *ctx,
-                                                           libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_recv_service_discovery_response_async(
+    libnngio_protobuf_ctx *ctx, libnngio_async_cb cb, void *user_data);
 
 /**
  * @brief Send an RPC request and wait for the response.
@@ -215,9 +223,9 @@ int libnngio_protobuf_recv_service_discovery_response_async(libnngio_protobuf_ct
  * @param response      Pointer to receive allocated RPC response message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_send_rpc_request(libnngio_protobuf_ctx *ctx,
-                                      const NngioProtobuf__RpcRequestMessage *request,
-                                      NngioProtobuf__RpcResponseMessage **response);
+int libnngio_protobuf_send_rpc_request(
+    libnngio_protobuf_ctx *ctx, const NngioProtobuf__RpcRequestMessage *request,
+    NngioProtobuf__RpcResponseMessage **response);
 
 /**
  * @brief Send an RPC request asynchronously.
@@ -228,9 +236,9 @@ int libnngio_protobuf_send_rpc_request(libnngio_protobuf_ctx *ctx,
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_send_rpc_request_async(libnngio_protobuf_ctx *ctx,
-                                            const NngioProtobuf__RpcRequestMessage *request,
-                                            libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_send_rpc_request_async(
+    libnngio_protobuf_ctx *ctx, const NngioProtobuf__RpcRequestMessage *request,
+    libnngio_async_cb cb, void *user_data);
 
 /**
  * @brief Receive an RPC request.
@@ -239,8 +247,8 @@ int libnngio_protobuf_send_rpc_request_async(libnngio_protobuf_ctx *ctx,
  * @param request       Pointer to receive allocated RPC request message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_recv_rpc_request(libnngio_protobuf_ctx *ctx,
-                                      NngioProtobuf__RpcRequestMessage **request);
+int libnngio_protobuf_recv_rpc_request(
+    libnngio_protobuf_ctx *ctx, NngioProtobuf__RpcRequestMessage **request);
 
 /**
  * @brief Receive an RPC request asynchronously.
@@ -251,7 +259,8 @@ int libnngio_protobuf_recv_rpc_request(libnngio_protobuf_ctx *ctx,
  * @return 0 on submission, nonzero on failure.
  */
 int libnngio_protobuf_recv_rpc_request_async(libnngio_protobuf_ctx *ctx,
-                                            libnngio_async_cb cb, void *user_data);
+                                             libnngio_async_cb cb,
+                                             void *user_data);
 
 /**
  * @brief Send an RPC response.
@@ -260,8 +269,9 @@ int libnngio_protobuf_recv_rpc_request_async(libnngio_protobuf_ctx *ctx,
  * @param response      Pointer to the RPC response message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_send_rpc_response(libnngio_protobuf_ctx *ctx,
-                                       const NngioProtobuf__RpcResponseMessage *response);
+int libnngio_protobuf_send_rpc_response(
+    libnngio_protobuf_ctx *ctx,
+    const NngioProtobuf__RpcResponseMessage *response);
 
 /**
  * @brief Send an RPC response asynchronously.
@@ -272,9 +282,10 @@ int libnngio_protobuf_send_rpc_response(libnngio_protobuf_ctx *ctx,
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_send_rpc_response_async(libnngio_protobuf_ctx *ctx,
-                                            const NngioProtobuf__RpcResponseMessage *response,
-                                            libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_send_rpc_response_async(
+    libnngio_protobuf_ctx *ctx,
+    const NngioProtobuf__RpcResponseMessage *response, libnngio_async_cb cb,
+    void *user_data);
 
 /**
  * @brief Receive an RPC response.
@@ -283,8 +294,8 @@ int libnngio_protobuf_send_rpc_response_async(libnngio_protobuf_ctx *ctx,
  * @param response      Pointer to receive allocated RPC response message.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_recv_rpc_response(libnngio_protobuf_ctx *ctx,
-                                       NngioProtobuf__RpcResponseMessage **response);
+int libnngio_protobuf_recv_rpc_response(
+    libnngio_protobuf_ctx *ctx, NngioProtobuf__RpcResponseMessage **response);
 
 /**
  * @brief Receive an RPC response asynchronously.
@@ -295,7 +306,8 @@ int libnngio_protobuf_recv_rpc_response(libnngio_protobuf_ctx *ctx,
  * @return 0 on submission, nonzero on failure.
  */
 int libnngio_protobuf_recv_rpc_response_async(libnngio_protobuf_ctx *ctx,
-                                            libnngio_async_cb cb, void *user_data);
+                                              libnngio_async_cb cb,
+                                              void *user_data);
 
 /**
  * @brief Send a raw message.
@@ -304,8 +316,8 @@ int libnngio_protobuf_recv_rpc_response_async(libnngio_protobuf_ctx *ctx,
  * @param message       Pointer to the raw message to send.
  * @return 0 on success, nonzero on failure.
  */
-int libnngio_protobuf_send_raw_message(libnngio_protobuf_ctx *ctx,
-                                      const NngioProtobuf__RawMessage *message);
+int libnngio_protobuf_send_raw_message(
+    libnngio_protobuf_ctx *ctx, const NngioProtobuf__RawMessage *message);
 
 /**
  * @brief Send a raw message asynchronously.
@@ -316,9 +328,9 @@ int libnngio_protobuf_send_raw_message(libnngio_protobuf_ctx *ctx,
  * @param user_data     User data for callback.
  * @return 0 on submission, nonzero on failure.
  */
-int libnngio_protobuf_send_raw_message_async(libnngio_protobuf_ctx *ctx,
-                                            const NngioProtobuf__RawMessage *message,
-                                            libnngio_async_cb cb, void *user_data);
+int libnngio_protobuf_send_raw_message_async(
+    libnngio_protobuf_ctx *ctx, const NngioProtobuf__RawMessage *message,
+    libnngio_async_cb cb, void *user_data);
 
 /**
  * @brief Receive a raw message.
@@ -328,7 +340,7 @@ int libnngio_protobuf_send_raw_message_async(libnngio_protobuf_ctx *ctx,
  * @return 0 on success, nonzero on failure.
  */
 int libnngio_protobuf_recv_raw_message(libnngio_protobuf_ctx *ctx,
-                                      NngioProtobuf__RawMessage **message);
+                                       NngioProtobuf__RawMessage **message);
 
 /**
  * @brief Receive a raw message asynchronously.
@@ -339,8 +351,7 @@ int libnngio_protobuf_recv_raw_message(libnngio_protobuf_ctx *ctx,
  * @return 0 on submission, nonzero on failure.
  */
 int libnngio_protobuf_recv_raw_message_async(libnngio_protobuf_ctx *ctx,
-                                            libnngio_async_cb cb, void *user_data);
+                                             libnngio_async_cb cb,
+                                             void *user_data);
 
-
-
-#endif // LIBNNGIO_PROTOBUF_H
+#endif  // LIBNNGIO_PROTOBUF_H
