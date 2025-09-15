@@ -269,6 +269,67 @@ NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_service_discovery_r
  */
 void nngio_free_nngio_message(NngioProtobuf__NngioMessage *msg);
 
+/**
+ * @brief Deep copy a NngioProtobuf__Service structure.
+ *
+ * Allocates and returns a new service whose fields are deep-copied from src.
+ *
+ * @param src Pointer to the source service to copy.
+ * @return Pointer to deep-copied service, or NULL on failure.
+ */
+NngioProtobuf__Service *nngio_copy_service(const NngioProtobuf__Service *src);
+
+/**
+ * @brief Deep copy a NngioProtobuf__ServiceDiscoveryResponse structure.
+ *
+ * Allocates and returns a new response whose fields and services are deep-copied from src.
+ *
+ * @param src Pointer to the source response to copy.
+ * @return Pointer to deep-copied response, or NULL on failure.
+ */
+NngioProtobuf__ServiceDiscoveryResponse *nngio_copy_service_discovery_response(const NngioProtobuf__ServiceDiscoveryResponse *src);
+
+/**
+ * @brief Deep copy a NngioProtobuf__RpcRequestMessage structure.
+ *
+ * Allocates and returns a new RPC request whose fields are deep-copied from src.
+ *
+ * @param src Pointer to the source request to copy.
+ * @return Pointer to deep-copied request, or NULL on failure.
+ */
+NngioProtobuf__RpcRequestMessage *nngio_copy_rpc_request(const NngioProtobuf__RpcRequestMessage *src);
+
+/**
+ * @brief Deep copy a NngioProtobuf__RpcResponseMessage structure.
+ *
+ * Allocates and returns a new RPC response whose fields are deep-copied from src.
+ *
+ * @param src Pointer to the source response to copy.
+ * @return Pointer to deep-copied response, or NULL on failure.
+ */
+NngioProtobuf__RpcResponseMessage *nngio_copy_rpc_response(const NngioProtobuf__RpcResponseMessage *src);
+
+/**
+ * @brief Deep copy a NngioProtobuf__RawMessage structure.
+ *
+ * Allocates and returns a new raw message whose data is deep-copied from src.
+ *
+ * @param src Pointer to the source raw message to copy.
+ * @return Pointer to deep-copied raw message, or NULL on failure.
+ */
+NngioProtobuf__RawMessage *nngio_copy_raw_message(const NngioProtobuf__RawMessage *src);
+
+/**
+ * @brief Deep copy a NngioProtobuf__NngioMessage structure.
+ *
+ * Allocates and returns a new NngioMessage, deep-copying its uuid and the message in the union
+ * (using the appropriate helper functions).
+ *
+ * @param src Pointer to the source NngioMessage to copy.
+ * @return Pointer to deep-copied NngioMessage, or NULL on failure.
+ */
+NngioProtobuf__NngioMessage *nngio_copy_nngio_message(const NngioProtobuf__NngioMessage *src);
+
 
 // Define sync/async for sending/receiving each message type
 // Should define the following functions:
@@ -291,7 +352,7 @@ void nngio_free_nngio_message(NngioProtobuf__NngioMessage *msg);
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_raw_message(
-    libnngio_protobuf_context *ctx, NngioProtobuf__RawMessage *message);
+    libnngio_protobuf_context *ctx, const NngioProtobuf__RawMessage *message);
 
 /**
  * @brief Send a raw message asynchronously.
@@ -314,7 +375,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_raw_message_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_raw_message(
-    libnngio_protobuf_context *ctx, NngioProtobuf__RawMessage *message);
+    libnngio_protobuf_context *ctx, NngioProtobuf__RawMessage **message);
 
 /**
  * @brief Receive a raw message asynchronously.
@@ -360,7 +421,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_request(
-    libnngio_protobuf_context *ctx, NngioProtobuf__RpcRequestMessage *request);
+    libnngio_protobuf_context *ctx, NngioProtobuf__RpcRequestMessage **request);
 
 /**
  * @brief Receive an RPC request asynchronously.
@@ -407,7 +468,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response_async(
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response(
     libnngio_protobuf_context *ctx,
-    NngioProtobuf__RpcResponseMessage *response);
+    NngioProtobuf__RpcResponseMessage **response);
 
 /**
  * @brief Receive an RPC response asynchronously.
@@ -458,7 +519,7 @@ libnngio_protobuf_send_service_discovery_request_async(
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_service_discovery_request(
     libnngio_protobuf_context *ctx,
-    NngioProtobuf__ServiceDiscoveryRequest *request);
+    NngioProtobuf__ServiceDiscoveryRequest **request);
 
 /**
  * @brief Receive a service discovery request asynchronously.
@@ -508,7 +569,7 @@ libnngio_protobuf_send_service_discovery_response_async(
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_service_discovery_response(
     libnngio_protobuf_context *ctx,
-    NngioProtobuf__ServiceDiscoveryResponse *response);
+    NngioProtobuf__ServiceDiscoveryResponse **response);
 
 /**
  * @brief Receive a service discovery response asynchronously.

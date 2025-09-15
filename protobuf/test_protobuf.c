@@ -273,8 +273,6 @@ void test_protobuf_raw_message() {
 
   //Prepare to receive raw message
   NngioProtobuf__RawMessage* recv_raw_message = NULL;
-  recv_raw_message = malloc(sizeof(NngioProtobuf__RawMessage));
-  nngio_protobuf__raw_message__init(recv_raw_message);
 
   libnngio_log("INF", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
                "Prepared raw message for sending.");
@@ -301,7 +299,10 @@ void test_protobuf_raw_message() {
                "Raw message sent successfully.");
 
   // Receive raw message
-  err = libnngio_protobuf_recv_raw_message(rep_proto_ctx, recv_raw_message);
+  err = libnngio_protobuf_recv_raw_message(rep_proto_ctx, &recv_raw_message);
+  libnngio_log("DBG", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
+               "message after return from recv: len=%zu, data=%s",
+               recv_raw_message->data.len, recv_raw_message->data.data);
   if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
                "Failed to receive raw message: %s", libnngio_protobuf_strerror(err));
@@ -320,6 +321,10 @@ void test_protobuf_raw_message() {
       memcmp(recv_raw_message->data.data, raw_msg, raw_msg_len) != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
                "Received raw message does not match sent message.");
+    libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
+               "Sent length: %zu, Received length: %zu", raw_msg_len, recv_raw_message->data.len);
+    libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
+               "Sent: %s, Received: %s", raw_msg, recv_raw_message->data.data);
     nngio_protobuf__raw_message__free_unpacked(recv_raw_message, NULL);
     nngio_free_raw_message(raw);
     libnngio_protobuf_context_free(req_proto_ctx);
@@ -334,7 +339,7 @@ void test_protobuf_raw_message() {
                "Received raw message matches sent message: %s", recv_raw_message->data.data);
   }
 
-  nngio_protobuf__raw_message__free_unpacked(recv_raw_message, NULL);
+  nngio_free_raw_message(recv_raw_message);
   nngio_free_raw_message(raw);
   libnngio_protobuf_context_free(req_proto_ctx);
   libnngio_protobuf_context_free(rep_proto_ctx);
@@ -426,8 +431,7 @@ void test_protobuf_rpc() {
 #endif
 
   //Prepare to receive RPC request message
-  NngioProtobuf__RpcRequestMessage *recv_request_msg = malloc(sizeof(NngioProtobuf__RpcRequestMessage));
-  nngio_protobuf__rpc_request_message__init(recv_request_msg);
+  NngioProtobuf__RpcRequestMessage *recv_request_msg = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                "Prepared RPC request message for sending.");
@@ -443,6 +447,7 @@ void test_protobuf_rpc() {
       libnngio_log("ERR", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                    "REQ transport last error code: %s", nng_strerror(libnngio_protobuf_context_get_transport_rv(req_proto_ctx)));
     }
+    nngio_free_rpc_request(recv_request_msg);
     nngio_free_rpc_request(rpc_request_msg);
     libnngio_protobuf_context_free(req_proto_ctx);
     libnngio_protobuf_context_free(rep_proto_ctx);
@@ -454,7 +459,7 @@ void test_protobuf_rpc() {
   }
 
   // Receive RPC request
-  err = libnngio_protobuf_recv_rpc_request(rep_proto_ctx, recv_request_msg);
+  err = libnngio_protobuf_recv_rpc_request(rep_proto_ctx, &recv_request_msg);
   if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                  "Failed to receive RPC request: %s", libnngio_protobuf_strerror(err));
@@ -464,7 +469,7 @@ void test_protobuf_rpc() {
       libnngio_log("ERR", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                    "REP transport last error code: %s", nng_strerror(libnngio_protobuf_context_get_transport_rv(rep_proto_ctx)));
     }
-    nngio_protobuf__rpc_request_message__free_unpacked(recv_request_msg, NULL);
+    nngio_free_rpc_request(recv_request_msg);
     nngio_free_rpc_request(rpc_request_msg);
     libnngio_protobuf_context_free(req_proto_ctx);
     libnngio_protobuf_context_free(rep_proto_ctx);
@@ -528,8 +533,7 @@ void test_protobuf_rpc() {
 #endif
 
   //Prepare to receive RPC response message
-  NngioProtobuf__RpcResponseMessage *recv_response_msg = malloc(sizeof(NngioProtobuf__RpcResponseMessage));
-  nngio_protobuf__rpc_response_message__init(recv_response_msg);
+  NngioProtobuf__RpcResponseMessage *recv_response_msg = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                "Prepared RPC response message for sending.");
@@ -545,8 +549,9 @@ void test_protobuf_rpc() {
       libnngio_log("ERR", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                    "REP transport last error code: %s", nng_strerror(libnngio_protobuf_context_get_transport_rv(rep_proto_ctx)));
     }
+    nngio_free_rpc_response(recv_response_msg);
     nngio_free_rpc_response(rpc_response_msg);
-    nngio_protobuf__rpc_request_message__free_unpacked(recv_request_msg, NULL);
+    nngio_free_rpc_request(recv_request_msg);
     nngio_free_rpc_request(rpc_request_msg);
     libnngio_protobuf_context_free(req_proto_ctx);
     libnngio_protobuf_context_free(rep_proto_ctx);
@@ -558,7 +563,7 @@ void test_protobuf_rpc() {
   }
 
   // Receive RPC response
-  err = libnngio_protobuf_recv_rpc_response(req_proto_ctx, recv_response_msg);
+  err = libnngio_protobuf_recv_rpc_response(req_proto_ctx, &recv_response_msg);
   if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                  "Failed to receive RPC response: %s", libnngio_protobuf_strerror(err));
@@ -568,9 +573,9 @@ void test_protobuf_rpc() {
       libnngio_log("ERR", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                    "REQ transport last error code: %s", nng_strerror(libnngio_protobuf_context_get_transport_rv(req_proto_ctx)));
     }
-    nngio_protobuf__rpc_response_message__free_unpacked(recv_response_msg, NULL);
+    nngio_free_rpc_response(recv_response_msg);
     nngio_free_rpc_response(rpc_response_msg);
-    nngio_protobuf__rpc_request_message__free_unpacked(recv_request_msg, NULL);
+    nngio_free_rpc_request(recv_request_msg);
     nngio_free_rpc_request(rpc_request_msg);
     libnngio_protobuf_context_free(req_proto_ctx);
     libnngio_protobuf_context_free(rep_proto_ctx);
@@ -601,9 +606,9 @@ void test_protobuf_rpc() {
   // and only the internal pointers need to be freed, otherwise I think that
   // the nngio_protobuf__rpc_response_message__free_unpacked could be used
   // but that would require heap allocation of the messages
-  nngio_protobuf__rpc_response_message__free_unpacked(recv_response_msg, NULL);
+  nngio_free_rpc_response(recv_response_msg);
   nngio_free_rpc_response(rpc_response_msg);
-  nngio_protobuf__rpc_request_message__free_unpacked(recv_request_msg, NULL);
+  nngio_free_rpc_request(recv_request_msg);
   nngio_free_rpc_request(rpc_request_msg);
   libnngio_protobuf_context_free(req_proto_ctx);
   libnngio_protobuf_context_free(rep_proto_ctx);
@@ -696,8 +701,7 @@ void test_protobuf_service_discovery() {
 #endif
 
   //Prepare to receive service discovery request message
-  NngioProtobuf__ServiceDiscoveryRequest *recv_service_request = malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
-  nngio_protobuf__service_discovery_request__init(recv_service_request);
+  NngioProtobuf__ServiceDiscoveryRequest *recv_service_request = NULL;
   libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Prepared service discovery request message for sending.");
 
@@ -715,7 +719,7 @@ void test_protobuf_service_discovery() {
   }
 
   // Receive service discovery request
-  err = libnngio_protobuf_recv_service_discovery_request(rep_proto_ctx, recv_service_request);
+  err = libnngio_protobuf_recv_service_discovery_request(rep_proto_ctx, &recv_service_request);
   if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                  "Failed to receive service discovery request: %s", libnngio_protobuf_strerror(err));
@@ -732,8 +736,6 @@ void test_protobuf_service_discovery() {
 
   // Validate received message
   // No fields to validate for now
-  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
-               "Service discovery request sent and received successfully.");
 
   libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Sending service discovery response...");
@@ -760,8 +762,7 @@ void test_protobuf_service_discovery() {
 #endif
 
   //Prepare to receive service discovery response message
-  NngioProtobuf__ServiceDiscoveryResponse *recv_service_response = malloc(sizeof(NngioProtobuf__ServiceDiscoveryResponse));
-  nngio_protobuf__service_discovery_response__init(recv_service_response);
+  NngioProtobuf__ServiceDiscoveryResponse *recv_service_response = NULL;
   libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Prepared service discovery response message for sending.");
 
@@ -779,7 +780,7 @@ void test_protobuf_service_discovery() {
   }
 
   // Receive service discovery response
-  err = libnngio_protobuf_recv_service_discovery_response(req_proto_ctx, recv_service_response);
+  err = libnngio_protobuf_recv_service_discovery_response(req_proto_ctx, &recv_service_response);
   if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                  "Failed to receive service discovery response: %s", libnngio_protobuf_strerror(err));
@@ -828,8 +829,12 @@ void test_protobuf_service_discovery() {
   }
 
   libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
-               "Service discovery response sent and received successfully.");
+               "Service discovery response validated.");
 
+  nngio_free_service_discovery_response(recv_service_response);
+  nngio_free_service_discovery_response(service_response);
+  free(recv_service_request);
+  free(service_request);
   libnngio_protobuf_context_free(req_proto_ctx);
   libnngio_protobuf_context_free(rep_proto_ctx);
   libnngio_context_free(req_ctx);
@@ -851,6 +856,6 @@ int main() {
   test_protobuf_helpers();
   test_protobuf_raw_message();
   test_protobuf_rpc();
-  //test_protobuf_service_discovery();
+  test_protobuf_service_discovery();
   return 0;
 }
