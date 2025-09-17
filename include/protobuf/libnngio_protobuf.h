@@ -28,21 +28,47 @@
  */
 
 typedef enum {
-  LIBNNGIO_PROTOBUF_ERR_NONE = 0,                   ///< No error
-  LIBNNGIO_PROTOBUF_ERR_UNKNOWN = 1,                ///< Unknown error
-  LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT = 2,        ///< Invalid context
-  LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE = 3,        ///< Invalid message format
-  LIBNNGIO_PROTOBUF_ERR_SERVICE_NOT_FOUND = 4,      ///< Requested service not found
-  LIBNNGIO_PROTOBUF_ERR_METHOD_NOT_FOUND = 5,       ///< Requested method not found
-  LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED = 6,   ///< Message serialization failed
-  LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED = 7, ///< Message deserialization failed
-  LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR = 8,        ///< Underlying transport error
+  LIBNNGIO_PROTOBUF_ERR_NONE = 0,               ///< No error
+  LIBNNGIO_PROTOBUF_ERR_UNKNOWN = 1,            ///< Unknown error
+  LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT = 2,    ///< Invalid context
+  LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE = 3,    ///< Invalid message format
+  LIBNNGIO_PROTOBUF_ERR_SERVICE_NOT_FOUND = 4,  ///< Requested service not found
+  LIBNNGIO_PROTOBUF_ERR_METHOD_NOT_FOUND = 5,   ///< Requested method not found
+  LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED =
+      6,  ///< Message serialization failed
+  LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED =
+      7,  ///< Message deserialization failed
+  LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR = 8,  ///< Underlying transport error
 } libnngio_protobuf_error_code;
 
 /**
  * @brief Opaque context structure for managing libnngio_protobuf state.
  */
 typedef struct libnngio_protobuf_context libnngio_protobuf_context;
+
+/**
+ * @brief Asynchronous operation send callback type.
+ *
+ * @param ctx       Context handle.
+ * @param result    Result code of the operation (0 on success).
+ * @param msg       Pointer to the message involved in the operation.
+ * @param user_data User data pointer provided at call time.
+ */
+typedef void (*libnngio_protobuf_send_async_cb)(
+    libnngio_protobuf_context *ctx, int result,
+    NngioProtobuf__NngioMessage *msg, void *user_data);
+
+/**
+ * @brief Asynchronous operation recv callback type.
+ *
+ * @param ctx       Context handle.
+ * @param result    Result code of the operation (0 on success).
+ * @param msg       Pointer to the location to store the received message.
+ * @param user_data User data pointer provided at call time.
+ */
+typedef void (*libnngio_protobuf_recv_async_cb)(
+    libnngio_protobuf_context *ctx, int result,
+    NngioProtobuf__NngioMessage **msg, void *user_data);
 
 /*
  * @brief Define function to convert NngioProtobuf__NngioMessage__MsgCase enum
@@ -58,7 +84,7 @@ char *libnngio_protobuf_nngio_msg_case_str(
  *
  * @return Pointer to the uuid_buf on success, NULL on failure.
  */
-char* libnngio_protobuf_gen_uuid(void);
+char *libnngio_protobuf_gen_uuid(void);
 
 /*
  * @brief Define function to convert error codes to strings
@@ -86,13 +112,12 @@ libnngio_protobuf_error_code libnngio_protobuf_context_free(
     libnngio_protobuf_context *ctx);
 
 /**
- * @brief Get the last transport error code from the underlying libnngio context.
+ * @brief Get the last transport error code from the underlying libnngio
+ * context.
  * @param ctx Pointer to the libnngio_protobuf context.
  * @return The last transport error code, or 0 if no error.
  */
-int libnngio_protobuf_context_get_transport_rv(
-    libnngio_protobuf_context *ctx);
-
+int libnngio_protobuf_context_get_transport_rv(libnngio_protobuf_context *ctx);
 
 // Define helper functions for us to create and release each message type
 // These functions should allocate/free the message structs and any nested
@@ -101,45 +126,53 @@ int libnngio_protobuf_context_get_transport_rv(
 /**
  * @brief Create a NngioProtobuf__Service structure and populate its fields.
  *
- * Allocates and initializes a NngioProtobuf__Service with the given name and methods.
- * All strings are deep-copied.
+ * Allocates and initializes a NngioProtobuf__Service with the given name and
+ * methods. All strings are deep-copied.
  *
  * @param name Name of the service.
  * @param methods Array of method names.
  * @param n_methods Number of methods.
  * @return Pointer to the allocated NngioProtobuf__Service, or NULL on failure.
  */
-NngioProtobuf__Service *nngio_create_service(const char *name, const char **methods, size_t n_methods);
+NngioProtobuf__Service *nngio_create_service(const char *name,
+                                             const char **methods,
+                                             size_t n_methods);
 
 /**
  * @brief Free a NngioProtobuf__Service structure and its contents.
  *
- * Frees all allocated memory associated with the service, including method strings.
+ * Frees all allocated memory associated with the service, including method
+ * strings.
  *
  * @param svc Pointer to the service to free.
  */
 void nngio_free_service(NngioProtobuf__Service *svc);
 
 /**
- * @brief Create a NngioProtobuf__ServiceDiscoveryResponse structure and populate its fields.
+ * @brief Create a NngioProtobuf__ServiceDiscoveryResponse structure and
+ * populate its fields.
  *
- * Allocates and initializes a NngioProtobuf__ServiceDiscoveryResponse with the given services.
- * Takes ownership of the provided service pointers.
+ * Allocates and initializes a NngioProtobuf__ServiceDiscoveryResponse with the
+ * given services. Takes ownership of the provided service pointers.
  *
  * @param services Array of pointers to NngioProtobuf__Service.
  * @param n_services Number of services.
  * @return Pointer to the allocated response, or NULL on failure.
  */
-NngioProtobuf__ServiceDiscoveryResponse *nngio_create_service_discovery_response(NngioProtobuf__Service **services, size_t n_services);
+NngioProtobuf__ServiceDiscoveryResponse *
+nngio_create_service_discovery_response(NngioProtobuf__Service **services,
+                                        size_t n_services);
 
 /**
- * @brief Free a NngioProtobuf__ServiceDiscoveryResponse structure and its contents.
+ * @brief Free a NngioProtobuf__ServiceDiscoveryResponse structure and its
+ * contents.
  *
  * Frees all allocated memory associated with the response and its services.
  *
  * @param resp Pointer to the response to free.
  */
-void nngio_free_service_discovery_response(NngioProtobuf__ServiceDiscoveryResponse *resp);
+void nngio_free_service_discovery_response(
+    NngioProtobuf__ServiceDiscoveryResponse *resp);
 
 /**
  * @brief Create a NngioProtobuf__RpcRequestMessage with the given parameters.
@@ -152,7 +185,9 @@ void nngio_free_service_discovery_response(NngioProtobuf__ServiceDiscoveryRespon
  * @param payload_len Size of the payload data.
  * @return Pointer to the allocated request message, or NULL on failure.
  */
-NngioProtobuf__RpcRequestMessage *nngio_create_rpc_request(const char *service_name, const char *method_name, const void *payload, size_t payload_len);
+NngioProtobuf__RpcRequestMessage *nngio_create_rpc_request(
+    const char *service_name, const char *method_name, const void *payload,
+    size_t payload_len);
 
 /**
  * @brief Free a NngioProtobuf__RpcRequestMessage and its contents.
@@ -166,7 +201,8 @@ void nngio_free_rpc_request(NngioProtobuf__RpcRequestMessage *msg);
 /**
  * @brief Create a NngioProtobuf__RpcResponseMessage with the given parameters.
  *
- * Allocates and initializes a response message. Deep-copies payload and error message.
+ * Allocates and initializes a response message. Deep-copies payload and error
+ * message.
  *
  * @param status Status of the RPC response.
  * @param payload Pointer to the payload data.
@@ -174,7 +210,9 @@ void nngio_free_rpc_request(NngioProtobuf__RpcRequestMessage *msg);
  * @param error_message Error message string (may be NULL).
  * @return Pointer to the allocated response message, or NULL on failure.
  */
-NngioProtobuf__RpcResponseMessage *nngio_create_rpc_response(NngioProtobuf__RpcResponseMessage__Status status, const void *payload, size_t payload_len, const char *error_message);
+NngioProtobuf__RpcResponseMessage *nngio_create_rpc_response(
+    NngioProtobuf__RpcResponseMessage__Status status, const void *payload,
+    size_t payload_len, const char *error_message);
 
 /**
  * @brief Free a NngioProtobuf__RpcResponseMessage and its contents.
@@ -194,7 +232,8 @@ void nngio_free_rpc_response(NngioProtobuf__RpcResponseMessage *msg);
  * @param data_len Length of the binary data.
  * @return Pointer to the allocated raw message, or NULL on failure.
  */
-NngioProtobuf__RawMessage *nngio_create_raw_message(const void *data, size_t data_len);
+NngioProtobuf__RawMessage *nngio_create_raw_message(const void *data,
+                                                    size_t data_len);
 
 /**
  * @brief Free a NngioProtobuf__RawMessage and its contents.
@@ -208,57 +247,71 @@ void nngio_free_raw_message(NngioProtobuf__RawMessage *msg);
 /**
  * @brief Create a NngioProtobuf__NngioMessage containing a RpcRequestMessage.
  *
- * Allocates and initializes an NngioMessage. Takes ownership of the rpc_request pointer.
+ * Allocates and initializes an NngioMessage. Takes ownership of the rpc_request
+ * pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param rpc_request Pointer to a NngioProtobuf__RpcRequestMessage.
  * @return Pointer to the allocated NngioMessage, or NULL on failure.
  */
-NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_rpc_request(const char *uuid, NngioProtobuf__RpcRequestMessage *rpc_request);
+NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_rpc_request(
+    const char *uuid, NngioProtobuf__RpcRequestMessage *rpc_request);
 
 /**
  * @brief Create a NngioProtobuf__NngioMessage containing a RpcResponseMessage.
  *
- * Allocates and initializes an NngioMessage. Takes ownership of the rpc_response pointer.
+ * Allocates and initializes an NngioMessage. Takes ownership of the
+ * rpc_response pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param rpc_response Pointer to a NngioProtobuf__RpcResponseMessage.
  * @return Pointer to the allocated NngioMessage, or NULL on failure.
  */
-NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_rpc_response(const char *uuid, NngioProtobuf__RpcResponseMessage *rpc_response);
+NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_rpc_response(
+    const char *uuid, NngioProtobuf__RpcResponseMessage *rpc_response);
 
 /**
  * @brief Create a NngioProtobuf__NngioMessage containing a RawMessage.
  *
- * Allocates and initializes an NngioMessage. Takes ownership of the raw_message pointer.
+ * Allocates and initializes an NngioMessage. Takes ownership of the raw_message
+ * pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param raw_message Pointer to a NngioProtobuf__RawMessage.
  * @return Pointer to the allocated NngioMessage, or NULL on failure.
  */
-NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_raw(const char *uuid, NngioProtobuf__RawMessage *raw_message);
+NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_raw(
+    const char *uuid, NngioProtobuf__RawMessage *raw_message);
 
 /**
- * @brief Create a NngioProtobuf__NngioMessage containing a ServiceDiscoveryRequest.
+ * @brief Create a NngioProtobuf__NngioMessage containing a
+ * ServiceDiscoveryRequest.
  *
- * Allocates and initializes an NngioMessage. Takes ownership of the req pointer.
+ * Allocates and initializes an NngioMessage. Takes ownership of the req
+ * pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param req Pointer to a NngioProtobuf__ServiceDiscoveryRequest.
  * @return Pointer to the allocated NngioMessage, or NULL on failure.
  */
-NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_service_discovery_request(const char *uuid, NngioProtobuf__ServiceDiscoveryRequest *req);
+NngioProtobuf__NngioMessage *
+nngio_create_nngio_message_with_service_discovery_request(
+    const char *uuid, NngioProtobuf__ServiceDiscoveryRequest *req);
 
 /**
- * @brief Create a NngioProtobuf__NngioMessage containing a ServiceDiscoveryResponse.
+ * @brief Create a NngioProtobuf__NngioMessage containing a
+ * ServiceDiscoveryResponse.
  *
- * Allocates and initializes an NngioMessage. Takes ownership of the resp pointer.
+ * Allocates and initializes an NngioMessage. Takes ownership of the resp
+ * pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param resp Pointer to a NngioProtobuf__ServiceDiscoveryResponse.
  * @return Pointer to the allocated NngioMessage, or NULL on failure.
  */
-NngioProtobuf__NngioMessage *nngio_create_nngio_message_with_service_discovery_response(const char *uuid, NngioProtobuf__ServiceDiscoveryResponse *resp);
+NngioProtobuf__NngioMessage *
+nngio_create_nngio_message_with_service_discovery_response(
+    const char *uuid, NngioProtobuf__ServiceDiscoveryResponse *resp);
 
 /**
  * @brief Free a NngioProtobuf__NngioMessage and its contents.
@@ -282,32 +335,38 @@ NngioProtobuf__Service *nngio_copy_service(const NngioProtobuf__Service *src);
 /**
  * @brief Deep copy a NngioProtobuf__ServiceDiscoveryResponse structure.
  *
- * Allocates and returns a new response whose fields and services are deep-copied from src.
+ * Allocates and returns a new response whose fields and services are
+ * deep-copied from src.
  *
  * @param src Pointer to the source response to copy.
  * @return Pointer to deep-copied response, or NULL on failure.
  */
-NngioProtobuf__ServiceDiscoveryResponse *nngio_copy_service_discovery_response(const NngioProtobuf__ServiceDiscoveryResponse *src);
+NngioProtobuf__ServiceDiscoveryResponse *nngio_copy_service_discovery_response(
+    const NngioProtobuf__ServiceDiscoveryResponse *src);
 
 /**
  * @brief Deep copy a NngioProtobuf__RpcRequestMessage structure.
  *
- * Allocates and returns a new RPC request whose fields are deep-copied from src.
+ * Allocates and returns a new RPC request whose fields are deep-copied from
+ * src.
  *
  * @param src Pointer to the source request to copy.
  * @return Pointer to deep-copied request, or NULL on failure.
  */
-NngioProtobuf__RpcRequestMessage *nngio_copy_rpc_request(const NngioProtobuf__RpcRequestMessage *src);
+NngioProtobuf__RpcRequestMessage *nngio_copy_rpc_request(
+    const NngioProtobuf__RpcRequestMessage *src);
 
 /**
  * @brief Deep copy a NngioProtobuf__RpcResponseMessage structure.
  *
- * Allocates and returns a new RPC response whose fields are deep-copied from src.
+ * Allocates and returns a new RPC response whose fields are deep-copied from
+ * src.
  *
  * @param src Pointer to the source response to copy.
  * @return Pointer to deep-copied response, or NULL on failure.
  */
-NngioProtobuf__RpcResponseMessage *nngio_copy_rpc_response(const NngioProtobuf__RpcResponseMessage *src);
+NngioProtobuf__RpcResponseMessage *nngio_copy_rpc_response(
+    const NngioProtobuf__RpcResponseMessage *src);
 
 /**
  * @brief Deep copy a NngioProtobuf__RawMessage structure.
@@ -317,19 +376,20 @@ NngioProtobuf__RpcResponseMessage *nngio_copy_rpc_response(const NngioProtobuf__
  * @param src Pointer to the source raw message to copy.
  * @return Pointer to deep-copied raw message, or NULL on failure.
  */
-NngioProtobuf__RawMessage *nngio_copy_raw_message(const NngioProtobuf__RawMessage *src);
+NngioProtobuf__RawMessage *nngio_copy_raw_message(
+    const NngioProtobuf__RawMessage *src);
 
 /**
  * @brief Deep copy a NngioProtobuf__NngioMessage structure.
  *
- * Allocates and returns a new NngioMessage, deep-copying its uuid and the message in the union
- * (using the appropriate helper functions).
+ * Allocates and returns a new NngioMessage, deep-copying its uuid and the
+ * message in the union (using the appropriate helper functions).
  *
  * @param src Pointer to the source NngioMessage to copy.
  * @return Pointer to deep-copied NngioMessage, or NULL on failure.
  */
-NngioProtobuf__NngioMessage *nngio_copy_nngio_message(const NngioProtobuf__NngioMessage *src);
-
+NngioProtobuf__NngioMessage *nngio_copy_nngio_message(
+    const NngioProtobuf__NngioMessage *src);
 
 // Define sync/async for sending/receiving each message type
 // Should define the following functions:
@@ -365,7 +425,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_raw_message(
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_raw_message_async(
     libnngio_protobuf_context *ctx, const NngioProtobuf__RawMessage *message,
-    libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_send_async_cb cb, void *user_data);
 
 /**
  * @brief Receive a raw message.
@@ -386,7 +446,8 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_raw_message(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_raw_message_async(
-    libnngio_protobuf_context *ctx, libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_context *ctx, NngioProtobuf__RawMessage **message,
+    libnngio_protobuf_recv_async_cb cb, void *user_data);
 
 /**
  * @brief Send an RPC request and wait for the response.
@@ -410,8 +471,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request(
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
     libnngio_protobuf_context *ctx,
-    const NngioProtobuf__RpcRequestMessage *request, libnngio_async_cb cb,
-    void *user_data);
+    const NngioProtobuf__RpcRequestMessage *request,
+    libnngio_protobuf_send_async_cb cb, void *user_data);
 
 /**
  * @brief Receive an RPC request.
@@ -426,13 +487,15 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_request(
 /**
  * @brief Receive an RPC request asynchronously.
  *
- * @param ctx           Context to use for receiving.
+ * @param ctx           Context to use for sending/receiving.
+ * @param request       Pointer to the RPC request to retrieve the data.
  * @param cb            Callback to invoke upon completion.
  * @param user_data     User data for callback.
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_request_async(
-    libnngio_protobuf_context *ctx, libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_context *ctx, NngioProtobuf__RpcRequestMessage **request,
+    libnngio_protobuf_recv_async_cb cb, void *user_data);
 
 /**
  * @brief Send an RPC response.
@@ -456,8 +519,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response(
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response_async(
     libnngio_protobuf_context *ctx,
-    const NngioProtobuf__RpcResponseMessage *response, libnngio_async_cb cb,
-    void *user_data);
+    const NngioProtobuf__RpcResponseMessage *response,
+    libnngio_protobuf_send_async_cb cb, void *user_data);
 
 /**
  * @brief Receive an RPC response.
@@ -474,12 +537,15 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response(
  * @brief Receive an RPC response asynchronously.
  *
  * @param ctx           Context to use for receiving.
+ * @param response      Pointer to the location where response is stored
  * @param cb            Callback to invoke upon completion.
  * @param user_data     User data for callback.
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response_async(
-    libnngio_protobuf_context *ctx, libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__RpcResponseMessage **response,
+    libnngio_protobuf_recv_async_cb cb, void *user_data);
 
 /**
  * @brief Send a service discovery request and wait for the response.
