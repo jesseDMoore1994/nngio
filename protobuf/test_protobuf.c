@@ -958,7 +958,7 @@ void async_send_cb(libnngio_protobuf_context *ctx, int result,
                "Message UUID: %s", msg ? msg->uuid : "NULL");
   sync->result = result;
   sync->done = 1;
-  nngio_free_nngio_message(msg);
+  //nngio_free_nngio_message(msg);
 }
 
 void test_protobuf_raw_message_async() {
@@ -2141,6 +2141,12 @@ void test_protobuf_send_recv_async() {
       nngio_create_nngio_message_with_raw(uuid, raw_msg);
 
   libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Prepared raw message for sending with UUID: %s, msg: %p, raw: %p",
+               uuid, (void*)msg, (void*)raw_msg);
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Raw message data: %.*s", (int)raw_msg->data.len, raw_msg->data.data);
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
                "msg pointer: %p", (void*)msg);
 
 #ifdef NNGIO_MOCK_MAIN
@@ -2246,6 +2252,9 @@ void test_protobuf_send_recv_async() {
   assert(recv_msg != NULL);
 
 
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Async receive completed successfully, recv_msg: %p, *recv_msg: %p",
+               (void*)recv_msg, (void*)(*recv_msg));
 
   // Validate received message
   if ((*recv_msg)->raw_message->data.len != msg->raw_message->data.len ||
@@ -2278,6 +2287,7 @@ void test_protobuf_send_recv_async() {
 
   free(uuid);
   nngio_free_nngio_message(*recv_msg);
+  free(recv_msg);
   nngio_free_nngio_message(msg);
   libnngio_protobuf_context_free(req_proto_ctx);
   libnngio_protobuf_context_free(rep_proto_ctx);

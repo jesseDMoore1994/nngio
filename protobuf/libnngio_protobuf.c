@@ -3184,7 +3184,8 @@ static void recv_async_cb(libnngio_context *ctx, int result, void *data,
     libnngio_log("DBG", "RECV_ASYNC_CB", __FILE__, __LINE__,
                  libnngio_context_id(ctx),
                  "Setting user message pointer %p to received message %p\n", cb_data->msg, msg);
-    cb_data->msg = nngio_copy_nngio_message(msg);
+
+    (*cb_data->msg) = nngio_copy_nngio_message(*msg);
   }
   else {
     libnngio_log("DBG", "RECV_ASYNC_CB", __FILE__, __LINE__,
