@@ -572,8 +572,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_service_discovery_request(
 libnngio_protobuf_error_code
 libnngio_protobuf_send_service_discovery_request_async(
     libnngio_protobuf_context *ctx,
-    const NngioProtobuf__ServiceDiscoveryRequest *request, libnngio_async_cb cb,
-    void *user_data);
+    const NngioProtobuf__ServiceDiscoveryRequest *request,
+    libnngio_protobuf_send_async_cb cb, void *user_data);
 
 /**
  * @brief Receive a service discovery request.
@@ -597,7 +597,9 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_service_discovery_request(
  */
 libnngio_protobuf_error_code
 libnngio_protobuf_recv_service_discovery_request_async(
-    libnngio_protobuf_context *ctx, libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_protobuf_recv_async_cb cb, void *user_data);
 
 /**
  * @brief Send a service discovery response.
@@ -623,7 +625,7 @@ libnngio_protobuf_error_code
 libnngio_protobuf_send_service_discovery_response_async(
     libnngio_protobuf_context *ctx,
     const NngioProtobuf__ServiceDiscoveryResponse *response,
-    libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_send_async_cb cb, void *user_data);
 
 /**
  * @brief Receive a service discovery response.
@@ -647,6 +649,58 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_service_discovery_response(
  */
 libnngio_protobuf_error_code
 libnngio_protobuf_recv_service_discovery_response_async(
-    libnngio_protobuf_context *ctx, libnngio_async_cb cb, void *user_data);
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__ServiceDiscoveryResponse **response,
+    libnngio_protobuf_recv_async_cb cb, void *user_data);
+
+/**
+ * @brief Send a generic NngioMessage.
+ *
+ * @param ctx           Context to use for sending.
+ * @param msg           Pointer to the NngioMessage to send.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_send(
+    libnngio_protobuf_context *ctx,
+    const NngioProtobuf__NngioMessage *msg);
+
+/**
+ * @brief Send a generic NngioMessage asynchronously.
+ *
+ * @param ctx           Context to use for sending.
+ * @param msg           Pointer to the NngioMessage to send.
+ * @param cb            Callback to invoke upon completion.
+ * @param user_data     User data for callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_send_async(
+    libnngio_protobuf_context *ctx,
+    const NngioProtobuf__NngioMessage *msg,
+    libnngio_protobuf_send_async_cb cb, void *user_data);
+
+/**
+ * @brief Receive a generic NngioMessage.
+ *
+ * @param ctx           Context to use for receiving.
+ * @param msg           Pointer to receive allocated NngioMessage.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_recv(
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__NngioMessage **msg);
+
+/**
+ * @brief Receive a generic NngioMessage asynchronously.
+ *
+ * @param ctx           Context to use for receiving.
+ * @param msg           Pointer to the location to store the received message.
+ * @param cb            Callback to invoke upon completion.
+ * @param user_data     User data for callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_recv_async(
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__NngioMessage **msg,
+    libnngio_protobuf_recv_async_cb cb, void *user_data);
 
 #endif  // LIBNNGIO_PROTOBUF_H

@@ -1685,7 +1685,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response_async(
     return rv;
   }
 
-  // Wrap the RawMessage in a NngioMessage
+  // Wrap the Response in a NngioMessage
   NngioProtobuf__NngioMessage *nngio_msg =
       malloc(sizeof(NngioProtobuf__NngioMessage));
   nngio_protobuf__nngio_message__init(nngio_msg);
@@ -2005,10 +2005,10 @@ libnngio_protobuf_error_code libnngio_protobuf_send_service_discovery_request(
       NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST;
   // copy service discovery request message into nngio_msg without assignment to
   // avoid ownership issues
-  NngioProtobuf__ServiceDiscoveryRequest sd_request_copy =
-      NNGIO_PROTOBUF__SERVICE_DISCOVERY_REQUEST__INIT;
-  nngio_protobuf__service_discovery_request__init(&sd_request_copy);
-  nngio_msg.service_discovery_request = &sd_request_copy;
+  NngioProtobuf__ServiceDiscoveryRequest *sd_request_copy =
+      malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+  nngio_protobuf__service_discovery_request__init(sd_request_copy);
+  nngio_msg.service_discovery_request = sd_request_copy;
 
   // Serialize the NngioMessage to a buffer
   size_t packed_size =
@@ -2048,6 +2048,158 @@ libnngio_protobuf_error_code libnngio_protobuf_send_service_discovery_request(
                __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
                "Successfully sent service discovery request message.");
   free(nngio_msg.uuid);
+  free(sd_request_copy);
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+static void send_service_discovery_request_async_cb(libnngio_context *ctx,
+                                                    int result, void *data,
+                                                    size_t len, void *arg) {
+  send_async_cb_data *cb_data = (send_async_cb_data *)arg;
+  libnngio_protobuf_error_code rv;
+  if (result != 0) {
+    libnngio_log("ERR", "SEND_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous send failed: %s", nng_strerror(result));
+  } else {
+    libnngio_log("INF", "SEND_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous send completed successfully.");
+  }
+
+  libnngio_log("DBG", "SEND_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+               __LINE__, libnngio_context_id(ctx),
+               "Invoking user callback with user data %p.", cb_data->user_data);
+
+  libnngio_log("DBG", "SEND_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+               __LINE__, libnngio_context_id(ctx), "msg pointer: %p.",
+               *(cb_data->msg));
+
+  // Make a copy of the message to pass to the user callback
+  // Invoke the user callback
+  if (cb_data->user_cb) {
+    cb_data->user_cb(cb_data->ctx, result, cb_data->msg, cb_data->user_data);
+  }
+  free(cb_data->buffer);
+  free(cb_data);
+}
+
+/**
+ * @brief Send an RPC request message asynchronously.
+ *
+ * @param ctx       Context to use for sending.
+ * @param message   Pointer to the raw message to send.
+ * @param cb        Callback function to invoke upon send completion.
+ * @param arg       User-defined argument to pass to the callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code
+libnngio_protobuf_send_service_discovery_request_async(
+    libnngio_protobuf_context *ctx,
+    const NngioProtobuf__ServiceDiscoveryRequest *request,
+    libnngio_protobuf_send_async_cb cb, void *user_data) {
+  libnngio_protobuf_error_code rv;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+                 __FILE__, __LINE__, -1, "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (request == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Invalid service discovery request provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  if (cb == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Invalid callback function provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  // Wrap the RawMessage in a NngioMessage
+  NngioProtobuf__NngioMessage *nngio_msg =
+      malloc(sizeof(NngioProtobuf__NngioMessage));
+  nngio_protobuf__nngio_message__init(nngio_msg);
+  nngio_msg->uuid = libnngio_protobuf_gen_uuid();
+  nngio_msg->msg_case =
+      NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST;
+  NngioProtobuf__ServiceDiscoveryRequest *sd_request_copy =
+      malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+  nngio_protobuf__service_discovery_request__init(sd_request_copy);
+  nngio_msg->service_discovery_request = sd_request_copy;
+
+  // Prepare callback data
+  // Note: cb_data->msg will be freed in the callback after user_cb is invoked
+  // it will also copy the message before passing to user_cb
+  send_async_cb_data *cb_data = malloc(sizeof(send_async_cb_data));
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+               __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+               "Prepared callback data structure at %p.", cb_data);
+
+  cb_data->user_cb = cb;
+  cb_data->ctx = ctx;
+  cb_data->user_data = user_data;
+  cb_data->msg = nngio_msg;
+  cb_data->len = nngio_protobuf__nngio_message__get_packed_size(nngio_msg);
+  cb_data->buffer = malloc(cb_data->len);
+
+  if (!cb_data) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for callback data.");
+    nngio_free_nngio_message(nngio_msg);
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  // Serialize the NngioMessage into the callback buffer
+  if (cb_data->buffer == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for serialization buffer.");
+    nngio_free_nngio_message(nngio_msg);
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  nngio_protobuf__nngio_message__pack(cb_data->msg, cb_data->buffer);
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+               __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+               "Serialized service discovery request (%s) of size %zu bytes.",
+               nngio_msg->uuid, cb_data->len);
+
+  // Send the serialized buffer asynchronously using the underlying libnngio
+  // context
+  ctx->transport_rv = libnngio_context_send_async(
+      ctx->ctx, cb_data->buffer, cb_data->len,
+      send_service_discovery_request_async_cb, cb_data);
+
+  if (ctx->transport_rv != 0) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to send service discovery request asynchronously: %s",
+                 nng_strerror(ctx->transport_rv));
+    free(cb_data);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+  libnngio_log(
+      "INF", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_REQUEST_ASYNC", __FILE__,
+      __LINE__, libnngio_context_id(ctx->ctx),
+      "Successfully initiated async send of service discovery request.");
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
 
@@ -2132,6 +2284,156 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_service_discovery_request(
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
 
+static void recv_service_discovery_request_async_cb(libnngio_context *ctx,
+                                                    int result, void *data,
+                                                    size_t len, void *arg) {
+  recv_async_cb_data *cb_data = (recv_async_cb_data *)arg;
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+  // Note: data is a pointer to the received buffer, len is its length
+  // Unpack the NngioMessage from the received buffer
+  NngioProtobuf__NngioMessage *nngio_msg = NULL;
+  NngioProtobuf__ServiceDiscoveryRequest **rpc_req =
+      (NngioProtobuf__ServiceDiscoveryRequest **)cb_data->msg;
+  if (result != 0) {
+    libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous receive failed: %s", nng_strerror(result));
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+  } else {
+    libnngio_log("INF", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous receive completed successfully.");
+  }
+
+  nngio_msg = nngio_protobuf__nngio_message__unpack(NULL, len, data);
+  if (nngio_msg == NULL) {
+    libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Failed to unpack NngioMessage from received buffer.");
+    rv = LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED;
+  } else if (nngio_msg->msg_case !=
+             NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST) {
+    libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Received message is not a RPC Request (msg_case=%d).",
+                 nngio_msg->msg_case);
+    nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+  } else {
+    libnngio_log("DBG", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Received message (%s) of size %zu bytes.", nngio_msg->uuid,
+                 len);
+  }
+
+  libnngio_log(
+      "INF", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__, __LINE__,
+      libnngio_context_id(ctx),
+      "Asynchronous receive callback processing completed with code %d.", rv);
+  libnngio_log("DBG", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
+               __LINE__, libnngio_context_id(ctx),
+               "Received service discovery request (%s).",
+               nngio_msg ? nngio_msg->uuid : "NULL");
+
+  // update the user's message pointer if we successfully received a message
+  if (rv == LIBNNGIO_PROTOBUF_ERR_NONE && nngio_msg && cb_data->msg) {
+    libnngio_log("DBG", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB",
+                 __FILE__, __LINE__, libnngio_context_id(ctx),
+                 "Updating user message pointer %p.", cb_data->msg);
+    NngioProtobuf__ServiceDiscoveryRequest *req_copy =
+        malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+    nngio_protobuf__service_discovery_request__init(req_copy);
+    *(cb_data->msg) = req_copy;
+  }
+
+  // Make a copy of the message to pass to the user callback
+  NngioProtobuf__NngioMessage *msg =
+      nngio_msg ? nngio_copy_nngio_message(nngio_msg) : NULL;
+
+  // Make a copy of the message to pass to the user callback
+  if (cb_data->user_cb) {
+    cb_data->user_cb(cb_data->ctx, result, msg ? &msg : NULL,
+                     cb_data->user_data);
+  }
+
+  nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
+  free(cb_data->buffer);
+  free(cb_data);
+}
+
+/**
+ * @brief Send an RPC request message asynchronously.
+ *
+ * @param ctx       Context to use for sending.
+ * @param message   Pointer to the raw message to send.
+ * @param cb        Callback function to invoke upon send completion.
+ * @param arg       User-defined argument to pass to the callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code
+libnngio_protobuf_recv_service_discovery_request_async(
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_protobuf_recv_async_cb cb, void *user_data) {
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_REQUEST_ASYNC", __FILE__,
+                 __LINE__, -1, "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (cb == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_REQUEST_ASYNC", __FILE__,
+                 __LINE__, libnngio_context_id(ctx->ctx),
+                 "Invalid callback function provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  // Prepare callback data
+  recv_async_cb_data *cb_data = malloc(sizeof(recv_async_cb_data));
+  if (!cb_data) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_REQUEST_ASYNC", __FILE__,
+                 __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for callback data.");
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+  cb_data->buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
+  cb_data->len = LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE;
+  cb_data->user_cb = cb;
+  cb_data->ctx = ctx;
+  cb_data->user_data = user_data;
+  cb_data->msg =
+      (void **)request;  // Note: message will be updated in the callback
+
+  // Receive the serialized buffer asynchronously using the underlying libnngio
+  // context
+  ctx->transport_rv = libnngio_context_recv_async(
+      ctx->ctx, cb_data->buffer, &cb_data->len,
+      recv_service_discovery_request_async_cb, cb_data);
+  if (ctx->transport_rv != 0) {
+    libnngio_log(
+        "ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_REQUEST_ASYNC", __FILE__, __LINE__,
+        libnngio_context_id(ctx->ctx),
+        "Failed to receive service discovery request asynchronously: %s",
+        nng_strerror(ctx->transport_rv));
+    free(cb_data);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+
+  libnngio_log("INF", "LIBNNGIO_PROTOBUF_RECV_RPC_REQUEST_ASYNC", __FILE__,
+               __LINE__, libnngio_context_id(ctx->ctx),
+               "Successfully initiated async receive of service discovery "
+               "request message.");
+
+  // Note: The actual message will be processed by the callback function.
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
 /**
  * @brief Send a service discovery response message.
  *
@@ -2205,6 +2507,155 @@ libnngio_protobuf_error_code libnngio_protobuf_send_service_discovery_response(
   libnngio_log("INF", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE",
                __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
                "Successfully sent service discovery response message.");
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+static void send_service_discovery_response_async_cb(libnngio_context *ctx,
+                                                     int result, void *data,
+                                                     size_t len, void *arg) {
+  send_async_cb_data *cb_data = (send_async_cb_data *)arg;
+  libnngio_protobuf_error_code rv;
+  if (result != 0) {
+    libnngio_log("ERR", "SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous send failed: %s", nng_strerror(result));
+  } else {
+    libnngio_log("INF", "SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous send completed successfully.");
+  }
+
+  libnngio_log("DBG", "SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+               __LINE__, libnngio_context_id(ctx),
+               "Invoking user callback with user data %p.", cb_data->user_data);
+
+  libnngio_log("DBG", "SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+               __LINE__, libnngio_context_id(ctx), "msg pointer: %p.",
+               *(cb_data->msg));
+
+  // Make a copy of the message to pass to the user callback
+  // Invoke the user callback
+  if (cb_data->user_cb) {
+    cb_data->user_cb(cb_data->ctx, result, cb_data->msg, cb_data->user_data);
+  }
+  free(cb_data->buffer);
+  free(cb_data);
+}
+
+/**
+ * @brief Send an RPC response message asynchronously.
+ *
+ * @param ctx       Context to use for sending.
+ * @param message   Pointer to the raw message to send.
+ * @param cb        Callback function to invoke upon send completion.
+ * @param arg       User-defined argument to pass to the callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code
+libnngio_protobuf_send_service_discovery_response_async(
+    libnngio_protobuf_context *ctx,
+    const NngioProtobuf__ServiceDiscoveryResponse *response,
+    libnngio_protobuf_send_async_cb cb, void *user_data) {
+  libnngio_protobuf_error_code rv;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+                 __FILE__, __LINE__, -1, "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (response == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Invalid service discovery response provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  if (cb == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Invalid callback function provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  // Wrap the RawMessage in a NngioMessage
+  NngioProtobuf__NngioMessage *nngio_msg =
+      malloc(sizeof(NngioProtobuf__NngioMessage));
+  nngio_protobuf__nngio_message__init(nngio_msg);
+  nngio_msg->uuid = libnngio_protobuf_gen_uuid();
+  nngio_msg->msg_case =
+      NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_RESPONSE;
+  nngio_msg->service_discovery_response =
+      nngio_copy_service_discovery_response(response);
+
+  // Prepare callback data
+  // Note: cb_data->msg will be freed in the callback after user_cb is invoked
+  // it will also copy the message before passing to user_cb
+  send_async_cb_data *cb_data = malloc(sizeof(send_async_cb_data));
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+               __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+               "Prepared callback data structure at %p.", cb_data);
+
+  cb_data->user_cb = cb;
+  cb_data->ctx = ctx;
+  cb_data->user_data = user_data;
+  cb_data->msg = nngio_msg;
+  cb_data->len = nngio_protobuf__nngio_message__get_packed_size(nngio_msg);
+  cb_data->buffer = malloc(cb_data->len);
+
+  if (!cb_data) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for callback data.");
+    nngio_free_nngio_message(nngio_msg);
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  // Serialize the NngioMessage into the callback buffer
+  if (cb_data->buffer == NULL) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for serialization buffer.");
+    nngio_free_nngio_message(nngio_msg);
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  nngio_protobuf__nngio_message__pack(cb_data->msg, cb_data->buffer);
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+               __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+               "Serialized service discovery response (%s) of size %zu bytes.",
+               nngio_msg->uuid, cb_data->len);
+
+  // Send the serialized buffer asynchronously using the underlying libnngio
+  // context
+  ctx->transport_rv = libnngio_context_send_async(
+      ctx->ctx, cb_data->buffer, cb_data->len,
+      send_service_discovery_response_async_cb, cb_data);
+
+  if (ctx->transport_rv != 0) {
+    libnngio_log("ERR",
+                 "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+                 __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to send service discovery response asynchronously: %s",
+                 nng_strerror(ctx->transport_rv));
+    free(cb_data);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+  libnngio_log(
+      "INF", "LIBNNGIO_PROTOBUF_SEND_SERVICE_DISCOVERY_RESPONSE_ASYNC",
+      __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
+      "Successfully initiated async send of service discovery response.");
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
 
@@ -2287,5 +2738,551 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_service_discovery_response(
   libnngio_log("INF", "LIBNNGIO_PROTOBUF_RECV_SERVICE_DISCOVERY_RESPONSE",
                __FILE__, __LINE__, libnngio_context_id(ctx->ctx),
                "Successfully received service discovery response message.");
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+static void recv_service_discovery_response_async_cb(libnngio_context *ctx,
+                                                     int result, void *data,
+                                                     size_t len, void *arg) {
+  recv_async_cb_data *cb_data = (recv_async_cb_data *)arg;
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+  // Note: data is a pointer to the received buffer, len is its length
+  // Unpack the NngioMessage from the received buffer
+  NngioProtobuf__NngioMessage *nngio_msg = NULL;
+  NngioProtobuf__ServiceDiscoveryResponse **rpc_req =
+      (NngioProtobuf__ServiceDiscoveryResponse **)cb_data->msg;
+  if (result != 0) {
+    libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous receive failed: %s", nng_strerror(result));
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+  } else {
+    libnngio_log("INF", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Asynchronous receive completed successfully.");
+  }
+
+  nngio_msg = nngio_protobuf__nngio_message__unpack(NULL, len, data);
+  if (nngio_msg == NULL) {
+    libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Failed to unpack NngioMessage from received buffer.");
+    rv = LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED;
+  } else if (nngio_msg->msg_case !=
+             NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_RESPONSE) {
+    libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Received message is not a RPC Response (msg_case=%d).",
+                 nngio_msg->msg_case);
+    nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+  } else {
+    libnngio_log("DBG", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+                 __LINE__, libnngio_context_id(ctx),
+                 "Received message (%s) of size %zu bytes.", nngio_msg->uuid,
+                 len);
+  }
+
+  libnngio_log(
+      "INF", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__, __LINE__,
+      libnngio_context_id(ctx),
+      "Asynchronous receive callback processing completed with code %d.", rv);
+  libnngio_log("DBG", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
+               __LINE__, libnngio_context_id(ctx),
+               "Received service discovery response (%s).",
+               nngio_msg ? nngio_msg->uuid : "NULL");
+
+  // update the user's message pointer if we successfully received a message
+  if (rv == LIBNNGIO_PROTOBUF_ERR_NONE && nngio_msg && cb_data->msg) {
+    *(cb_data->msg) = nngio_copy_service_discovery_response(
+        nngio_msg->service_discovery_response);
+  }
+
+  // Make a copy of the message to pass to the user callback
+  NngioProtobuf__NngioMessage *msg =
+      nngio_msg ? nngio_copy_nngio_message(nngio_msg) : NULL;
+
+  // Make a copy of the message to pass to the user callback
+  if (cb_data->user_cb) {
+    cb_data->user_cb(cb_data->ctx, result, msg ? &msg : NULL,
+                     cb_data->user_data);
+  }
+
+  nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
+  free(cb_data->buffer);
+  free(cb_data);
+}
+
+/**
+ * @brief Send an RPC request message asynchronously.
+ *
+ * @param ctx       Context to use for sending.
+ * @param message   Pointer to the raw message to send.
+ * @param cb        Callback function to invoke upon send completion.
+ * @param arg       User-defined argument to pass to the callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code
+libnngio_protobuf_recv_service_discovery_response_async(
+    libnngio_protobuf_context *ctx,
+    NngioProtobuf__ServiceDiscoveryResponse **response,
+    libnngio_protobuf_recv_async_cb cb, void *user_data) {
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_RESPONSE_ASYNC", __FILE__,
+                 __LINE__, -1, "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (cb == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_RESPONSE_ASYNC", __FILE__,
+                 __LINE__, libnngio_context_id(ctx->ctx),
+                 "Invalid callback function provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  // Prepare callback data
+  recv_async_cb_data *cb_data = malloc(sizeof(recv_async_cb_data));
+  if (!cb_data) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_RESPONSE_ASYNC", __FILE__,
+                 __LINE__, libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for callback data.");
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+  cb_data->buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
+  cb_data->len = LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE;
+  cb_data->user_cb = cb;
+  cb_data->ctx = ctx;
+  cb_data->user_data = user_data;
+  cb_data->msg =
+      (void **)response;  // Note: message will be updated in the callback
+
+  // Receive the serialized buffer asynchronously using the underlying libnngio
+  // context
+  ctx->transport_rv = libnngio_context_recv_async(
+      ctx->ctx, cb_data->buffer, &cb_data->len,
+      recv_service_discovery_response_async_cb, cb_data);
+  if (ctx->transport_rv != 0) {
+    libnngio_log(
+        "ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_RESPONSE_ASYNC", __FILE__, __LINE__,
+        libnngio_context_id(ctx->ctx),
+        "Failed to receive service discovery response asynchronously: %s",
+        nng_strerror(ctx->transport_rv));
+    free(cb_data);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+
+  libnngio_log("INF", "LIBNNGIO_PROTOBUF_RECV_RPC_RESPONSE_ASYNC", __FILE__,
+               __LINE__, libnngio_context_id(ctx->ctx),
+               "Successfully initiated async receive of service discovery "
+               "response message.");
+
+  // Note: The actual message will be processed by the callback function.
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Send a generic NngioMessage.
+ *
+ * @param ctx       Context to use for sending.
+ * @param message   Pointer to the NngioMessage to send.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_send(
+    libnngio_protobuf_context *ctx, const NngioProtobuf__NngioMessage *message) {
+  libnngio_protobuf_error_code rv;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__, -1,
+                 "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (message == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Invalid NngioMessage provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  // Serialize the NngioMessage to a buffer
+  size_t packed_size =
+      nngio_protobuf__nngio_message__get_packed_size(message);
+  uint8_t *buffer = malloc(packed_size);
+  if (buffer == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for serialization buffer.");
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  nngio_protobuf__nngio_message__pack(message, buffer);
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Serialized NngioMessage (%s) of size %zu bytes.", message->uuid,
+               packed_size);
+
+  // Send the serialized buffer using the underlying libnngio context
+  ctx->transport_rv = libnngio_context_send(ctx->ctx, buffer, packed_size);
+  free(buffer);
+
+  if (ctx->transport_rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to send NngioMessage: %s",
+                 nng_strerror(ctx->transport_rv));
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+  libnngio_log("INF", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Successfully sent NngioMessage.");
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+} 
+
+static void send_async_cb(libnngio_context *ctx, int result, void *data,
+                          size_t len, void *arg) {
+  send_async_cb_data *cb_data = (send_async_cb_data *)arg;
+  if (result != 0) {
+    libnngio_log("ERR", "SEND_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Asynchronous send failed: %s", nng_strerror(result));
+  } else {
+    libnngio_log("INF", "SEND_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Asynchronous send completed successfully.");
+  }
+
+  libnngio_log("DBG", "SEND_ASYNC_CB", __FILE__, __LINE__,
+               libnngio_context_id(ctx),
+               "Invoking user callback with user data %p.", cb_data->user_data);
+
+  libnngio_log("DBG", "SEND_ASYNC_CB", __FILE__, __LINE__,
+               libnngio_context_id(ctx), "msg pointer: %p.",
+               *(cb_data->msg));
+
+  // Make a copy of the message to pass to the user callback
+  // Invoke the user callback
+  if (cb_data->user_cb) {
+    cb_data->user_cb(cb_data->ctx, result, cb_data->msg, cb_data->user_data);
+  }
+  free(cb_data->buffer);
+  free(cb_data);
+}
+
+/**
+ * @brief Send a generic NngioMessage asynchronously.
+ *
+ * @param ctx       Context to use for sending.
+ * @param message   Pointer to the NngioMessage to send.
+ * @param cb        Callback function to invoke upon send completion.
+ * @param arg       User-defined argument to pass to the callback.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_send_async(
+    libnngio_protobuf_context *ctx, const NngioProtobuf__NngioMessage *message,
+    libnngio_protobuf_send_async_cb cb, void *user_data) {
+  libnngio_protobuf_error_code rv;
+  
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+                 -1, "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (message == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Invalid NngioMessage provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  if (cb == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Invalid callback function provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  // Prepare callback data
+  // Note: cb_data->msg will be freed in the callback after user_cb is invoked
+  // it will also copy the message before passing to user_cb
+  send_async_cb_data *cb_data = malloc(sizeof(send_async_cb_data));
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Prepared callback data structure at %p.", cb_data);
+
+  cb_data->user_cb = cb;
+  cb_data->ctx = ctx;
+  cb_data->user_data = user_data;
+  cb_data->msg = (NngioProtobuf__NngioMessage *)message;
+  cb_data->len = nngio_protobuf__nngio_message__get_packed_size(message);
+  cb_data->buffer = malloc(cb_data->len);
+
+  if (!cb_data) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for callback data.");
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  // Serialize the NngioMessage into the callback buffer
+  if (cb_data->buffer == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for serialization buffer.");
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+
+  nngio_protobuf__nngio_message__pack(cb_data->msg, cb_data->buffer);
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Serialized NngioMessage (%s) of size %zu bytes.",
+               message->uuid, cb_data->len);
+
+  // Send the serialized buffer asynchronously using the underlying libnngio
+  // context
+  ctx->transport_rv = libnngio_context_send_async(
+      ctx->ctx, cb_data->buffer, cb_data->len, send_async_cb, cb_data);
+
+  if (ctx->transport_rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to send NngioMessage asynchronously: %s",
+                 nng_strerror(ctx->transport_rv));
+    free(cb_data);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+  libnngio_log("INF", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Successfully initiated async send of NngioMessage.");
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Receive a generic NngioMessage.
+ *
+ * @param ctx       Context to use for receiving.
+ * @param message   Pointer to receive allocated NngioMessage.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_recv(
+    libnngio_protobuf_context *ctx, NngioProtobuf__NngioMessage **message) {
+  libnngio_protobuf_error_code rv;
+  uint8_t *buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
+  size_t len = LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE;
+  NngioProtobuf__NngioMessage *nngio_msg = NULL;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__, -1,
+                 "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  ctx->transport_rv = libnngio_context_recv(ctx->ctx, buffer, &len);
+  if (ctx->transport_rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to receive NngioMessage: %s",
+                 nng_strerror(ctx->transport_rv));
+    free(buffer);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Received NngioMessage of size %zu bytes.", len);
+  nngio_msg = nngio_protobuf__nngio_message__unpack(NULL, len, buffer);
+  free(buffer);
+
+  if (nngio_msg == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to unpack received NngioMessage.");
+    rv = LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED;
+    return rv;
+  }
+
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Unpacked NngioMessage successfully.");
+  libnngio_log("DBG", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "NngioMessage details: UUID='%s', msg_case=%s.", nngio_msg->uuid,
+               libnngio_protobuf_nngio_msg_case_str(nngio_msg->msg_case));
+
+  // Copy the received message to the user-provided structure
+  (*message) = nngio_copy_nngio_message(nngio_msg);
+
+  nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
+  libnngio_log("INF", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Successfully received NngioMessage.");
+
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+static void recv_async_cb(libnngio_context *ctx, int result, void *data,
+                          size_t len, void *arg) {
+  recv_async_cb_data *cb_data = (recv_async_cb_data *)arg;
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+  // Note: data is a pointer to the received buffer, len is its length
+  // Unpack the NngioMessage from the received buffer
+  NngioProtobuf__NngioMessage *nngio_msg = NULL;
+  NngioProtobuf__NngioMessage **msg = (NngioProtobuf__NngioMessage **)&nngio_msg;
+
+  if (result != 0) {
+    libnngio_log("ERR", "RECV_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Asynchronous receive failed: %s", nng_strerror(result));
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+  } else {
+    libnngio_log("INF", "RECV_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Asynchronous receive completed successfully.");
+  }
+
+  nngio_msg = nngio_protobuf__nngio_message__unpack(NULL, len, data);
+  if (nngio_msg == NULL) {
+    libnngio_log("ERR", "RECV_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Failed to unpack NngioMessage from received buffer.");
+    rv = LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED;
+  } else {
+    libnngio_log("DBG", "RECV_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Received message (%s) of size %zu bytes.", nngio_msg->uuid,
+                 len);
+  }
+
+  libnngio_log("INF", "RECV_ASYNC_CB", __FILE__, __LINE__,
+               libnngio_context_id(ctx),
+               "Asynchronous receive callback processing completed with code %d.",
+               rv);
+  libnngio_log("DBG", "RECV_ASYNC_CB", __FILE__, __LINE__,
+               libnngio_context_id(ctx),
+               "Received NngioMessage (%s).", nngio_msg ? nngio_msg->uuid : "NULL");
+
+  // update the user's message pointer if we successfully received a message
+  if (rv == LIBNNGIO_PROTOBUF_ERR_NONE && nngio_msg && cb_data->msg) {
+    libnngio_log("DBG", "RECV_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Setting user message pointer %p to received message %p\n", cb_data->msg, msg);
+    cb_data->msg = nngio_copy_nngio_message(msg);
+  }
+  else {
+    libnngio_log("DBG", "RECV_ASYNC_CB", __FILE__, __LINE__,
+                 libnngio_context_id(ctx),
+                 "Not setting user message pointer %p due to error or null message\n", cb_data->msg);
+  }
+
+  // Make a copy of the message to pass to the user callback
+  NngioProtobuf__NngioMessage *msg_copy =
+      nngio_msg ? nngio_copy_nngio_message(nngio_msg) : NULL;
+
+  // Make a copy of the message to pass to the user callback
+  if (cb_data->user_cb) {
+    cb_data->user_cb(cb_data->ctx, result, msg_copy ? &msg_copy : NULL,
+                     cb_data->user_data);
+  }
+
+  nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
+  free(cb_data->buffer);
+  free(cb_data);
+}
+
+libnngio_protobuf_error_code libnngio_protobuf_recv_async(
+    libnngio_protobuf_context *ctx, NngioProtobuf__NngioMessage **message,
+    libnngio_protobuf_recv_async_cb cb, void *user_data) {
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+
+  if (ctx == NULL || ctx->ctx == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                 -1, "Invalid protobuf context provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+    return rv;
+  }
+
+  if (cb == NULL) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Invalid callback function provided.");
+    rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+    return rv;
+  }
+
+  if (message == NULL) {
+    libnngio_log("NTC", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "message pointer is NULL, creating a place for the received message.");
+
+    // Allocate memory for the message pointer if it's NULL
+    message = malloc(sizeof(NngioProtobuf__NngioMessage *));
+    if (message == NULL) {
+      libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                   libnngio_context_id(ctx->ctx),
+                   "Failed to allocate memory for message pointer.");
+      rv = LIBNNGIO_PROTOBUF_ERR_INVALID_MESSAGE;
+      return rv;
+    }
+
+    libnngio_log("DBG", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Allocated memory for message pointer at %p.", message);
+
+  }
+
+  // Prepare callback data
+  recv_async_cb_data *cb_data = malloc(sizeof(recv_async_cb_data));
+  if (!cb_data) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to allocate memory for callback data.");
+    rv = LIBNNGIO_PROTOBUF_ERR_SERIALIZATION_FAILED;
+    return rv;
+  }
+  cb_data->buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
+  cb_data->len = LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE;
+  cb_data->user_cb = cb;
+  cb_data->ctx = ctx;
+  cb_data->user_data = user_data;
+  cb_data->msg =
+      (void **)message;  // Note: message will be updated in the callback
+
+  // Receive the serialized buffer asynchronously using the underlying libnngio
+  // context
+  ctx->transport_rv = libnngio_context_recv_async(
+      ctx->ctx, cb_data->buffer, &cb_data->len, recv_async_cb, cb_data);
+  if (ctx->transport_rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+                 libnngio_context_id(ctx->ctx),
+                 "Failed to receive NngioMessage asynchronously: %s",
+                 nng_strerror(ctx->transport_rv));
+    free(cb_data);
+    rv = LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR;
+    return rv;
+  }
+
+  libnngio_log("INF", "LIBNNGIO_PROTOBUF_RECV_ASYNC", __FILE__, __LINE__,
+               libnngio_context_id(ctx->ctx),
+               "Successfully initiated async receive of NngioMessage.");
+
+  // Note: The actual message will be processed by the callback function.
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }

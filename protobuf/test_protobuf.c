@@ -928,6 +928,11 @@ void async_recv_cb(libnngio_protobuf_context *ctx, int result,
                "Async recv callback called with result=%d", result);
   libnngio_log("INF", "TEST_ASYNC_RECV_CB", __FILE__, __LINE__, -1,
                "Message UUID: %s", msg && *msg ? (*msg)->uuid : "NULL");
+  libnngio_log("INF", "TEST_ASYNC_RECV_CB", __FILE__, __LINE__, -1,
+               "Message case: %s",
+               msg && *msg
+                   ? libnngio_protobuf_nngio_msg_case_str((*msg)->msg_case)
+                   : "NULL");
   async_test_sync *sync = (async_test_sync *)user_data;
   sync->result = result;
   sync->done = 1;
@@ -1532,6 +1537,756 @@ void test_protobuf_rpc_async(void) {
   libnngio_transport_free(rep);
 }
 
+void test_protobuf_service_discovery_async() {
+  libnngio_protobuf_error_code err;
+
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_config rep_cfg = {0}, req_cfg = {0};
+  libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
+  char url[64];
+  snprintf(url, sizeof(url), "tcp://127.0.0.0:5555");
+
+  rep_cfg.url = url;
+  rep_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  rep_cfg.proto = LIBNNGIO_PROTO_REP;
+  req_cfg.url = url;
+  req_cfg.mode = LIBNNGIO_MODE_DIAL;
+  req_cfg.proto = LIBNNGIO_PROTO_REQ;
+
+  int rv = libnngio_transport_init(&rep, &rep_cfg);
+  if (rv != 0) {
+    assert(rv == 0);
+  }
+  rv = libnngio_transport_init(&req, &req_cfg);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&rep_ctx, rep, &rep_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1,
+               "REQ/REP transports and contexts initialized on %s", url);
+
+  libnngio_protobuf_context *rep_proto_ctx = NULL, *req_proto_ctx = NULL;
+  err = libnngio_protobuf_context_init(&rep_proto_ctx, rep_ctx);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  err = libnngio_protobuf_context_init(&req_proto_ctx, req_ctx);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Protobuf contexts initialized successfully.");
+
+  // Prepare to request services
+  NngioProtobuf__ServiceDiscoveryRequest *service_request =
+      malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+  nngio_protobuf__service_discovery_request__init(service_request);
+  // No fields to set for now
+
+#ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer for REP context
+  NngioProtobuf__ServiceDiscoveryRequest *fakerq =
+      malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+  nngio_protobuf__service_discovery_request__init(fakerq);
+  NngioProtobuf__NngioMessage *temp_msg =
+      nngio_create_nngio_message_with_service_discovery_request("uuid-101",
+                                                                fakerq);
+  size_t packed_size = nngio_protobuf__nngio_message__get_packed_size(temp_msg);
+  uint8_t *buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(temp_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  free(buffer);
+  nngio_free_nngio_message(temp_msg);
+#endif
+
+  async_test_sync recv_sync = {0}, send_sync = {0};
+
+  // Prepare to receive service discovery request message
+  NngioProtobuf__ServiceDiscoveryRequest *recv_service_request = NULL;
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1,
+               "Prepared service discovery request message for sending.");
+
+  // Receive rpc request message asynchronously
+  err = libnngio_protobuf_recv_service_discovery_request_async(
+      rep_proto_ctx, &recv_service_request, async_recv_cb, &recv_sync);
+  libnngio_log("DBG", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Prepared to receive RPC request asynchronously.");
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to receive rpc request: %s",
+                 libnngio_protobuf_strerror(err));
+    free(service_request);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Beginning async send of rpc request...");
+
+  // Send raw message asynchronously
+  err = libnngio_protobuf_send_service_discovery_request_async(
+      req_proto_ctx, service_request, async_send_cb, &send_sync);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                 __LINE__, -1, "Failed to send rpc request: %s",
+                 libnngio_protobuf_strerror(err));
+    if (err == LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR) {
+      libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
+                   "Transport error occurred while sending rpc request.");
+    }
+    free(service_request);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Raw message sent asynchronously.");
+
+  // Wait for send to complete
+  while (!send_sync.done) {
+    nng_msleep(10);
+  }
+  if (send_sync.result != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                 __LINE__, -1, "Async send failed with result: %d",
+                 send_sync.result);
+    free(service_request);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Async send completed successfully.");
+
+  // Wait for receive to complete
+  while (!recv_sync.done) {
+    nng_msleep(10);
+  }
+  if (recv_sync.result != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Async receive failed with result: %d", recv_sync.result);
+    free(service_request);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+
+  // Validate received message
+  // No fields to validate for now
+
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Sending service discovery response...");
+
+  // Prepare service discovery response message
+  NngioProtobuf__Service *service1 =
+      nngio_create_service("Echo", echo_methods, 2);
+  NngioProtobuf__Service *service2 =
+      nngio_create_service("Math", math_methods, 3);
+  NngioProtobuf__Service *services[2] = {service1, service2};
+  NngioProtobuf__ServiceDiscoveryResponse *service_response =
+      nngio_create_service_discovery_response(services, 2);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer for REQ context
+  NngioProtobuf__Service *fakeservice1 =
+      nngio_create_service("Echo", echo_methods, 2);
+  NngioProtobuf__Service *fakeservice2 =
+      nngio_create_service("Math", math_methods, 3);
+  NngioProtobuf__Service *fakeservices[2] = {fakeservice1, fakeservice2};
+  NngioProtobuf__ServiceDiscoveryResponse *fakeresp =
+      nngio_create_service_discovery_response(fakeservices, 2);
+  NngioProtobuf__NngioMessage *temp_resp_msg =
+      nngio_create_nngio_message_with_service_discovery_response("uuid-202",
+                                                                 fakeresp);
+  packed_size = nngio_protobuf__nngio_message__get_packed_size(temp_resp_msg);
+  buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(temp_resp_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  free(buffer);
+  nngio_free_nngio_message(temp_resp_msg);
+#endif
+
+  memset(&recv_sync, 0, sizeof(async_test_sync));
+  memset(&send_sync, 0, sizeof(async_test_sync));
+
+  // Prepare to receive service discovery response message
+  NngioProtobuf__ServiceDiscoveryResponse *recv_service_response = NULL;
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1,
+               "Prepared service discovery response message for sending.");
+
+  // Receive rpc request message asynchronously
+  err = libnngio_protobuf_recv_service_discovery_response_async(
+      rep_proto_ctx, &recv_service_response, async_recv_cb, &recv_sync);
+  libnngio_log("DBG", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Prepared to receive RPC request asynchronously.");
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to receive rpc request: %s",
+                 libnngio_protobuf_strerror(err));
+    free(service_request);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Beginning async send of rpc request...");
+
+  // Send raw message asynchronously
+  err = libnngio_protobuf_send_service_discovery_response_async(
+      req_proto_ctx, service_response, async_send_cb, &send_sync);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                 __LINE__, -1, "Failed to send rpc response: %s",
+                 libnngio_protobuf_strerror(err));
+    if (err == LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR) {
+      libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                   __LINE__, -1,
+                   "Transport error occurred while sending rpc request.");
+    }
+    nngio_free_service_discovery_response(service_response);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Raw message sent asynchronously.");
+
+  // Wait for send to complete
+  while (!send_sync.done) {
+    nng_msleep(10);
+  }
+  if (send_sync.result != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                 __LINE__, -1, "Async send failed with result: %d",
+                 send_sync.result);
+    nngio_free_service_discovery_response(service_response);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Async send completed successfully.");
+
+  // Wait for receive to complete
+  while (!recv_sync.done) {
+    nng_msleep(10);
+  }
+  if (recv_sync.result != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                 __LINE__, -1, "Async receive failed with result: %d",
+                 recv_sync.result);
+    nngio_free_service_discovery_response(service_response);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+
+  // Validate received message
+  if (recv_service_response->n_services != service_response->n_services) {
+    libnngio_log(
+        "ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__, __LINE__, -1,
+        "Number of services mismatch: expected %d, got %d",
+        service_response->n_services, recv_service_response->n_services);
+    assert(0);
+  }
+  for (size_t i = 0; i < service_response->n_services; i++) {
+    NngioProtobuf__Service *sent_service = service_response->services[i];
+    NngioProtobuf__Service *recv_service = recv_service_response->services[i];
+    if (strcmp(sent_service->name, recv_service->name) != 0) {
+      libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                   __LINE__, -1,
+                   "Service name mismatch at index %d: expected %s, got %s",
+                   (int)i, sent_service->name, recv_service->name);
+      assert(0);
+    }
+    if (sent_service->n_methods != recv_service->n_methods) {
+      libnngio_log(
+          "ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__, __LINE__,
+          -1, "Number of methods mismatch for service %s: expected %d, got %d",
+          sent_service->name, sent_service->n_methods, recv_service->n_methods);
+      assert(0);
+    }
+    for (size_t j = 0; j < sent_service->n_methods; j++) {
+      if (strcmp(sent_service->methods[j], recv_service->methods[j]) != 0) {
+        libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+                     __LINE__, -1,
+                     "Method name mismatch for service %s at index %d: "
+                     "expected %s, got %s",
+                     sent_service->name, (int)j, sent_service->methods[j],
+                     recv_service->methods[j]);
+        assert(0);
+      }
+    }
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
+               __LINE__, -1, "Service discovery response validated.");
+
+  nngio_free_service_discovery_response(recv_service_response);
+  nngio_free_service_discovery_response(service_response);
+  free(recv_service_request);
+  free(service_request);
+  libnngio_protobuf_context_free(req_proto_ctx);
+  libnngio_protobuf_context_free(rep_proto_ctx);
+  libnngio_context_free(req_ctx);
+  libnngio_context_free(rep_ctx);
+  libnngio_transport_free(req);
+  libnngio_transport_free(rep);
+}
+
+void test_protobuf_send_recv() {
+  // initialize REQ/REP transports and contexts
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_config rep_cfg = {0}, req_cfg = {0};
+  libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
+  char url[64];
+  snprintf(url, sizeof(url), "tcp://127.0.0.1:5555");
+  rep_cfg.url = url;
+  rep_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  rep_cfg.proto = LIBNNGIO_PROTO_REP;
+  req_cfg.url = url;
+  req_cfg.mode = LIBNNGIO_MODE_DIAL;
+  req_cfg.proto = LIBNNGIO_PROTO_REQ;
+
+  int rv;
+  rv = libnngio_transport_init(&rep, &rep_cfg);
+  if (rv != 0) {
+    assert(rv == 0);
+  }
+  rv = libnngio_transport_init(&req, &req_cfg);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    assert(rv == 0);
+  }
+
+  rv = libnngio_context_init(&rep_ctx, rep, &rep_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "REQ/REP transports and contexts initialized on %s", url);
+
+  libnngio_protobuf_context *rep_proto_ctx = NULL, *req_proto_ctx = NULL;
+  libnngio_protobuf_error_code err;
+  err = libnngio_protobuf_context_init(&rep_proto_ctx, rep_ctx);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  err = libnngio_protobuf_context_init(&req_proto_ctx, req_ctx);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "Protobuf contexts initialized successfully.");
+
+  char* uuid = libnngio_protobuf_gen_uuid();
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "Generated UUID: %s", uuid);
+
+  // Prepare to send a raw message
+  NngioProtobuf__RawMessage *raw_msg =
+      nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
+  NngioProtobuf__NngioMessage *msg =
+      nngio_create_nngio_message_with_raw(uuid, raw_msg);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer for REP context
+  NngioProtobuf__RawMessage *fakeraw =
+      nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
+  NngioProtobuf__NngioMessage *fake_msg =
+      nngio_create_nngio_message_with_raw(uuid, fakeraw);
+  size_t packed_size = nngio_protobuf__nngio_message__get_packed_size(fake_msg);
+  uint8_t *buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(fake_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  nngio_free_nngio_message(fake_msg);
+  free(buffer);
+#endif
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "Prepared raw message for sending.");
+
+  // Send raw message
+  err = libnngio_protobuf_send(req_proto_ctx, msg);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+                 "Failed to send raw message: %s",
+                 libnngio_protobuf_strerror(err));
+    if (err == LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR) {
+      libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+                   "Transport error occurred while sending raw message.");
+    }
+    nngio_free_raw_message(raw_msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "Raw message sent successfully.");
+
+  // Prepare to receive raw message
+  NngioProtobuf__NngioMessage *recv_msg = NULL;
+
+  // Receive raw message
+  err = libnngio_protobuf_recv(rep_proto_ctx, (NngioProtobuf__NngioMessage **)&recv_msg);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+                 "Failed to receive raw message: %s",
+                 libnngio_protobuf_strerror(err));
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  // Validate received message
+  if (recv_msg->raw_message->data.len != msg->raw_message->data.len ||
+      memcmp(recv_msg->raw_message->data.data, msg->raw_message->data.data,
+             msg->raw_message->data.len) != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+                 "Payload mismatch");
+    nngio_free_nngio_message(recv_msg);
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "Raw message sent and received successfully.");
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "data: %.*s", (int)recv_msg->raw_message->data.len,
+               recv_msg->raw_message->data.data);
+
+  free(uuid);
+  nngio_free_nngio_message(recv_msg);
+  nngio_free_nngio_message(msg);
+  libnngio_protobuf_context_free(req_proto_ctx);
+  libnngio_protobuf_context_free(rep_proto_ctx);
+  libnngio_context_free(req_ctx);
+  libnngio_context_free(rep_ctx);
+  libnngio_transport_free(req);
+  libnngio_transport_free(rep);
+}
+
+void test_protobuf_send_recv_async() {
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_config rep_cfg = {0}, req_cfg = {0};
+  libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
+  char url[64];
+  snprintf(url, sizeof(url), "tcp://127.0.0.1:5555");
+  rep_cfg.url = url;
+  rep_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  rep_cfg.proto = LIBNNGIO_PROTO_REP;
+  req_cfg.url = url;
+  req_cfg.mode = LIBNNGIO_MODE_DIAL;
+  req_cfg.proto = LIBNNGIO_PROTO_REQ;
+
+  int rv;
+  rv = libnngio_transport_init(&rep, &rep_cfg);
+  if (rv != 0) {
+    assert(rv == 0);
+  }
+  rv = libnngio_transport_init(&req, &req_cfg);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    assert(rv == 0);
+  }
+
+  rv = libnngio_context_init(&rep_ctx, rep, &rep_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "REQ/REP transports and contexts initialized on %s", url);
+
+  libnngio_protobuf_context *rep_proto_ctx = NULL, *req_proto_ctx = NULL;
+  libnngio_protobuf_error_code err;
+  err = libnngio_protobuf_context_init(&rep_proto_ctx, rep_ctx);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  err = libnngio_protobuf_context_init(&req_proto_ctx, req_ctx);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Protobuf contexts initialized successfully.");
+
+  char* uuid = libnngio_protobuf_gen_uuid();
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Generated UUID: %s", uuid);
+
+  // Prepare to send a raw message
+  NngioProtobuf__RawMessage *raw_msg =
+      nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
+  NngioProtobuf__NngioMessage *msg =
+      nngio_create_nngio_message_with_raw(uuid, raw_msg);
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "msg pointer: %p", (void*)msg);
+
+#ifdef NNGIO_MOCK_MAIN
+  // Mocking: set expected receive buffer for REP context
+  NngioProtobuf__RawMessage *fakeraw =
+      nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
+  NngioProtobuf__NngioMessage *fake_msg =
+      nngio_create_nngio_message_with_raw(uuid, fakeraw);
+  size_t packed_size = nngio_protobuf__nngio_message__get_packed_size(fake_msg);
+  uint8_t *buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(fake_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  nngio_free_nngio_message(fake_msg);
+  free(buffer);
+#endif
+
+  async_test_sync recv_sync = {0}, send_sync = {0};
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Prepared raw message for sending.");
+
+  // Prepare to receive raw message
+  NngioProtobuf__NngioMessage **recv_msg = NULL;
+  recv_msg = malloc(sizeof(NngioProtobuf__NngioMessage *));
+  *recv_msg = NULL;
+
+  // Receive raw message asynchronously
+  err = libnngio_protobuf_recv_async(rep_proto_ctx, recv_msg,
+                                    async_recv_cb, &recv_sync);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to receive raw message: %s",
+                 libnngio_protobuf_strerror(err));
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Prepared to receive raw message asynchronously.");
+
+  // Send raw message asynchronously
+  err = libnngio_protobuf_send_async(req_proto_ctx, msg, async_send_cb, &send_sync);
+  if (err != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to send raw message: %s",
+                 libnngio_protobuf_strerror(err));
+    if (err == LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR) {
+      libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+                   "Transport error occurred while sending raw message.");
+    }
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(err == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Raw message send initiated asynchronously.");
+
+  // Wait for send to complete
+  while (!send_sync.done) {
+    nng_msleep(10);
+  }
+  if (send_sync.result != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Async send failed with result: %d", send_sync.result);
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Async send completed successfully.");
+
+  // Wait for receive to complete
+  while (!recv_sync.done) {
+    nng_msleep(10);
+  }
+  if (recv_sync.result != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
+                 "Async receive failed with result: %d", recv_sync.result);
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+  assert(recv_msg != NULL);
+
+
+
+  // Validate received message
+  if ((*recv_msg)->raw_message->data.len != msg->raw_message->data.len ||
+      memcmp((*recv_msg)->raw_message->data.data, msg->raw_message->data.data,
+             msg->raw_message->data.len) != 0) {
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC_ASYNC", __FILE__, __LINE__, -1,
+                 "Payload mismatch");
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC_ASYNC", __FILE__, __LINE__, -1,
+                 "Expected (%zu): %.*s", msg->raw_message->data.len,
+                 (int)msg->raw_message->data.len, msg->raw_message->data.data);
+    libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC_ASYNC", __FILE__, __LINE__, -1,
+                 "Received (%zu): %.*s", (*recv_msg)->raw_message->data.len,
+                 (int)(*recv_msg)->raw_message->data.len, (*recv_msg)->raw_message->data.data);
+    nngio_free_nngio_message(*recv_msg);
+    nngio_free_nngio_message(msg);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "Raw message sent and received successfully.");
+  libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
+               "data: %.*s", (int)(*recv_msg)->raw_message->data.len,
+               (*recv_msg)->raw_message->data.data);
+
+  free(uuid);
+  nngio_free_nngio_message(*recv_msg);
+  nngio_free_nngio_message(msg);
+  libnngio_protobuf_context_free(req_proto_ctx);
+  libnngio_protobuf_context_free(rep_proto_ctx);
+  libnngio_context_free(req_ctx);
+  libnngio_context_free(rep_ctx);
+  libnngio_transport_free(req);
+  libnngio_transport_free(rep);
+}
+
 /**
  * @brief Main function to run the protobuf tests
  */
@@ -1541,12 +2296,15 @@ int main() {
   const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
   printf("Beginning protobuf tests...\n");
   libnngio_log_init(loglevelstr);
-  test_protobuf_serde();
-  test_protobuf_helpers();
-  test_protobuf_raw_message();
-  test_protobuf_rpc();
-  test_protobuf_service_discovery();
-  test_protobuf_raw_message_async();
-  test_protobuf_rpc_async();
+  //test_protobuf_serde();
+  //test_protobuf_helpers();
+  //test_protobuf_raw_message();
+  //test_protobuf_rpc();
+  //test_protobuf_service_discovery();
+  //test_protobuf_raw_message_async();
+  //test_protobuf_rpc_async();
+  //test_protobuf_service_discovery_async();
+  test_protobuf_send_recv();
+  test_protobuf_send_recv_async();
   return 0;
 }
