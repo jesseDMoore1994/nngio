@@ -1541,12 +1541,12 @@ int main() {
   const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
   printf("Beginning protobuf tests...\n");
   libnngio_log_init(loglevelstr);
-  // test_protobuf_serde();
-  // test_protobuf_helpers();
-  // test_protobuf_raw_message();
-  // test_protobuf_rpc();
-  // test_protobuf_service_discovery();
-  // test_protobuf_raw_message_async();
+  test_protobuf_serde();
+  test_protobuf_helpers();
+  test_protobuf_raw_message();
+  test_protobuf_rpc();
+  test_protobuf_service_discovery();
+  test_protobuf_raw_message_async();
   test_protobuf_rpc_async();
   return 0;
 }

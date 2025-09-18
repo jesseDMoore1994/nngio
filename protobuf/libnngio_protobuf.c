@@ -1041,7 +1041,7 @@ static void recv_raw_message_async_cb(libnngio_context *ctx, int result,
                      cb_data->user_data);
   }
 
-  nngio_free_nngio_message(nngio_msg);
+  nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
   free(cb_data->buffer);
   free(cb_data);
 }
@@ -1469,7 +1469,7 @@ static void recv_rpc_request_async_cb(libnngio_context *ctx, int result,
                      cb_data->user_data);
   }
 
-  nngio_free_nngio_message(nngio_msg);
+  nngio_protobuf__nngio_message__free_unpacked(nngio_msg, NULL);
   free(cb_data->buffer);
   free(cb_data);
 }
