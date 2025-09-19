@@ -3287,3 +3287,466 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_async(
   // Note: The actual message will be processed by the callback function.
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
+
+// Service implementation functions
+
+/**
+ * @brief Initialize a libnngio_server with the given protobuf context.
+ */
+libnngio_protobuf_error_code libnngio_server_init(
+    libnngio_server **server, libnngio_protobuf_context *proto_ctx) {
+  if (server == NULL || proto_ctx == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  *server = calloc(1, sizeof(libnngio_server));
+  if (*server == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  (*server)->proto_ctx = proto_ctx;
+  (*server)->services = NULL;
+  (*server)->n_services = 0;
+  (*server)->running = 0;
+
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Free a libnngio_server and its resources.
+ */
+libnngio_protobuf_error_code libnngio_server_free(libnngio_server *server) {
+  if (server == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  // Free registered services
+  for (size_t i = 0; i < server->n_services; i++) {
+    if (server->services[i].service_name) {
+      free(server->services[i].service_name);
+    }
+    // Free methods for this service
+    for (size_t j = 0; j < server->services[i].n_methods; j++) {
+      if (server->services[i].methods[j].method_name) {
+        free(server->services[i].methods[j].method_name);
+      }
+    }
+    if (server->services[i].methods) {
+      free(server->services[i].methods);
+    }
+  }
+  if (server->services) {
+    free(server->services);
+  }
+
+  free(server);
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Register a service with the server.
+ */
+libnngio_protobuf_error_code libnngio_server_register_service(
+    libnngio_server *server, const char *service_name,
+    const libnngio_service_method *methods, size_t n_methods) {
+  if (server == NULL || service_name == NULL || methods == NULL || n_methods == 0) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  // Reallocate services array
+  server->services = realloc(server->services, 
+                           (server->n_services + 1) * sizeof(libnngio_service_registration));
+  if (server->services == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  libnngio_service_registration *new_service = &server->services[server->n_services];
+  
+  // Copy service name
+  new_service->service_name = strdup(service_name);
+  if (new_service->service_name == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  // Copy methods
+  new_service->methods = calloc(n_methods, sizeof(libnngio_service_method));
+  if (new_service->methods == NULL) {
+    free(new_service->service_name);
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  for (size_t i = 0; i < n_methods; i++) {
+    new_service->methods[i].method_name = strdup(methods[i].method_name);
+    if (new_service->methods[i].method_name == NULL) {
+      // Clean up on failure
+      for (size_t j = 0; j < i; j++) {
+        free(new_service->methods[j].method_name);
+      }
+      free(new_service->methods);
+      free(new_service->service_name);
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+    new_service->methods[i].handler = methods[i].handler;
+    new_service->methods[i].user_data = methods[i].user_data;
+  }
+  new_service->n_methods = n_methods;
+
+  server->n_services++;
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Handle a service discovery request.
+ */
+static libnngio_protobuf_error_code handle_service_discovery_request(
+    libnngio_server *server) {
+  libnngio_protobuf_error_code rv;
+
+  // Create service discovery response
+  NngioProtobuf__Service **services = calloc(server->n_services, sizeof(NngioProtobuf__Service*));
+  if (services == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  for (size_t i = 0; i < server->n_services; i++) {
+    // Create method names array
+    const char **method_names = calloc(server->services[i].n_methods, sizeof(char*));
+    if (method_names == NULL) {
+      // Clean up previously allocated services
+      for (size_t j = 0; j < i; j++) {
+        nngio_free_service(services[j]);
+      }
+      free(services);
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+
+    for (size_t j = 0; j < server->services[i].n_methods; j++) {
+      method_names[j] = server->services[i].methods[j].method_name;
+    }
+
+    services[i] = nngio_create_service(server->services[i].service_name,
+                                      method_names, server->services[i].n_methods);
+    free(method_names);
+    
+    if (services[i] == NULL) {
+      // Clean up on failure
+      for (size_t j = 0; j < i; j++) {
+        nngio_free_service(services[j]);
+      }
+      free(services);
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+  }
+
+  NngioProtobuf__ServiceDiscoveryResponse *response = 
+      nngio_create_service_discovery_response(services, server->n_services);
+  if (response == NULL) {
+    for (size_t i = 0; i < server->n_services; i++) {
+      nngio_free_service(services[i]);
+    }
+    free(services);
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  // Send response
+  rv = libnngio_protobuf_send_service_discovery_response(server->proto_ctx, response);
+  
+  nngio_free_service_discovery_response(response);
+  return rv;
+}
+
+/**
+ * @brief Handle an RPC request.
+ */
+static libnngio_protobuf_error_code handle_rpc_request(
+    libnngio_server *server, NngioProtobuf__RpcRequestMessage *request) {
+  libnngio_protobuf_error_code rv;
+
+  // Find the service and method
+  libnngio_service_registration *service = NULL;
+  libnngio_service_method *method = NULL;
+
+  for (size_t i = 0; i < server->n_services; i++) {
+    if (strcmp(server->services[i].service_name, request->service_name) == 0) {
+      service = &server->services[i];
+      break;
+    }
+  }
+
+  if (service == NULL) {
+    // Service not found
+    NngioProtobuf__RpcResponseMessage *response = 
+        nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SERVICE_NOT_FOUND,
+                                 NULL, 0, "Service not found");
+    if (response == NULL) {
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+    rv = libnngio_protobuf_send_rpc_response(server->proto_ctx, response);
+    nngio_free_rpc_response(response);
+    return rv;
+  }
+
+  for (size_t i = 0; i < service->n_methods; i++) {
+    if (strcmp(service->methods[i].method_name, request->method_name) == 0) {
+      method = &service->methods[i];
+      break;
+    }
+  }
+
+  if (method == NULL) {
+    // Method not found
+    NngioProtobuf__RpcResponseMessage *response = 
+        nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__METHOD_NOT_FOUND,
+                                 NULL, 0, "Method not found");
+    if (response == NULL) {
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+    rv = libnngio_protobuf_send_rpc_response(server->proto_ctx, response);
+    nngio_free_rpc_response(response);
+    return rv;
+  }
+
+  // Call the handler
+  void *response_payload = NULL;
+  size_t response_payload_len = 0;
+  NngioProtobuf__RpcResponseMessage__Status status = 
+      method->handler(request->service_name, request->method_name,
+                     request->payload.data, request->payload.len,
+                     &response_payload, &response_payload_len, method->user_data);
+
+  // Create and send response
+  NngioProtobuf__RpcResponseMessage *response = 
+      nngio_create_rpc_response(status, response_payload, response_payload_len, NULL);
+  if (response == NULL) {
+    if (response_payload) {
+      free(response_payload);
+    }
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  rv = libnngio_protobuf_send_rpc_response(server->proto_ctx, response);
+  nngio_free_rpc_response(response);
+  
+  if (response_payload) {
+    free(response_payload);
+  }
+
+  return rv;
+}
+
+/**
+ * @brief Start the server to handle incoming requests.
+ */
+libnngio_protobuf_error_code libnngio_server_run(libnngio_server *server) {
+  if (server == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  server->running = 1;
+  libnngio_protobuf_error_code rv;
+
+  while (server->running) {
+    NngioProtobuf__NngioMessage *msg = NULL;
+    rv = libnngio_protobuf_recv(server->proto_ctx, &msg);
+    
+    if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+      // Handle error or timeout
+      continue;
+    }
+
+    if (msg == NULL) {
+      continue;
+    }
+
+    switch (msg->msg_case) {
+      case NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST:
+        rv = handle_service_discovery_request(server);
+        break;
+      
+      case NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_RPC_REQUEST:
+        rv = handle_rpc_request(server, msg->rpc_request);
+        break;
+      
+      default:
+        // Ignore other message types
+        break;
+    }
+
+    nngio_free_nngio_message(msg);
+  }
+
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Stop a running server.
+ */
+libnngio_protobuf_error_code libnngio_server_stop(libnngio_server *server) {
+  if (server == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  server->running = 0;
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Initialize a libnngio_client with the given protobuf context.
+ */
+libnngio_protobuf_error_code libnngio_client_init(
+    libnngio_client **client, libnngio_protobuf_context *proto_ctx) {
+  if (client == NULL || proto_ctx == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  *client = calloc(1, sizeof(libnngio_client));
+  if (*client == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  (*client)->proto_ctx = proto_ctx;
+  (*client)->discovered_services = NULL;
+  (*client)->n_discovered_services = 0;
+
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Free a libnngio_client and its resources.
+ */
+libnngio_protobuf_error_code libnngio_client_free(libnngio_client *client) {
+  if (client == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  // Free discovered services
+  for (size_t i = 0; i < client->n_discovered_services; i++) {
+    nngio_free_service(client->discovered_services[i]);
+  }
+  if (client->discovered_services) {
+    free(client->discovered_services);
+  }
+
+  free(client);
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Discover services from the server.
+ */
+libnngio_protobuf_error_code libnngio_client_discover_services(
+    libnngio_client *client) {
+  if (client == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  // Create service discovery request
+  NngioProtobuf__ServiceDiscoveryRequest request = NNGIO_PROTOBUF__SERVICE_DISCOVERY_REQUEST__INIT;
+  
+  libnngio_protobuf_error_code rv = 
+      libnngio_protobuf_send_service_discovery_request(client->proto_ctx, &request);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    return rv;
+  }
+
+  // Receive response
+  NngioProtobuf__ServiceDiscoveryResponse *response = NULL;
+  rv = libnngio_protobuf_recv_service_discovery_response(client->proto_ctx, &response);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    return rv;
+  }
+
+  // Free previous discovered services
+  for (size_t i = 0; i < client->n_discovered_services; i++) {
+    nngio_free_service(client->discovered_services[i]);
+  }
+  if (client->discovered_services) {
+    free(client->discovered_services);
+  }
+
+  // Store discovered services
+  client->n_discovered_services = response->n_services;
+  client->discovered_services = calloc(response->n_services, sizeof(NngioProtobuf__Service*));
+  if (client->discovered_services == NULL && response->n_services > 0) {
+    nngio_free_service_discovery_response(response);
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  for (size_t i = 0; i < response->n_services; i++) {
+    client->discovered_services[i] = nngio_copy_service(response->services[i]);
+    if (client->discovered_services[i] == NULL) {
+      // Clean up on failure
+      for (size_t j = 0; j < i; j++) {
+        nngio_free_service(client->discovered_services[j]);
+      }
+      free(client->discovered_services);
+      client->discovered_services = NULL;
+      client->n_discovered_services = 0;
+      nngio_free_service_discovery_response(response);
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+  }
+
+  nngio_free_service_discovery_response(response);
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Call an RPC method on the server.
+ */
+libnngio_protobuf_error_code libnngio_client_call_rpc(
+    libnngio_client *client, const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len) {
+  if (client == NULL || service_name == NULL || method_name == NULL ||
+      response_payload == NULL || response_payload_len == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  *response_payload = NULL;
+  *response_payload_len = 0;
+
+  // Create RPC request
+  NngioProtobuf__RpcRequestMessage *request = 
+      nngio_create_rpc_request(service_name, method_name, request_payload, request_payload_len);
+  if (request == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+  }
+
+  // Send request
+  libnngio_protobuf_error_code rv = 
+      libnngio_protobuf_send_rpc_request(client->proto_ctx, request);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    nngio_free_rpc_request(request);
+    return rv;
+  }
+
+  nngio_free_rpc_request(request);
+
+  // Receive response
+  NngioProtobuf__RpcResponseMessage *response = NULL;
+  rv = libnngio_protobuf_recv_rpc_response(client->proto_ctx, &response);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    return rv;
+  }
+
+  // Check response status
+  if (response->status != NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS) {
+    nngio_free_rpc_response(response);
+    return LIBNNGIO_PROTOBUF_ERR_SERVICE_NOT_FOUND; // Or map other error codes
+  }
+
+  // Copy response payload
+  if (response->payload.len > 0) {
+    *response_payload = malloc(response->payload.len);
+    if (*response_payload == NULL) {
+      nngio_free_rpc_response(response);
+      return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
+    }
+    memcpy(*response_payload, response->payload.data, response->payload.len);
+    *response_payload_len = response->payload.len;
+  }
+
+  nngio_free_rpc_response(response);
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}

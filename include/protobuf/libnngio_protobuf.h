@@ -703,4 +703,158 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_async(
     NngioProtobuf__NngioMessage **msg,
     libnngio_protobuf_recv_async_cb cb, void *user_data);
 
+// Service implementation structures and functions
+
+/**
+ * @brief RPC method handler callback type.
+ *
+ * This callback is invoked when an RPC request is received for a registered method.
+ *
+ * @param service_name Name of the service being called.
+ * @param method_name Name of the method being called.
+ * @param request_payload Input payload for the RPC call.
+ * @param request_payload_len Length of the input payload.
+ * @param response_payload Pointer to receive allocated response payload.
+ * @param response_payload_len Pointer to receive length of response payload.
+ * @param user_data User data pointer provided during service registration.
+ * @return NngioProtobuf__RpcResponseMessage__Status indicating the result.
+ */
+typedef NngioProtobuf__RpcResponseMessage__Status (*libnngio_rpc_method_handler)(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len,
+    void *user_data);
+
+/**
+ * @brief Service method registration structure.
+ */
+typedef struct {
+  char *method_name;                       ///< Name of the method
+  libnngio_rpc_method_handler handler;     ///< Handler function for the method
+  void *user_data;                         ///< User data for the handler
+} libnngio_service_method;
+
+/**
+ * @brief Service registration structure.
+ */
+typedef struct {
+  char *service_name;                      ///< Name of the service
+  libnngio_service_method *methods;        ///< Array of methods for this service
+  size_t n_methods;                        ///< Number of methods
+} libnngio_service_registration;
+
+/**
+ * @brief Server structure that encapsulates protobuf context and service logic.
+ */
+typedef struct libnngio_server {
+  libnngio_protobuf_context *proto_ctx;           ///< Protobuf context for transport
+  libnngio_service_registration *services;        ///< Array of registered services
+  size_t n_services;                              ///< Number of registered services
+  int running;                                    ///< Server running flag
+} libnngio_server;
+
+/**
+ * @brief Client structure that encapsulates protobuf context and discovered services.
+ */
+typedef struct libnngio_client {
+  libnngio_protobuf_context *proto_ctx;           ///< Protobuf context for transport
+  NngioProtobuf__Service **discovered_services;   ///< Array of discovered services
+  size_t n_discovered_services;                   ///< Number of discovered services
+} libnngio_client;
+
+/**
+ * @brief Initialize a libnngio_server with the given protobuf context.
+ *
+ * @param server Pointer to receive initialized server structure.
+ * @param proto_ctx Protobuf context to use for transport.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_init(
+    libnngio_server **server, libnngio_protobuf_context *proto_ctx);
+
+/**
+ * @brief Free a libnngio_server and its resources.
+ *
+ * @param server Server to free.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_free(libnngio_server *server);
+
+/**
+ * @brief Register a service with the server.
+ *
+ * @param server Server to register service with.
+ * @param service_name Name of the service.
+ * @param methods Array of method definitions.
+ * @param n_methods Number of methods.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_register_service(
+    libnngio_server *server, const char *service_name,
+    const libnngio_service_method *methods, size_t n_methods);
+
+/**
+ * @brief Start the server to handle incoming requests.
+ *
+ * This function will run in a loop handling service discovery and RPC requests.
+ *
+ * @param server Server to start.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_run(libnngio_server *server);
+
+/**
+ * @brief Stop a running server.
+ *
+ * @param server Server to stop.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_stop(libnngio_server *server);
+
+/**
+ * @brief Initialize a libnngio_client with the given protobuf context.
+ *
+ * @param client Pointer to receive initialized client structure.
+ * @param proto_ctx Protobuf context to use for transport.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_init(
+    libnngio_client **client, libnngio_protobuf_context *proto_ctx);
+
+/**
+ * @brief Free a libnngio_client and its resources.
+ *
+ * @param client Client to free.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_free(libnngio_client *client);
+
+/**
+ * @brief Discover services from the server.
+ *
+ * This sends a service discovery request to the server and stores the response locally.
+ *
+ * @param client Client to use for discovery.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_discover_services(
+    libnngio_client *client);
+
+/**
+ * @brief Call an RPC method on the server.
+ *
+ * @param client Client to use for the call.
+ * @param service_name Name of the service.
+ * @param method_name Name of the method.
+ * @param request_payload Input payload for the RPC call.
+ * @param request_payload_len Length of the input payload.
+ * @param response_payload Pointer to receive allocated response payload.
+ * @param response_payload_len Pointer to receive length of response payload.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_call_rpc(
+    libnngio_client *client, const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len);
+
 #endif  // LIBNNGIO_PROTOBUF_H
