@@ -278,23 +278,8 @@ static int libnngio_apply_options(nng_socket sock, const libnngio_option *opts,
  */
 void libnngio_log_init(const char *level) {
   // Initialize logging system with the specified level
-  if (level == NULL || strlen(level) == 0) {
-    nng_log_set_level(NNG_LOG_ERR);  // Default to ERR if no level specified
-  } else if (strcmp(level, "DBG") == 0) {
-    nng_log_set_level(NNG_LOG_DEBUG);
-  } else if (strcmp(level, "INF") == 0) {
-    nng_log_set_level(NNG_LOG_INFO);
-  } else if (strcmp(level, "NTC") == 0) {
-    nng_log_set_level(NNG_LOG_NOTICE);
-  } else if (strcmp(level, "WRN") == 0) {
-    nng_log_set_level(NNG_LOG_WARN);
-  } else if (strcmp(level, "ERR") == 0) {
-    nng_log_set_level(NNG_LOG_ERR);
-  } else {
-    fprintf(stderr, "Unknown log level '%s', defaulting to ERR.\n", level);
-    nng_log_set_level(NNG_LOG_ERR);  // Default to ERR
-  }
-  nng_log_set_logger(nng_stderr_logger);
+  // TODO: nng logging functions not available in this version, using fprintf for now
+  (void)level;  // Suppress unused parameter warning
 }
 
 /**
@@ -333,25 +318,25 @@ void libnngio_log(const char *level, const char *routine, const char *file,
   vsnprintf(body, 1024, msg, args);
   va_end(args);
 
+  // TODO: nng logging functions not available in this version, using fprintf for now
   switch (level[0]) {
     case 'D':
-      nng_log_debug(header, body);  // Debug level
+      fprintf(stderr, "[DEBUG] %s: %s\n", header, body);
       break;
     case 'I':
-      nng_log_info(header, body);  // Info level
+      fprintf(stderr, "[INFO] %s: %s\n", header, body);
       break;
     case 'N':
-      nng_log_notice(header, body);  // Notice level
+      fprintf(stderr, "[NOTICE] %s: %s\n", header, body);
       break;
     case 'W':
-      nng_log_warn(header, body);  // Warning level
+      fprintf(stderr, "[WARN] %s: %s\n", header, body);
       break;
     case 'E':
-      nng_log_err(header, body);  // Error level
+      fprintf(stderr, "[ERROR] %s: %s\n", header, body);
       break;
     default:
-      nng_log_info(header, body);  // Default to info
-      // log an error if level is unknown
+      fprintf(stderr, "[INFO] %s: %s\n", header, body);
       fprintf(stderr, "Unknown log level '%s' in %s:%d\n", level, file, line);
       break;
   }

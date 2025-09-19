@@ -61,58 +61,18 @@ void libnngio_log_init(const char *level) {
 
 void libnngio_log(const char *level, const char *tag, const char *file,
                   int line, int id, const char *fmt, ...) {
-  nng_log_level system_level = NNG_LOG_ERR;  // Default to ERR
-  switch (test_logging_level[0]) {
-    case 'D':
-      system_level = NNG_LOG_DEBUG;
-      break;
-    case 'I':
-      system_level = NNG_LOG_INFO;
-      break;
-    case 'N':
-      system_level = NNG_LOG_NOTICE;
-      break;
-    case 'W':
-      system_level = NNG_LOG_WARN;
-      break;
-    case 'E':
-      system_level = NNG_LOG_ERR;
-      break;
-    default:
-      system_level = NNG_LOG_ERR;  // Default to ERR if unknown
-  }
-
-  nng_log_level msg_level = NNG_LOG_ERR;
-  switch (level[0]) {
-    case 'D':
-      msg_level = NNG_LOG_DEBUG;
-      break;
-    case 'I':
-      msg_level = NNG_LOG_INFO;
-      break;
-    case 'N':
-      msg_level = NNG_LOG_NOTICE;
-      break;
-    case 'W':
-      msg_level = NNG_LOG_WARN;
-      break;
-    case 'E':
-      msg_level = NNG_LOG_ERR;
-      break;
-    default:
-      msg_level = NNG_LOG_ERR;  // Default to ERR if unknown
-  }
-
-  if (msg_level <= system_level) {
-    fprintf(stdout, "[%s (%d)]", test_logging_level, system_level);
-    va_list args;
-    va_start(args, fmt);
-    fprintf(stdout, "[%s (%d)][%s][%s:%d][%d] ", level, msg_level, tag, file,
-            line, id);
-    vfprintf(stdout, fmt, args);
-    fprintf(stdout, "\n");
-    va_end(args);
-  }
+  // TODO: nng logging functions not available in this version, using fprintf for now
+  va_list args;
+  va_start(args, fmt);
+  
+  char prefix[256];
+  snprintf(prefix, sizeof(prefix), "[%s] %s:%d [%s] (id:%d)", level, file, line, tag, id);
+  
+  fprintf(stderr, "%s ", prefix);
+  vfprintf(stderr, fmt, args);
+  fprintf(stderr, "\n");
+  
+  va_end(args);
 }
 
 int libnngio_transport_init(libnngio_transport **ctxp,

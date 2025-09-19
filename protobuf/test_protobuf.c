@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "protobuf/libnngio_protobuf.h"
 
@@ -1103,7 +1104,7 @@ void test_protobuf_raw_message_async() {
 
   // Wait for send to complete
   while (!send_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (send_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE_ASYNC", __FILE__, __LINE__,
@@ -1122,7 +1123,7 @@ void test_protobuf_raw_message_async() {
 
   // Wait for receive to complete
   while (!recv_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (recv_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE_ASYNC", __FILE__, __LINE__,
@@ -1316,7 +1317,7 @@ void test_protobuf_rpc_async(void) {
 
   // Wait for send to complete
   while (!send_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (send_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
@@ -1335,7 +1336,7 @@ void test_protobuf_rpc_async(void) {
 
   // Wait for receive to complete
   while (!recv_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (recv_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
@@ -1466,7 +1467,7 @@ void test_protobuf_rpc_async(void) {
 
   // Wait for send to complete
   while (!send_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (send_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
@@ -1488,7 +1489,7 @@ void test_protobuf_rpc_async(void) {
 
   // Wait for receive to complete
   while (!recv_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (recv_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
@@ -1679,7 +1680,7 @@ void test_protobuf_service_discovery_async() {
 
   // Wait for send to complete
   while (!send_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (send_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
@@ -1699,7 +1700,7 @@ void test_protobuf_service_discovery_async() {
 
   // Wait for receive to complete
   while (!recv_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (recv_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
@@ -1806,7 +1807,7 @@ void test_protobuf_service_discovery_async() {
 
   // Wait for send to complete
   while (!send_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (send_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
@@ -1826,7 +1827,7 @@ void test_protobuf_service_discovery_async() {
 
   // Wait for receive to complete
   while (!recv_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (recv_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SERVICE_DISCOVERY_ASYNC", __FILE__,
@@ -2216,7 +2217,7 @@ void test_protobuf_send_recv_async() {
 
   // Wait for send to complete
   while (!send_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (send_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
@@ -2235,7 +2236,7 @@ void test_protobuf_send_recv_async() {
 
   // Wait for receive to complete
   while (!recv_sync.done) {
-    nng_msleep(10);
+    usleep(10000);
   }
   if (recv_sync.result != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC", __FILE__, __LINE__, -1,
