@@ -58,6 +58,10 @@ message NngioMessage {
     string uuid = 6; // Unique identifier for the message
 }
 
+service RpcService {
+    rpc CallRpc(RpcRequestMessage) returns (RpcResponseMessage);
+}
+
 service ServiceDiscoveryService {
     rpc GetServices(ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse);
 }
