@@ -3476,7 +3476,7 @@ static libnngio_protobuf_error_code handle_rpc_request(
   if (service == NULL) {
     // Service not found
     NngioProtobuf__RpcResponseMessage *response = 
-        nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SERVICE_NOT_FOUND,
+        nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__ServiceNotFound,
                                  NULL, 0, "Service not found");
     if (response == NULL) {
       return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
@@ -3496,7 +3496,7 @@ static libnngio_protobuf_error_code handle_rpc_request(
   if (method == NULL) {
     // Method not found
     NngioProtobuf__RpcResponseMessage *response = 
-        nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__METHOD_NOT_FOUND,
+        nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__MethodNotFound,
                                  NULL, 0, "Method not found");
     if (response == NULL) {
       return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
@@ -3731,7 +3731,7 @@ libnngio_protobuf_error_code libnngio_client_call_rpc(
   }
 
   // Check response status
-  if (response->status != NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS) {
+  if (response->status != NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success) {
     nngio_free_rpc_response(response);
     return LIBNNGIO_PROTOBUF_ERR_SERVICE_NOT_FOUND; // Or map other error codes
   }

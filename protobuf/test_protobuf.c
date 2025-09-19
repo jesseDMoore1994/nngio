@@ -2297,29 +2297,6 @@ void test_protobuf_send_recv_async() {
   libnngio_transport_free(rep);
 }
 
-/**
- * @brief Main function to run the protobuf tests
- */
-int main() {
-  atexit(libnngio_cleanup);
-
-  const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
-  printf("Beginning protobuf tests...\n");
-  libnngio_log_init(loglevelstr);
-  test_protobuf_serde();
-  test_protobuf_helpers();
-  test_protobuf_raw_message();
-  test_protobuf_rpc();
-  test_protobuf_service_discovery();
-  test_protobuf_raw_message_async();
-  test_protobuf_rpc_async();
-  test_protobuf_service_discovery_async();
-  test_protobuf_send_recv();
-  test_protobuf_send_recv_async();
-  test_service_implementation();
-  return 0;
-}
-
 // Service implementation test handlers
 
 static NngioProtobuf__RpcResponseMessage__Status echo_say_hello_handler(
@@ -2339,13 +2316,13 @@ static NngioProtobuf__RpcResponseMessage__Status echo_say_hello_handler(
   *response_payload = malloc(*response_payload_len);
   if (*response_payload == NULL) {
     *response_payload_len = 0;
-    return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__INTERNAL_ERROR;
+    return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__InternalError;
   }
   
   memcpy(*response_payload, prefix, prefix_len);
   memcpy((char*)*response_payload + prefix_len, request_payload, request_payload_len);
   
-  return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS;
+  return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success;
 }
 
 static NngioProtobuf__RpcResponseMessage__Status math_add_handler(
@@ -2361,7 +2338,7 @@ static NngioProtobuf__RpcResponseMessage__Status math_add_handler(
   if (request_payload_len != 8) {
     *response_payload = NULL;
     *response_payload_len = 0;
-    return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__INVALID_REQUEST;
+    return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__InvalidRequest;
   }
   
   const int *inputs = (const int*)request_payload;
@@ -2371,11 +2348,11 @@ static NngioProtobuf__RpcResponseMessage__Status math_add_handler(
   *response_payload = malloc(*response_payload_len);
   if (*response_payload == NULL) {
     *response_payload_len = 0;
-    return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__INTERNAL_ERROR;
+    return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__InternalError;
   }
   
   memcpy(*response_payload, &result, sizeof(int));
-  return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS;
+  return NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success;
 }
 
 void test_service_implementation() {
@@ -2385,19 +2362,19 @@ void test_service_implementation() {
   // Initialize transport and contexts
   libnngio_config rep_cfg = {
       .mode = LIBNNGIO_MODE_LISTEN,
-      .proto = LIBNNGIO_PROTOCOL_REP,
-      .url = "tcp://127.0.0.0:6666",
-      .tls_cert_file = NULL,
-      .tls_key_file = NULL,
-      .tls_ca_file = NULL};
+      .proto = LIBNNGIO_PROTO_REP,
+      .url = "tcp://127.0.0.1:6666",
+      .tls_cert = NULL,
+      .tls_key = NULL,
+      .tls_ca_cert = NULL};
 
   libnngio_config req_cfg = {
       .mode = LIBNNGIO_MODE_DIAL,
-      .proto = LIBNNGIO_PROTOCOL_REQ,
-      .url = "tcp://127.0.0.0:6666",
-      .tls_cert_file = NULL,
-      .tls_key_file = NULL,
-      .tls_ca_file = NULL};
+      .proto = LIBNNGIO_PROTO_REQ,
+      .url = "tcp://127.0.0.1:6666",
+      .tls_cert = NULL,
+      .tls_key = NULL,
+      .tls_ca_cert = NULL};
 
   libnngio_transport *rep = NULL, *req = NULL;
   libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
@@ -2565,3 +2542,27 @@ void test_service_implementation() {
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
                "Service implementation test completed successfully.");
 }
+
+/**
+ * @brief Main function to run the protobuf tests
+ */
+int main() {
+  atexit(libnngio_cleanup);
+
+  const char *loglevelstr = getenv("NNGIO_LOGLEVEL");
+  printf("Beginning protobuf tests...\n");
+  libnngio_log_init(loglevelstr);
+  test_protobuf_serde();
+  test_protobuf_helpers();
+  test_protobuf_raw_message();
+  test_protobuf_rpc();
+  test_protobuf_service_discovery();
+  test_protobuf_raw_message_async();
+  test_protobuf_rpc_async();
+  test_protobuf_service_discovery_async();
+  test_protobuf_send_recv();
+  test_protobuf_send_recv_async();
+  test_service_implementation();
+  return 0;
+}
+
