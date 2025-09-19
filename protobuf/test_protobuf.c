@@ -2460,6 +2460,27 @@ void test_service_implementation() {
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
                "Testing service discovery...");
 
+#ifdef NNGIO_MOCK_MAIN
+  // Mock service discovery response
+  NngioProtobuf__Service *mock_echo = nngio_create_service("Echo", echo_methods, 2);
+  NngioProtobuf__Service *mock_math = nngio_create_service("Math", math_methods, 3);
+  NngioProtobuf__Service *mock_services[2] = {mock_echo, mock_math};
+  NngioProtobuf__ServiceDiscoveryResponse *mock_response =
+      nngio_create_service_discovery_response(mock_services, 2);
+  NngioProtobuf__NngioMessage *mock_response_msg =
+      nngio_create_nngio_message_with_service_discovery_response("uuid-discovery", mock_response);
+  
+  size_t packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_response_msg);
+  uint8_t *buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(mock_response_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  free(buffer);
+  nngio_free_nngio_message(mock_response_msg);
+  
+  // Now call the actual service discovery
+  proto_rv = libnngio_client_discover_services(client);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+#else
   // Mock service discovery for testing without network round trip
   // In a real scenario, this would be: proto_rv = libnngio_client_discover_services(client);
   
@@ -2471,6 +2492,8 @@ void test_service_implementation() {
   client->discovered_services[0] = mock_echo;
   client->discovered_services[1] = mock_math;
   client->n_discovered_services = 2;
+  proto_rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+#endif
 
   assert(client->n_discovered_services == 2);
   assert(strcmp(client->discovered_services[0]->name, "Echo") == 0);
@@ -2479,14 +2502,34 @@ void test_service_implementation() {
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
                "Service discovery completed. Found %zu services.", client->n_discovered_services);
 
-  // Test RPC call
+  // Test Echo RPC call
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
-               "Testing RPC call...");
+               "Testing Echo RPC call...");
 
   const char *echo_input = "World";
   void *echo_output = NULL;
   size_t echo_output_len = 0;
 
+#ifdef NNGIO_MOCK_MAIN
+  // Mock RPC response for Echo service
+  NngioProtobuf__RpcResponseMessage *mock_rpc_response =
+      nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS,
+                               "Hello, World", strlen("Hello, World"), NULL);
+  NngioProtobuf__NngioMessage *mock_rpc_msg =
+      nngio_create_nngio_message_with_rpc_response("uuid-rpc", mock_rpc_response);
+  
+  packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_rpc_msg);
+  buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(mock_rpc_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  free(buffer);
+  nngio_free_nngio_message(mock_rpc_msg);
+
+  // Call the actual RPC method
+  proto_rv = libnngio_client_call_rpc(client, "Echo", "SayHello", 
+                                     echo_input, strlen(echo_input),
+                                     &echo_output, &echo_output_len);
+#else
   // Mock RPC call for testing (in reality this would involve network communication)
   // proto_rv = libnngio_client_call_rpc(client, "Echo", "SayHello", echo_input, strlen(echo_input), &echo_output, &echo_output_len);
   
@@ -2496,6 +2539,7 @@ void test_service_implementation() {
   memcpy(echo_output, "Hello, ", strlen("Hello, "));
   memcpy((char*)echo_output + strlen("Hello, "), echo_input, strlen(echo_input));
   proto_rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+#endif
 
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(echo_output != NULL);
@@ -2503,21 +2547,46 @@ void test_service_implementation() {
   assert(memcmp(echo_output, "Hello, World", echo_output_len) == 0);
 
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
-               "RPC call successful. Response: %.*s", (int)echo_output_len, (char*)echo_output);
+               "Echo RPC call successful. Response: %.*s", (int)echo_output_len, (char*)echo_output);
 
   free(echo_output);
 
-  // Test math RPC call
+  // Test Math RPC call
+  libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+               "Testing Math RPC call...");
+
   int math_inputs[2] = {5, 3};
   void *math_output = NULL;
   size_t math_output_len = 0;
 
+#ifdef NNGIO_MOCK_MAIN
+  // Mock RPC response for Math service
+  int expected_result = 8;
+  NngioProtobuf__RpcResponseMessage *mock_math_response =
+      nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS,
+                               &expected_result, sizeof(int), NULL);
+  NngioProtobuf__NngioMessage *mock_math_msg =
+      nngio_create_nngio_message_with_rpc_response("uuid-math", mock_math_response);
+  
+  packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_math_msg);
+  buffer = malloc(packed_size);
+  nngio_protobuf__nngio_message__pack(mock_math_msg, buffer);
+  libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
+  free(buffer);
+  nngio_free_nngio_message(mock_math_msg);
+
+  // Call the actual Math RPC method
+  proto_rv = libnngio_client_call_rpc(client, "Math", "Add",
+                                     math_inputs, sizeof(math_inputs),
+                                     &math_output, &math_output_len);
+#else
   // Mock math RPC call
   math_output_len = sizeof(int);
   math_output = malloc(math_output_len);
   int result = math_inputs[0] + math_inputs[1];
   memcpy(math_output, &result, sizeof(int));
   proto_rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+#endif
 
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(math_output != NULL);
