@@ -958,7 +958,6 @@ void async_send_cb(libnngio_protobuf_context *ctx, int result,
                "Message UUID: %s", msg ? msg->uuid : "NULL");
   sync->result = result;
   sync->done = 1;
-  //nngio_free_nngio_message(msg);
 }
 
 void test_protobuf_raw_message_async() {
@@ -2448,6 +2447,24 @@ void test_service_implementation() {
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
                "Server initialized with Echo and Math services.");
 
+  NngioProtobuf__ServiceDiscoveryResponse *service_response = NULL;
+  proto_rv = libnngio_server_create_service_discovery_response(server, &service_response);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+               "Service discovery response created with %zu services.",
+               service_response->n_services);
+  for (size_t i = 0; i < service_response->n_services; i++) {
+    NngioProtobuf__Service *service = service_response->services[i];
+    libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+                 "Service %zu: %s with %d methods.", i, service->name,
+                 service->n_methods);
+    for (size_t j = 0; j < service->n_methods; j++) {
+      libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+                   "  Method %zu: %s", j, service->methods[j]);
+    }
+  }
+
   // Initialize client
   libnngio_client *client = NULL;
   proto_rv = libnngio_client_init(&client, req_proto_ctx);
@@ -2460,13 +2477,39 @@ void test_service_implementation() {
   libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
                "Testing service discovery...");
 
+  // Prepare service discovery request
+  NngioProtobuf__ServiceDiscoveryRequest *service_request = 
+      malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+  nngio_protobuf__service_discovery_request__init(service_request);
+      
+
+#ifdef NNGIO_MOCK_MAIN
+  // Mock service discover request
+  NngioProtobuf__ServiceDiscoveryRequest *fakerq =
+      malloc(sizeof(NngioProtobuf__ServiceDiscoveryRequest));
+  NngioProtobuf__NngioMessage *mock_request_msg =
+      nngio_create_nngio_message_with_service_discovery_request("uuid-discovery-req", service_request);
+  nngio_protobuf__service_discovery_request__init(fakerq);
+  size_t req_pack_size = nngio_protobuf__nngio_message__get_packed_size(mock_request_msg);
+  uint8_t *req_buffer = malloc(req_pack_size);
+  nngio_protobuf__nngio_message__pack(mock_request_msg, req_buffer);
+  libnngio_mock_set_recv_buffer((const char *)req_buffer, req_pack_size);
+  nngio_protobuf__service_discovery_request__free_unpacked(fakerq, NULL);
+  free(req_buffer);
+  nngio_free_nngio_message(mock_request_msg);
+#endif
+
+  libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+               "Client Service discovery request prepared.");
+  libnngio_client_send_service_discovery_request(client, service_request);
+
+  libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+               "Client Service discovery request sent.");
+
 #ifdef NNGIO_MOCK_MAIN
   // Mock service discovery response
-  NngioProtobuf__Service *mock_echo = nngio_create_service("Echo", echo_methods, 2);
-  NngioProtobuf__Service *mock_math = nngio_create_service("Math", math_methods, 3);
-  NngioProtobuf__Service *mock_services[2] = {mock_echo, mock_math};
   NngioProtobuf__ServiceDiscoveryResponse *mock_response =
-      nngio_create_service_discovery_response(mock_services, 2);
+      nngio_copy_service_discovery_response(service_response);
   NngioProtobuf__NngioMessage *mock_response_msg =
       nngio_create_nngio_message_with_service_discovery_response("uuid-discovery", mock_response);
   
@@ -2477,6 +2520,34 @@ void test_service_implementation() {
   free(buffer);
   nngio_free_nngio_message(mock_response_msg);
 #endif
+
+  libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+               "Mock service discovery response set.");
+
+  // Receive service discovery request and create response
+  NngioProtobuf__ServiceDiscoveryRequest *actual_service_request = NULL;
+  NngioProtobuf__ServiceDiscoveryResponse *actual_service_response = NULL;
+  proto_rv = libnngio_server_handle_service_discovery(server, &service_request, &actual_service_response);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  assert(actual_service_response != NULL);
+  assert(actual_service_response->n_services == 2);
+  assert(strcmp(actual_service_response->services[0]->name, "Echo") == 0);
+  assert(strcmp(actual_service_response->services[1]->name, "Math") == 0);
+  libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+               "Service discovery response received with %zu services.",
+               actual_service_response->n_services);
+  for (size_t i = 0; i < actual_service_response->n_services; i++) {
+    NngioProtobuf__Service *actual_service = actual_service_response->services[i];
+    libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+                 "Service %zu: %s with %d methods.", i, actual_service->name,
+                 actual_service->n_methods);
+    for (size_t j = 0; j < actual_service->n_methods; j++) {
+      libnngio_log("INF", "TEST_SERVICE_IMPLEMENTATION", __FILE__, __LINE__, -1,
+                   "  Method %zu: %s", j, actual_service->methods[j]);
+    }
+  }
+
+/*
 
   // Call the actual service discovery function
   proto_rv = libnngio_client_discover_services(client);
@@ -2500,13 +2571,13 @@ void test_service_implementation() {
 #ifdef NNGIO_MOCK_MAIN
   // Mock RPC response for Echo service
   NngioProtobuf__RpcResponseMessage *mock_rpc_response =
-      nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS,
+      nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success,
                                "Hello, World", strlen("Hello, World"), NULL);
   NngioProtobuf__NngioMessage *mock_rpc_msg =
       nngio_create_nngio_message_with_rpc_response("uuid-rpc", mock_rpc_response);
   
-  size_t packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_rpc_msg);
-  uint8_t *buffer = malloc(packed_size);
+  packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_rpc_msg);
+  buffer = (uint8_t*)malloc(packed_size);
   nngio_protobuf__nngio_message__pack(mock_rpc_msg, buffer);
   libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
   free(buffer);
@@ -2539,13 +2610,13 @@ void test_service_implementation() {
   // Mock RPC response for Math service
   int expected_result = 8;
   NngioProtobuf__RpcResponseMessage *mock_math_response =
-      nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__SUCCESS,
+      nngio_create_rpc_response(NNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success,
                                &expected_result, sizeof(int), NULL);
   NngioProtobuf__NngioMessage *mock_math_msg =
       nngio_create_nngio_message_with_rpc_response("uuid-math", mock_math_response);
   
-  size_t packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_math_msg);
-  uint8_t *buffer = malloc(packed_size);
+  packed_size = nngio_protobuf__nngio_message__get_packed_size(mock_math_msg);
+  buffer = (uint8_t*) malloc(packed_size);
   nngio_protobuf__nngio_message__pack(mock_math_msg, buffer);
   libnngio_mock_set_recv_buffer((const char *)buffer, packed_size);
   free(buffer);
@@ -2565,9 +2636,14 @@ void test_service_implementation() {
                "Math RPC call successful. %d + %d = %d", math_inputs[0], math_inputs[1], *(int*)math_output);
 
   free(math_output);
+  */
 
   // Clean up
+  nngio_protobuf__service_discovery_request__free_unpacked(actual_service_request, NULL);
+  //nngio_protobuf__service_discovery_request__free_unpacked(service_request, NULL);
+  nngio_free_service_discovery_response(actual_service_response);
   libnngio_client_free(client);
+  nngio_free_service_discovery_response(service_response);
   libnngio_server_free(server);
   libnngio_protobuf_context_free(rep_proto_ctx);
   libnngio_protobuf_context_free(req_proto_ctx);
