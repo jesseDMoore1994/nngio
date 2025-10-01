@@ -804,7 +804,6 @@ static void send_raw_message_async_cb(libnngio_context *ctx, int result,
   if (cb_data->user_cb) {
     cb_data->user_cb(cb_data->ctx, result, cb_data->msg, cb_data->user_data);
   }
-
   nngio_free_nngio_message(cb_data->msg);
   free(cb_data->buffer);
   free(cb_data);
@@ -1285,7 +1284,6 @@ static void send_rpc_request_async_cb(libnngio_context *ctx, int result,
   if (cb_data->user_cb) {
     cb_data->user_cb(cb_data->ctx, result, cb_data->msg, cb_data->user_data);
   }
-
   nngio_free_nngio_message(cb_data->msg);
   free(cb_data->buffer);
   free(cb_data);
@@ -1763,7 +1761,6 @@ static void send_rpc_response_async_cb(libnngio_context *ctx, int result,
   if (cb_data->user_cb) {
     cb_data->user_cb(cb_data->ctx, result, cb_data->msg, cb_data->user_data);
   }
-
   nngio_free_nngio_message(cb_data->msg);
   free(cb_data->buffer);
   free(cb_data);
