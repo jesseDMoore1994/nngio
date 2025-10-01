@@ -3198,6 +3198,20 @@ static void test_rpc(void) {
   NngioProtobuf__RpcResponseMessage *rpc_response = NULL;
   proto_rv = libnngio_server_create_rpc_response(server, recv_rpc_request,
                                                  &rpc_response);
+#ifdef NNGIO_MOCK_MAIN
+  // Mock rpc response
+  NngioProtobuf__RpcResponseMessage *fakeresp =
+      nngio_copy_rpc_response(rpc_response);
+  NngioProtobuf__NngioMessage *mock_response_msg =
+      nngio_create_nngio_message_with_rpc_response("uuid-resp", fakeresp);
+  size_t resp_pack_size =
+      nngio_protobuf__nngio_message__get_packed_size(mock_response_msg);
+  uint8_t *resp_buffer = malloc(resp_pack_size);
+  nngio_protobuf__nngio_message__pack(mock_response_msg, resp_buffer);
+  libnngio_mock_set_recv_buffer((const char *)resp_buffer, resp_pack_size);
+  free(resp_buffer);
+  nngio_free_nngio_message(mock_response_msg);
+#endif
 
   libnngio_log(
       "INF", "TEST_RPC", __FILE__, __LINE__, -1,
@@ -3219,6 +3233,34 @@ static void test_rpc(void) {
   assert(rpc_response->payload.len == length);
   assert(memcmp(rpc_response->payload.data, "Hello, World!", length) == 0);
 
+  // send the response back to the client
+  libnngio_log("INF", "TEST_RPC", __FILE__, __LINE__, -1,
+               "Sending RPC response back to client...");
+  proto_rv = libnngio_server_send_rpc_response(server, rpc_response);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  libnngio_log("INF", "TEST_RPC", __FILE__, __LINE__, -1,
+               "RPC response sent from server.");
+  libnngio_log("INF", "TEST_RPC", __FILE__, __LINE__, -1,
+               "Client receiving RPC response...");
+
+  NngioProtobuf__RpcResponseMessage *client_recv_response = NULL;
+  proto_rv = libnngio_client_recv_rpc_response(client, &client_recv_response);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  assert(client_recv_response != NULL);
+  assert(client_recv_response->status == 0);
+  assert(client_recv_response->payload.len == length);
+  assert(memcmp(client_recv_response->payload.data, "Hello, World!", length) == 0);
+  libnngio_log(
+      "INF", "TEST_RPC", __FILE__, __LINE__, -1,
+      "Client received RPC response with status %d and payload '%.*s' of len: %d",
+      client_recv_response->status,
+      (int)client_recv_response->payload.len,
+      (char *)client_recv_response->payload.data,
+      (int)client_recv_response->payload.len);
+  libnngio_log("INF", "TEST_RPC", __FILE__, __LINE__, -1,
+               "RPC call to Echo.SayHello completed successfully.");
+
+  nngio_free_rpc_response(client_recv_response);
   nngio_free_rpc_response(rpc_response);
   nngio_free_rpc_request(recv_rpc_request);
   nngio_free_rpc_request(rpc_request);
@@ -3235,10 +3277,361 @@ static void test_rpc(void) {
                "RPC test completed successfully.");
 };
 
+typedef struct {
+  volatile int done;
+  int result;
+} rpc_sync_t;  // the code is async, but the tests are not...
+
+static void send_rpc_callback(libnngio_protobuf_context *ctx,
+                                            int result,
+                                            NngioProtobuf__NngioMessage *msg,
+                                            void *user_data) {
+  rpc_sync_t *sync = (rpc_sync_t *)user_data;
+  sync->done = 1;
+  sync->result = result;
+
+  // An application could hook here with user data to add additional processing
+  // of the message if desired.
+  // For this test, we are concerned with the side effects on the client and
+  // server objects, so we do not process the message here.
+  // Typically though, an application would want to do something with it.
+  // For example, logging, metrics, etc.
+
+  // Note that differently from the recv callback, we do not free the message
+  // here, as the send callback is called after the message has been sent,
+  // and the library takes care of freeing it.
+}
+
+static void recv_rpc_callback(libnngio_protobuf_context *ctx,
+                                            int result,
+                                            NngioProtobuf__NngioMessage **msg,
+                                            void *user_data) {
+  rpc_sync_t *sync = (rpc_sync_t *)user_data;
+  sync->done = 1;
+  sync->result = result;
+
+  // An application could hook here with user data to add additional processing
+  // of the message if desired.
+  // For this test, we are concerned with the side effects on the client and
+  // server objects, so we do not process the message here.
+  // Typically though, an application would want to do something with it.
+  // For example, logging, metrics, etc.
+
+  // Instad of doing anything with the message, we just free it.
+  if (msg != NULL && *msg != NULL) {
+    nngio_free_nngio_message(*msg);
+  }
+}
+
 static void test_rpc_asyc(void) {
-  libnngio_log("WRN", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
-               "Testing async RPC calls unimplemented...");
-};
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Testing async rpc invocation...");
+
+  // Initialize transport and contexts
+  libnngio_config rep_cfg = {.mode = LIBNNGIO_MODE_LISTEN,
+                             .proto = LIBNNGIO_PROTO_REP,
+                             .url = "tcp://127.0.0.1:6666",
+                             .tls_cert = NULL,
+                             .tls_key = NULL,
+                             .tls_ca_cert = NULL};
+
+  libnngio_config req_cfg = {.mode = LIBNNGIO_MODE_DIAL,
+                             .proto = LIBNNGIO_PROTO_REQ,
+                             .url = "tcp://127.0.0.1:6666",
+                             .tls_cert = NULL,
+                             .tls_key = NULL,
+                             .tls_ca_cert = NULL};
+
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
+  libnngio_protobuf_context *rep_proto_ctx = NULL, *req_proto_ctx = NULL;
+
+  int rv = libnngio_transport_init(&rep, &rep_cfg);
+  if (rv != 0) {
+    assert(rv == 0);
+  }
+  rv = libnngio_transport_init(&req, &req_cfg);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&rep_ctx, rep, &rep_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  // Initialize protobuf contexts
+  libnngio_protobuf_error_code proto_rv =
+      libnngio_protobuf_context_init(&rep_proto_ctx, rep_ctx);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  proto_rv = libnngio_protobuf_context_init(&req_proto_ctx, req_ctx);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  // Initialize server and register services
+  libnngio_server *server = NULL;
+  proto_rv = libnngio_server_init(&server, rep_proto_ctx);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  // Register Echo service
+  libnngio_service_method echo_methods_reg[] = {
+      {"SayHello", echo_say_hello_handler, NULL},
+      {"SayGoodbye", echo_say_hello_handler, NULL}};
+  proto_rv =
+      libnngio_server_register_service(server, "Echo", echo_methods_reg, 2);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  // Register Math service
+  libnngio_service_method math_methods_reg[] = {
+      {"Add", math_add_handler, NULL},
+      {"Subtract", math_add_handler, NULL},
+      {"Multiply", math_add_handler, NULL}};
+  proto_rv =
+      libnngio_server_register_service(server, "Math", math_methods_reg, 3);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Server initialized with Echo and Math services.");
+
+  // Initialize client
+  libnngio_client *client = NULL;
+  proto_rv = libnngio_client_init(&client, req_proto_ctx);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Client initialized.");
+
+  // send rpc request from client and receive response on server
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Testing rpc call to Echo.SayHello...");
+
+  // create rpc request
+  NngioProtobuf__RpcRequestMessage *rpc_request = nngio_create_rpc_request(
+      "Echo", "SayHello", "World!", strlen("World!"));
+  NngioProtobuf__RpcRequestMessage *recv_rpc_request = NULL;
+
+#ifdef NNGIO_MOCK_MAIN
+  // Mock rpc request
+  NngioProtobuf__RpcRequestMessage *fakerq =
+      nngio_copy_rpc_request(rpc_request);
+  NngioProtobuf__NngioMessage *mock_request_msg =
+      nngio_create_nngio_message_with_rpc_request("uuid-req", fakerq);
+  size_t req_pack_size =
+      nngio_protobuf__nngio_message__get_packed_size(mock_request_msg);
+  uint8_t *req_buffer = malloc(req_pack_size);
+  nngio_protobuf__nngio_message__pack(mock_request_msg, req_buffer);
+  libnngio_mock_set_recv_buffer((const char *)req_buffer, req_pack_size);
+  free(req_buffer);
+  nngio_free_nngio_message(mock_request_msg);
+#endif
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Sending an asynchronous RPC request...");
+
+  NngioProtobuf__RpcRequestMessage *actual_rpc_request = NULL;
+  NngioProtobuf__RpcResponseMessage *actual_rpc_response = NULL;
+  rpc_sync_t send_sync = {0}, recv_sync = {0};
+
+  proto_rv = libnngio_server_handle_rpc_request_async(
+      server, &actual_rpc_request, &actual_rpc_response,
+      (libnngio_protobuf_recv_cb_info){
+          .user_cb = recv_rpc_callback,
+          .user_data = &recv_sync,
+      });
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Asynchronous RPC handling initiated.");
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Sending an asynchronous RPC request...");
+
+  proto_rv = libnngio_client_send_rpc_request_async(
+      client, rpc_request,
+      (libnngio_protobuf_send_cb_info){
+          .user_cb = send_rpc_callback,
+          .user_data = &send_sync,
+      });
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Client RPC request sent.");
+
+  // wait for async operation to complete
+  while (!send_sync.done) {
+    nng_msleep(10);
+  }
+  while (!recv_sync.done) {
+    nng_msleep(10);
+  }
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Asynchronous RPC handling completed.");
+  if (send_sync.result != 0 || recv_sync.result != 0) {
+    libnngio_log("ERR", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Async RPC send result: %d",
+                 send_sync.result);
+    libnngio_log("ERR", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Async RPC recv result: %d",
+                 recv_sync.result);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Async RPC succeeded, validating request...");
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  assert(actual_rpc_request != NULL);
+  assert(strcmp(actual_rpc_request->service_name, "Echo") == 0);
+  assert(strcmp(actual_rpc_request->method_name, "SayHello") == 0);
+  assert(actual_rpc_request->payload.len == strlen("World!"));
+  assert(memcmp(actual_rpc_request->payload.data, "World!",
+                strlen("World!")) == 0);
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Server received RPC request for service %s method %s with payload %.*s",
+               actual_rpc_request->service_name, actual_rpc_request->method_name,
+               (int)actual_rpc_request->payload.len,
+               (char *)actual_rpc_request->payload.data);
+
+  // validate the generated response
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Validating generated RPC response...");
+  assert(actual_rpc_response != NULL);
+  size_t length = strlen("Hello, World!");
+  assert(actual_rpc_response->status == 0);
+  assert(actual_rpc_response->payload.len == length);
+  assert(memcmp(actual_rpc_response->payload.data, "Hello, World!", length) == 0);
+  libnngio_log(
+      "INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+      "Server Generated RPC response status %d with payload '%.*s' of len: %d",
+      actual_rpc_response->status,
+      (int)actual_rpc_response->payload.len,
+      (char *)actual_rpc_response->payload.data,
+      (int)actual_rpc_response->payload.len);
+
+  // prepare client to receive the response
+#ifdef NNGIO_MOCK_MAIN
+  // Mock rpc response
+  NngioProtobuf__RpcResponseMessage *fakeresp =
+      nngio_copy_rpc_response(actual_rpc_response);
+  NngioProtobuf__NngioMessage *mock_response_msg =
+      nngio_create_nngio_message_with_rpc_response("uuid-resp", fakeresp);
+  size_t resp_pack_size =
+      nngio_protobuf__nngio_message__get_packed_size(mock_response_msg);
+  uint8_t *resp_buffer = malloc(resp_pack_size);
+  nngio_protobuf__nngio_message__pack(mock_response_msg, resp_buffer);
+  libnngio_mock_set_recv_buffer((const char *)resp_buffer, resp_pack_size);
+  free(resp_buffer);
+  nngio_free_nngio_message(mock_response_msg);
+#endif
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Preparing client to receive asynchronous RPC response...");
+  NngioProtobuf__RpcResponseMessage *client_recv_response = NULL;
+  memset(&recv_sync, 0, sizeof(recv_sync));
+  memset(&send_sync, 0, sizeof(send_sync));
+  proto_rv = libnngio_client_recv_rpc_response_async(
+      client, &client_recv_response,
+      (libnngio_protobuf_recv_cb_info){
+          .user_cb = recv_rpc_callback,
+          .user_data = &recv_sync,
+      });
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Prepared to receiving RPC response with client.");
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Server sending asynchronous RPC response...");
+  proto_rv = libnngio_server_send_rpc_response_async(
+      server, actual_rpc_response,
+      (libnngio_protobuf_send_cb_info){
+          .user_cb = send_rpc_callback,
+          .user_data = &send_sync,
+      });
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "RPC response sent from server.");
+
+  // wait for async operation to complete
+  while (!send_sync.done) {
+    nng_msleep(10);
+  }
+  while (!recv_sync.done) {
+    nng_msleep(10);
+  }
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Asynchronous RPC response handling completed.");
+  if (send_sync.result != 0 || recv_sync.result != 0) {
+    libnngio_log("ERR", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Async RPC send result: %d",
+                 send_sync.result);
+    libnngio_log("ERR", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+                 "Async RPC recv result: %d",
+                 recv_sync.result);
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_protobuf_context_free(req_proto_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(0);
+  }
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Validating client received response...");
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  assert(client_recv_response != NULL);
+  assert(client_recv_response->status == 0);
+  assert(client_recv_response->payload.len == length);
+  assert(memcmp(client_recv_response->payload.data, "Hello, World!", length) == 0);
+  libnngio_log(
+      "INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+      "Client received RPC response with status %d and payload '%.*s' of len: %d",
+      client_recv_response->status,
+      (int)client_recv_response->payload.len,
+      (char *)client_recv_response->payload.data,
+      (int)client_recv_response->payload.len);
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "RPC call to Echo.SayHello completed successfully.");
+
+  libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
+               "Async RPC test completed successfully.");
+
+  //cleanup
+  nngio_free_rpc_response(client_recv_response);
+  nngio_free_rpc_request(actual_rpc_request);
+  nngio_free_rpc_response(actual_rpc_response);
+  nngio_free_rpc_request(rpc_request);
+  libnngio_client_free(client);
+  libnngio_server_free(server);
+  libnngio_protobuf_context_free(rep_proto_ctx);
+  libnngio_protobuf_context_free(req_proto_ctx);
+  libnngio_context_free(rep_ctx);
+  libnngio_context_free(req_ctx);
+  libnngio_transport_free(rep);
+  libnngio_transport_free(req);
+}
 
 /**
  * @brief Main function to run the protobuf tests

@@ -4103,6 +4103,63 @@ libnngio_protobuf_error_code libnngio_client_send_rpc_request(
 }
 
 /**
+ * @brief Send an RPC request with the client asynchronously.
+ *
+ * @param client    Client to use for sending.
+ * @param request   Pointer to the RpcRequest to send.
+ * @param cb_info   Callback info for handling the async send.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_send_rpc_request_async(
+    libnngio_client *client, const NngioProtobuf__RpcRequestMessage *request,
+    libnngio_protobuf_send_cb_info cb_info) {
+  if (client == NULL || client->proto_ctx == NULL ||
+      client->proto_ctx->ctx == NULL || request == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return libnngio_protobuf_send_rpc_request_async(client->proto_ctx, request,
+                                                  cb_info);
+}
+
+/**
+ * @brief Receive an RPC response with the client.
+ *
+ * @param client    Client to use for receiving.
+ * @param response  Pointer to receive allocated RpcResponseMessage.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_recv_rpc_response(
+    libnngio_client *client, NngioProtobuf__RpcResponseMessage **response) {
+  if (client == NULL || client->proto_ctx == NULL ||
+      client->proto_ctx->ctx == NULL || response == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return libnngio_protobuf_recv_rpc_response(client->proto_ctx, response);
+}
+
+/**
+ * @brief Receive an RPC response with the client asynchronously.
+ *
+ * @param client    Client to use for receiving.
+ * @param response  Pointer to receive allocated RpcResponseMessage.
+ * @param cb_info   Callback info for handling the async receive.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_recv_rpc_response_async(
+    libnngio_client *client, NngioProtobuf__RpcResponseMessage **response,
+    libnngio_protobuf_recv_cb_info cb_info) {
+  if (client == NULL || client->proto_ctx == NULL ||
+      client->proto_ctx->ctx == NULL || response == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return libnngio_protobuf_recv_rpc_response_async(client->proto_ctx, response,
+                                                  cb_info);
+}
+
+/**
  * @brief Take a service discovery request and then generate a service discovery
  * response with the server's registered services.
  *
@@ -4247,6 +4304,26 @@ libnngio_protobuf_error_code libnngio_server_recv_rpc_request(
 }
 
 /**
+ * @brief Receive an RPC request with the server asynchronously.
+ *
+ * @param server    Server to use for receiving.
+ * @param request   Pointer to receive allocated RpcRequest.
+ * @param cb_info   Callback info for handling the async receive.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_recv_rpc_request_async(
+    libnngio_server *server, NngioProtobuf__RpcRequestMessage **request,
+    libnngio_protobuf_recv_cb_info cb_info) {
+  if (server == NULL || server->proto_ctx == NULL ||
+      server->proto_ctx->ctx == NULL || request == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return libnngio_protobuf_recv_rpc_request_async(server->proto_ctx, request,
+                                                 cb_info);
+}
+
+/**
  * @brief Create an RPC response message based on the given request.
  *
  * @param server   Server which is creating the response.
@@ -4339,5 +4416,127 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
   }
+}
 
+/**
+ * @brief Send an RPC response with the server.
+ *
+ * @param server    Server to use for sending.
+ * @param response  Pointer to the RpcResponseMessage to send.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_send_rpc_response(
+    libnngio_server *server, const NngioProtobuf__RpcResponseMessage *response) {
+  if (server == NULL || server->proto_ctx == NULL ||
+      server->proto_ctx->ctx == NULL || response == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return libnngio_protobuf_send_rpc_response(server->proto_ctx, response);
+}
+
+/**
+ * @brief Send an RPC response with the server asynchronously.
+ *
+ * @param server    Server to use for sending.
+ * @param response  Pointer to the RpcResponseMessage to send.
+ * @param cb_info   Callback info for handling the async send.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_send_rpc_response_async(
+    libnngio_server *server, const NngioProtobuf__RpcResponseMessage *response,
+    libnngio_protobuf_send_cb_info cb_info) {
+  if (server == NULL || server->proto_ctx == NULL ||
+      server->proto_ctx->ctx == NULL || response == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return libnngio_protobuf_send_rpc_response_async(server->proto_ctx, response,
+                                                   cb_info);
+}
+
+static void server_prepare_rpc_response_cb(
+    libnngio_server *server, int result, NngioProtobuf__NngioMessage **msg,
+    void *user_data) {
+  if (result != 0 || msg == NULL || *msg == NULL) {
+    libnngio_log("ERR", "SERVER_PREPARE_RPC_RESPONSE_CB",
+                 __FILE__, __LINE__,
+                 libnngio_context_id(server->proto_ctx->ctx),
+                 "Error in prepare rpc response callback: %d", result);
+    return;
+  }
+
+  if ((*msg)->msg_case !=
+      NNGIO_PROTOBUF__NNGIO_MESSAGE__MSG_RPC_REQUEST) {
+    libnngio_log(
+        "ERR", "SERVER_PREPARE_RPC_RESPONSE_CB", __FILE__,
+        __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+        "Received unexpected message type in prepare rpc response callback.");
+    return;
+  }
+
+  // this is left here for completeness, though we don't actually use the
+  // request to generate the response in this simple implementation
+  NngioProtobuf__RpcRequestMessage *request =
+      (*msg)->rpc_request;
+
+  // the server storage holds the pointer to the response that we need to
+  // populate create a new response message and populate it with the server's
+  // registered services
+  NngioProtobuf__RpcResponseMessage **response =
+      (NngioProtobuf__RpcResponseMessage **)server->server_storage;
+
+  libnngio_protobuf_error_code rv =
+      libnngio_server_create_rpc_response(server, request, response);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "SERVER_PREPARE_RPC_RESPONSE_CB",
+                 __FILE__, __LINE__,
+                 libnngio_context_id(server->proto_ctx->ctx),
+                 "Failed to create rpc response: %d", rv);
+  }
+  else {
+    libnngio_log("INF", "SERVER_PREPARE_RPC_RESPONSE_CB",
+             __FILE__, __LINE__,
+             libnngio_context_id(server->proto_ctx->ctx),
+             "Created RPC response.");
+
+  }
+}
+
+/**
+ * @brief Take an RPC request and then generate an RPC response by invoking the
+ * appropriate service method handler.
+ *
+ * @param server    Server to use for receiving and sending.
+ * @param request   Pointer to receive allocated RpcRequest.
+ * @param response  Pointer to receive allocated RpcResponseMessage.
+ * @param recv_cb_info Callback info for handling the async receive.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
+    libnngio_server *server, NngioProtobuf__RpcRequestMessage **request,
+    NngioProtobuf__RpcResponseMessage **response,
+    libnngio_protobuf_recv_cb_info recv_cb_info) {
+  libnngio_protobuf_error_code rv;
+  if (server == NULL || server->proto_ctx == NULL ||
+      server->proto_ctx->ctx == NULL || request == NULL || response == NULL) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  libnngio_log("DBG", "LIBNNGIO_SERVER_HANDLE_RPC_REQUEST_ASYNC",
+               __FILE__, __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Handling RPC request asynchronously.");
+
+  // set server storage to point to the response pointer
+  server->server_storage = (void *)response;
+  // set the server callback to prepare the response once the request is
+  // received
+  recv_cb_info.server = server;
+  recv_cb_info.server_cb = server_prepare_rpc_response_cb;
+  rv = libnngio_server_recv_rpc_request_async(server, request, recv_cb_info);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    return rv;
+  }
+
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
 }

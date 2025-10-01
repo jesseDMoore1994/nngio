@@ -1028,6 +1028,38 @@ libnngio_protobuf_error_code libnngio_client_send_rpc_request(
     libnngio_client *client, const NngioProtobuf__RpcRequestMessage *request);
 
 /**
+ * @brief Send an RPC request asynchronously with the client.
+ *
+ * @param client Client to send request with.
+ * @param request Pointer to the RPC request message.
+ * @param cb_info Callback info used when sending the request.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_send_rpc_request_async(
+    libnngio_client *client, const NngioProtobuf__RpcRequestMessage *request,
+    libnngio_protobuf_send_cb_info cb_info);
+
+/**
+ * @brief Receive an RPC response with the client.
+ * @param client Client to receive response with.
+ * @param response Pointer to receive allocated RPC response message.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_recv_rpc_response(
+    libnngio_client *client, NngioProtobuf__RpcResponseMessage **response);
+
+/**
+ * @brief Receive an RPC response asynchronously with the client.
+ * @param client Client to receive response with.
+ * @param response Pointer to receive allocated RPC response message.
+ * @param cb_info Callback info used when receiving the response.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_client_recv_rpc_response_async(
+    libnngio_client *client, NngioProtobuf__RpcResponseMessage **response,
+    libnngio_protobuf_recv_cb_info cb_info);
+
+/**
  * @brief Take a service discovery request and then generate a service discovery
  * response with the server's registered services.
  *
@@ -1065,6 +1097,18 @@ libnngio_protobuf_error_code libnngio_server_recv_rpc_request(
     libnngio_server *server, NngioProtobuf__RpcRequestMessage **request);
 
 /**
+ * @brief Receive an RPC request asynchronously with the server.
+ *
+ * @param server Server to receive request with.
+ * @param request Pointer to receive allocated RPC request message.
+ * @param cb_info Callback info used when receiving the request.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_recv_rpc_request_async(
+    libnngio_server *server, NngioProtobuf__RpcRequestMessage **request,
+    libnngio_protobuf_recv_cb_info cb_info);
+
+/**
  * @brief Create an RPC response message based on the given request.
  *
  * Digest a given RPC request and generate an appropriate response. The response
@@ -1077,5 +1121,42 @@ libnngio_protobuf_error_code libnngio_server_recv_rpc_request(
 libnngio_protobuf_error_code libnngio_server_create_rpc_response(
     libnngio_server *server, const NngioProtobuf__RpcRequestMessage *request,
     NngioProtobuf__RpcResponseMessage **response);
+
+/**
+ * @brief send an RPC response with the server.
+ * @param server Server to send response with.
+ * @param response Pointer to the RPC response message.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_send_rpc_response(
+    libnngio_server *server,
+    const NngioProtobuf__RpcResponseMessage *response);
+
+/**
+ * @brief send an RPC response asynchronously with the server.
+ * @param server Server to send response with.
+ * @param response Pointer to the RPC response message.
+ * @param cb_info Callback info used when sending the response.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_send_rpc_response_async(
+    libnngio_server *server,
+    const NngioProtobuf__RpcResponseMessage *response,
+    libnngio_protobuf_send_cb_info cb_info);
+
+/**
+ * @brief Take an RPC request and then generate an RPC response by invoking the
+ * registered method handler asynchronously.
+ *
+ * @param server Server containing registered services and method handlers.
+ * @param request Pointer to the RPC request message.
+ * @param response Pointer to receive allocated RPC response message.
+ * @param recv_cb_info Callback info used when receiving the request.
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
+    libnngio_server *server, NngioProtobuf__RpcRequestMessage **request,
+    NngioProtobuf__RpcResponseMessage **response,
+    libnngio_protobuf_recv_cb_info recv_cb_info);
 
 #endif  // LIBNNGIO_PROTOBUF_H
