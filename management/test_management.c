@@ -216,9 +216,17 @@ void test_service_discovery() {
   libnngio_protobuf__service_discovery_request__init(request);
   
   // Send service discovery request to LibnngioProtobuf.ServiceDiscoveryService
-  LibnngioProtobuf__ServiceDiscoveryResponse *response = NULL;
   proto_rv = libnngio_protobuf_send_service_discovery_request(
-      client_proto_ctx, request, &response);
+      client_proto_ctx, request);
+  
+  libnngio_log("INF", "TEST_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
+               "Service discovery request sent, result: %d", proto_rv);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  
+  // Receive service discovery response
+  LibnngioProtobuf__ServiceDiscoveryResponse *response = NULL;
+  proto_rv = libnngio_protobuf_recv_service_discovery_response(
+      client_proto_ctx, &response);
   
   libnngio_log("INF", "TEST_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Service discovery request sent, result: %d", proto_rv);
