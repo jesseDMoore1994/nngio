@@ -24,7 +24,11 @@ When initialized, the management module sets up:
   - Mode: Listen (reply mode)
   - URL: `ipc:///tmp/libnngio_management.ipc`
 
-- **One management server** with all five services registered and available through the management IPC transport
+- **One management server** with services automatically loaded from available modules:
+  - Management module services (TransportManagement, ServiceManagement, ConnectionManagement)
+  - Protobuf module services (RpcService, ServiceDiscoveryService)
+
+The services list is dynamically populated from the module descriptors, making it easy to track and manage all registered services.
 
 ## Usage
 
@@ -58,6 +62,31 @@ err = libnngio_management_stop(ctx);
 // Clean up
 libnngio_management_free(ctx);
 ```
+
+### Registering Additional Modules
+
+You can register additional modules after initialization to add more services dynamically:
+
+```c
+#include "management/libnngio_management.h"
+#include "module/libnngio_module.h"
+
+// Initialize management context
+libnngio_management_context *ctx = NULL;
+libnngio_management_init(&ctx);
+
+// Register a custom module's services
+const libnngio_module_descriptor *custom_module = my_custom_get_module_descriptor(user_data);
+libnngio_management_error_code err = libnngio_management_register_module(ctx, custom_module);
+if (err != LIBNNGIO_MANAGEMENT_ERR_NONE) {
+    // Handle error
+}
+
+// Now the custom module's services are available on the management server
+// and tracked in the internal services list
+```
+
+The services list is automatically populated from module descriptors, eliminating the need to manually create service entries.
 
 ### Configuration Helpers
 

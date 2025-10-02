@@ -129,6 +129,21 @@ libnngio_management_error_code libnngio_management_stop(
  */
 const char *libnngio_management_get_url(libnngio_management_context *ctx);
 
+/**
+ * @brief Register a module's services with the management server.
+ * 
+ * This function registers all services from a module descriptor with the management
+ * server and adds them to the internal service tracking list. The services will be
+ * available through the management IPC transport.
+ *
+ * @param ctx Management context.
+ * @param module Module descriptor containing services to register.
+ * @return Error code indicating success or failure.
+ */
+libnngio_management_error_code libnngio_management_register_module(
+    libnngio_management_context *ctx,
+    const struct libnngio_module_descriptor *module);
+
 // =============================================================================
 // Configuration Helper Functions
 // =============================================================================

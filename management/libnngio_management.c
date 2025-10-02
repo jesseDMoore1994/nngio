@@ -71,6 +71,60 @@ static libnngio_mode parse_mode(const char *mode_str) {
   return LIBNNGIO_MODE_LISTEN; // Default
 }
 
+/**
+ * @brief Add services from a module descriptor to the management context's service list.
+ * 
+ * This function populates the services array from the module descriptor, creating
+ * service entries for tracking purposes.
+ *
+ * @param ctx Management context to add services to.
+ * @param module Module descriptor containing services to add.
+ * @param transport_name Name of the transport these services are attached to.
+ * @return 0 on success, -1 on failure.
+ */
+static int add_services_from_module(libnngio_management_context *ctx,
+                                    const libnngio_module_descriptor *module,
+                                    const char *transport_name) {
+  if (!ctx || !module || !transport_name) {
+    return -1;
+  }
+  
+  // Iterate through all services in the module
+  for (size_t i = 0; i < module->n_services; i++) {
+    const libnngio_module_service *mod_svc = &module->services[i];
+    
+    // Check if we need to expand the services array
+    if (ctx->n_services >= ctx->services_capacity) {
+      size_t new_capacity = ctx->services_capacity * 2;
+      libnngio_management_service_entry *new_services = 
+          realloc(ctx->services, new_capacity * sizeof(libnngio_management_service_entry));
+      if (!new_services) {
+        return -1;
+      }
+      ctx->services = new_services;
+      ctx->services_capacity = new_capacity;
+    }
+    
+    // Add the service entry
+    libnngio_management_service_entry *entry = &ctx->services[ctx->n_services];
+    entry->name = strdup_safe(mod_svc->service_name);
+    entry->transport_name = strdup_safe(transport_name);
+    entry->service_type = strdup_safe(module->module_name);
+    entry->server = ctx->management_server; // Reference to the management server
+    
+    if (!entry->name || !entry->transport_name || !entry->service_type) {
+      free(entry->name);
+      free(entry->transport_name);
+      free(entry->service_type);
+      return -1;
+    }
+    
+    ctx->n_services++;
+  }
+  
+  return 0;
+}
+
 // =============================================================================
 // Transport Management Handlers
 // =============================================================================
@@ -486,12 +540,20 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
+  // List of available modules to load
+  const char *transport_name = "nngio-ipc";
+  
   // Register services from the management module using the module interface
   const libnngio_module_descriptor *mgmt_module = libnngio_management_get_module_descriptor(mgmt_ctx);
   proto_rv = libnngio_module_register_services(mgmt_ctx->management_server, mgmt_module);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  // Add services from management module to the services list
+  if (add_services_from_module(mgmt_ctx, mgmt_module, transport_name) != 0) {
+    libnngio_management_free(mgmt_ctx);
+    return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
   }
   
   // Register services from the protobuf module using the module interface
@@ -500,6 +562,11 @@ libnngio_management_error_code libnngio_management_init(
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  // Add services from protobuf module to the services list
+  if (add_services_from_module(mgmt_ctx, protobuf_module, transport_name) != 0) {
+    libnngio_management_free(mgmt_ctx);
+    return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
   }
   
   mgmt_ctx->running = 0;
@@ -572,6 +639,28 @@ libnngio_management_error_code libnngio_management_stop(
 const char *libnngio_management_get_url(libnngio_management_context *ctx) {
   if (!ctx) return NULL;
   return "ipc:///tmp/libnngio_management.ipc";
+}
+
+libnngio_management_error_code libnngio_management_register_module(
+    libnngio_management_context *ctx,
+    const libnngio_module_descriptor *module) {
+  if (!ctx || !module) {
+    return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
+  }
+  
+  // Register the module's services with the management server
+  libnngio_protobuf_error_code proto_rv = 
+      libnngio_module_register_services(ctx->management_server, module);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  
+  // Add the services to the management context's service list
+  if (add_services_from_module(ctx, module, "nngio-ipc") != 0) {
+    return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
+  }
+  
+  return LIBNNGIO_MANAGEMENT_ERR_NONE;
 }
 
 // =============================================================================
