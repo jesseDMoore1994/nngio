@@ -19,6 +19,9 @@
 #include "transport/libnngio_transport.h"
 #include "libnngio_protobuf.pb-c.h"
 
+// Forward declaration
+struct libnngio_module_descriptor;
+
 #define LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE 65535  ///< Max message size (64k bytes)
 
 /**
@@ -1158,5 +1161,21 @@ libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
     libnngio_server *server, LibnngioProtobuf__RpcRequest **request,
     LibnngioProtobuf__RpcResponse **response,
     libnngio_protobuf_recv_cb_info recv_cb_info);
+
+// =============================================================================
+// Module Interface
+// =============================================================================
+
+/**
+ * @brief Get the module descriptor for the protobuf module.
+ * 
+ * Returns a descriptor that describes the protobuf module's services (RpcService
+ * and ServiceDiscoveryService), methods, and protobuf package. This can be used
+ * to register the module's services with a server using the module interface.
+ *
+ * @param user_data User data to pass to all handler functions (typically the server)
+ * @return Pointer to the module descriptor.
+ */
+const struct libnngio_module_descriptor* libnngio_protobuf_get_module_descriptor(void *user_data);
 
 #endif  // LIBNNGIO_PROTOBUF_H

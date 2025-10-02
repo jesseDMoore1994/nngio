@@ -26,6 +26,9 @@
 #include "transport/libnngio_transport.h"
 #include "libnngio_management.pb-c.h"
 
+// Forward declaration
+struct libnngio_module_descriptor;
+
 /**
  * @brief Error codes for management operations.
  */
@@ -187,5 +190,21 @@ LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_conf
  */
 void libnngio_management_free_connection_config(
     LibnngioManagement__ConnectionConfig *config);
+
+// =============================================================================
+// Module Interface
+// =============================================================================
+
+/**
+ * @brief Get the module descriptor for the management module.
+ * 
+ * Returns a descriptor that describes the management module's services, methods,
+ * and protobuf package. This can be used to register the module's services with
+ * a server using the module interface.
+ *
+ * @param user_data User data to pass to all handler functions (typically the management context)
+ * @return Pointer to the module descriptor.
+ */
+const struct libnngio_module_descriptor* libnngio_management_get_module_descriptor(void *user_data);
 
 #endif // LIBNNGIO_MANAGEMENT_H

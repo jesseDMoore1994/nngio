@@ -4,6 +4,7 @@
  */
 
 #include "management/libnngio_management.h"
+#include "module/libnngio_module.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -406,88 +407,6 @@ static LibnngioProtobuf__RpcResponse__Status connection_get_handler(
 }
 
 // =============================================================================
-// Protobuf Module Service Handlers (RpcService, ServiceDiscoveryService)
-// =============================================================================
-
-static LibnngioProtobuf__RpcResponse__Status rpc_call_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx || !ctx->management_server) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  // Deserialize RPC request
-  LibnngioProtobuf__RpcRequest *req =
-      libnngio_protobuf__rpc_request__unpack(NULL, request_payload_len, request_payload);
-  if (!req) {
-    *response_payload = strdup("Failed to parse RPC request");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
-  }
-  
-  // Process the RPC request through the server
-  LibnngioProtobuf__RpcResponse *rpc_resp = NULL;
-  libnngio_protobuf_error_code rv = libnngio_server_create_rpc_response(
-      ctx->management_server, req, &rpc_resp);
-  
-  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !rpc_resp) {
-    libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
-    *response_payload = strdup("Failed to process RPC request");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  // Serialize the RPC response
-  *response_payload_len = libnngio_protobuf__rpc_response__get_packed_size(rpc_resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_protobuf__rpc_response__pack(rpc_resp, *response_payload);
-  }
-  
-  // Clean up
-  libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
-  nngio_free_rpc_response(rpc_resp);
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status service_discovery_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx || !ctx->management_server) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  // Create service discovery response
-  LibnngioProtobuf__ServiceDiscoveryResponse *disc_resp = NULL;
-  libnngio_protobuf_error_code rv = libnngio_server_create_service_discovery_response(
-      ctx->management_server, &disc_resp);
-  
-  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !disc_resp) {
-    *response_payload = strdup("Failed to create service discovery response");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  // Serialize the response
-  *response_payload_len = libnngio_protobuf__service_discovery_response__get_packed_size(disc_resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_protobuf__service_discovery_response__pack(disc_resp, *response_payload);
-  }
-  
-  // Clean up
-  nngio_free_service_discovery_response(disc_resp);
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-// =============================================================================
 // Public API Implementation
 // =============================================================================
 
@@ -567,65 +486,17 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  // Register TransportManagement service methods
-  libnngio_service_method transport_methods[] = {
-    {"AddTransport", transport_add_handler, mgmt_ctx},
-    {"RemoveTransport", transport_remove_handler, mgmt_ctx},
-    {"ListTransports", transport_list_handler, mgmt_ctx},
-    {"GetTransport", transport_get_handler, mgmt_ctx}
-  };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "TransportManagement", 
-                                               transport_methods, 4);
+  // Register services from the management module using the module interface
+  const libnngio_module_descriptor *mgmt_module = libnngio_management_get_module_descriptor(mgmt_ctx);
+  proto_rv = libnngio_module_register_services(mgmt_ctx->management_server, mgmt_module);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  // Register ServiceManagement service methods
-  libnngio_service_method service_methods[] = {
-    {"AddService", service_add_handler, mgmt_ctx},
-    {"RemoveService", service_remove_handler, mgmt_ctx},
-    {"ListServices", service_list_handler, mgmt_ctx},
-    {"GetService", service_get_handler, mgmt_ctx}
-  };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "ServiceManagement", 
-                                               service_methods, 4);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  // Register ConnectionManagement service methods
-  libnngio_service_method connection_methods[] = {
-    {"AddConnection", connection_add_handler, mgmt_ctx},
-    {"RemoveConnection", connection_remove_handler, mgmt_ctx},
-    {"ListConnections", connection_list_handler, mgmt_ctx},
-    {"GetConnection", connection_get_handler, mgmt_ctx}
-  };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "ConnectionManagement", 
-                                               connection_methods, 4);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  // Register RpcService from protobuf module
-  libnngio_service_method rpc_methods[] = {
-    {"CallRpc", rpc_call_handler, mgmt_ctx}
-  };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "RpcService", 
-                                               rpc_methods, 1);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  // Register ServiceDiscoveryService from protobuf module
-  libnngio_service_method discovery_methods[] = {
-    {"GetServices", service_discovery_handler, mgmt_ctx}
-  };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "ServiceDiscoveryService", 
-                                               discovery_methods, 1);
+  // Register services from the protobuf module using the module interface
+  const libnngio_module_descriptor *protobuf_module = libnngio_protobuf_get_module_descriptor(mgmt_ctx->management_server);
+  proto_rv = libnngio_module_register_services(mgmt_ctx->management_server, protobuf_module);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
@@ -785,4 +656,59 @@ void libnngio_management_free_connection_config(
   free(config->transport_name);
   free(config->service_name);
   free(config);
+}
+
+// =============================================================================
+// Module Interface Implementation
+// =============================================================================
+
+/**
+ * @brief Get the module descriptor for the management module.
+ * 
+ * Returns a descriptor that describes the management module's services.
+ * Note: The methods arrays are static and should not be freed.
+ * The user_data will need to be set appropriately when using this descriptor.
+ *
+ * @param user_data User data to pass to all handler functions
+ * @return Pointer to the module descriptor.
+ */
+const libnngio_module_descriptor* libnngio_management_get_module_descriptor(void *user_data) {
+  // Static method arrays (user_data needs to be set by caller)
+  static libnngio_service_method transport_methods[4];
+  static libnngio_service_method service_methods[4];
+  static libnngio_service_method connection_methods[4];
+  
+  // Initialize transport methods
+  transport_methods[0] = (libnngio_service_method){"AddTransport", transport_add_handler, user_data};
+  transport_methods[1] = (libnngio_service_method){"RemoveTransport", transport_remove_handler, user_data};
+  transport_methods[2] = (libnngio_service_method){"ListTransports", transport_list_handler, user_data};
+  transport_methods[3] = (libnngio_service_method){"GetTransport", transport_get_handler, user_data};
+  
+  // Initialize service methods
+  service_methods[0] = (libnngio_service_method){"AddService", service_add_handler, user_data};
+  service_methods[1] = (libnngio_service_method){"RemoveService", service_remove_handler, user_data};
+  service_methods[2] = (libnngio_service_method){"ListServices", service_list_handler, user_data};
+  service_methods[3] = (libnngio_service_method){"GetService", service_get_handler, user_data};
+  
+  // Initialize connection methods
+  connection_methods[0] = (libnngio_service_method){"AddConnection", connection_add_handler, user_data};
+  connection_methods[1] = (libnngio_service_method){"RemoveConnection", connection_remove_handler, user_data};
+  connection_methods[2] = (libnngio_service_method){"ListConnections", connection_list_handler, user_data};
+  connection_methods[3] = (libnngio_service_method){"GetConnection", connection_get_handler, user_data};
+  
+  // Static service descriptors
+  static libnngio_module_service services[3];
+  services[0] = (libnngio_module_service){"TransportManagement", transport_methods, 4};
+  services[1] = (libnngio_module_service){"ServiceManagement", service_methods, 4};
+  services[2] = (libnngio_module_service){"ConnectionManagement", connection_methods, 4};
+  
+  // Static module descriptor
+  static libnngio_module_descriptor descriptor = {
+    .module_name = "management",
+    .protobuf_package = "LibnngioManagement",
+    .services = services,
+    .n_services = 3
+  };
+  
+  return &descriptor;
 }

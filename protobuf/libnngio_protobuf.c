@@ -17,6 +17,7 @@
  *   proto_ctx -> ctx: is the underlying libnngio_context used for transport.
  */
 #include "protobuf/libnngio_protobuf.h"
+#include "module/libnngio_module.h"
 
 #include <nng/nng.h>  // for nng_strerror
 #include <stdio.h>
@@ -4536,4 +4537,132 @@ libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
   }
 
   return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+// =============================================================================
+// Module Interface Implementation
+// =============================================================================
+
+/**
+ * @brief Handler wrapper for RpcService.CallRpc method.
+ * 
+ * This wrapper adapts the generic RPC handler interface to the module interface.
+ */
+static LibnngioProtobuf__RpcResponse__Status protobuf_rpc_call_handler(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len, void *user_data) {
+  
+  libnngio_server *server = (libnngio_server *)user_data;
+  if (!server) {
+    *response_payload = strdup("Invalid server context");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Deserialize RPC request
+  LibnngioProtobuf__RpcRequest *req =
+      libnngio_protobuf__rpc_request__unpack(NULL, request_payload_len, request_payload);
+  if (!req) {
+    *response_payload = strdup("Failed to parse RPC request");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+  
+  // Process the RPC request through the server
+  LibnngioProtobuf__RpcResponse *rpc_resp = NULL;
+  libnngio_protobuf_error_code rv = libnngio_server_create_rpc_response(
+      server, req, &rpc_resp);
+  
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !rpc_resp) {
+    libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
+    *response_payload = strdup("Failed to process RPC request");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Serialize the RPC response
+  *response_payload_len = libnngio_protobuf__rpc_response__get_packed_size(rpc_resp);
+  *response_payload = malloc(*response_payload_len);
+  if (*response_payload) {
+    libnngio_protobuf__rpc_response__pack(rpc_resp, *response_payload);
+  }
+  
+  // Clean up
+  libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
+  nngio_free_rpc_response(rpc_resp);
+  
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
+
+/**
+ * @brief Handler wrapper for ServiceDiscoveryService.GetServices method.
+ * 
+ * This wrapper adapts the service discovery handler interface to the module interface.
+ */
+static LibnngioProtobuf__RpcResponse__Status protobuf_service_discovery_handler(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len, void *user_data) {
+  
+  libnngio_server *server = (libnngio_server *)user_data;
+  if (!server) {
+    *response_payload = strdup("Invalid server context");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Create service discovery response
+  LibnngioProtobuf__ServiceDiscoveryResponse *disc_resp = NULL;
+  libnngio_protobuf_error_code rv = libnngio_server_create_service_discovery_response(
+      server, &disc_resp);
+  
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !disc_resp) {
+    *response_payload = strdup("Failed to create service discovery response");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Serialize the response
+  *response_payload_len = libnngio_protobuf__service_discovery_response__get_packed_size(disc_resp);
+  *response_payload = malloc(*response_payload_len);
+  if (*response_payload) {
+    libnngio_protobuf__service_discovery_response__pack(disc_resp, *response_payload);
+  }
+  
+  // Clean up
+  nngio_free_service_discovery_response(disc_resp);
+  
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
+
+/**
+ * @brief Get the module descriptor for the protobuf module.
+ * 
+ * Returns a descriptor that describes the protobuf module's services (RpcService
+ * and ServiceDiscoveryService).
+ *
+ * @param user_data User data to pass to all handler functions (typically the server)
+ * @return Pointer to the module descriptor.
+ */
+const libnngio_module_descriptor* libnngio_protobuf_get_module_descriptor(void *user_data) {
+  // Static method arrays
+  static libnngio_service_method rpc_methods[1];
+  static libnngio_service_method discovery_methods[1];
+  
+  // Initialize RPC service methods
+  rpc_methods[0] = (libnngio_service_method){"CallRpc", protobuf_rpc_call_handler, user_data};
+  
+  // Initialize service discovery methods
+  discovery_methods[0] = (libnngio_service_method){"GetServices", protobuf_service_discovery_handler, user_data};
+  
+  // Static service descriptors
+  static libnngio_module_service services[2];
+  services[0] = (libnngio_module_service){"RpcService", rpc_methods, 1};
+  services[1] = (libnngio_module_service){"ServiceDiscoveryService", discovery_methods, 1};
+  
+  // Static module descriptor
+  static libnngio_module_descriptor descriptor = {
+    .module_name = "protobuf",
+    .protobuf_package = "LibnngioProtobuf",
+    .services = services,
+    .n_services = 2
+  };
+  
+  return &descriptor;
 }
