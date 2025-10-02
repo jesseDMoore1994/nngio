@@ -1,5 +1,5 @@
-#ifndef LIBNNGIO_MAIN_H
-#define LIBNNGIO_MAIN_H
+#ifndef LIBNNGIO_TRANSPORT_H
+#define LIBNNGIO_TRANSPORT_H
 
 #include <stddef.h>
 
@@ -269,10 +269,10 @@ void libnngio_cleanup(void);
 
 // ===============================================================================
 // MOCKING SUPPORT BELOW -- These APIs are only available if using the mock
-// library (define NNGIO_MOCK_MAIN)
+// library (define NNGIO_MOCK_TRANSPORT)
 // ===============================================================================
 
-#ifdef NNGIO_MOCK_MAIN
+#ifdef NNGIO_MOCK_TRANSPORT
 
 /**
  * @brief Stores all function parameters for the most recent mock transport
@@ -376,6 +376,6 @@ void libnngio_mock_set_recv_buffer(const void *buf, size_t len);
  */
 void libnngio_mock_reset(void);
 
-#endif  // NNGIO_MOCK_MAIN
+#endif  // NNGIO_MOCK_TRANSPORT
 
-#endif  // LIBNNGIO_MAIN_H
+#endif  // LIBNNGIO_TRANSPORT_H

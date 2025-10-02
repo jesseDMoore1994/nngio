@@ -10,11 +10,11 @@ PROJECT_NAME_UPPERCASE = NNGIO
 # BINS are the list of production binaries to build
 BINS                   =
 # TEST_BINS are the list of test binaries to build
-TEST_BINS              = main protobuf
+TEST_BINS              = transport protobuf
 # LIBS are the list of production libraries to build
-LIBS                   = main protobuf
+LIBS                   = transport protobuf
 # MOCK_LIBS are the list of mock libraries to build
-MOCK_LIBS              = main
+MOCK_LIBS              = transport
 # HAS_PROTO are the libraries that have protobuf definitions
 HAS_PROTO              = protobuf
 
@@ -91,8 +91,8 @@ NON_MOCK_STATIC_LIBS = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix
 MOCK_AND_NON_MOCK_STATIC_LIBS = $(MOCK_STATIC_LIBS) $(NON_MOCK_STATIC_LIBS)
 MOCK_STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(MOCK_AND_NON_MOCK_STATIC_LIBS),-l:./$(lib)) -Wl,--end-group
 # Build test binaries
-ifdef NNGIO_MOCK_MAIN
-$(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) -D NNGIO_MOCK_MAIN=1
+ifdef NNGIO_MOCK_TRANSPORT
+$(BUILD_DIR)/test_%: NIX_CFLAGS_COMPILE += $(MOCK_STATIC_LIBS_GROUPED) -D NNGIO_MOCK_TRANSPORT=1
 $(BUILD_DIR)/test_%: $(BUILD_MOCK_LIBS)
 	echo "Building Test Binary: $@"
 	mkdir -p $(BUILD_DIR)
@@ -156,7 +156,7 @@ all: $(BUILD_PROTO) $(BUILD_DIR)
 
 # test will build mock libraries and binaries, then run tests with valgrind
 test: $(BUILD_PROTO) $(BUILD_DIR)
-ifdef NNGIO_MOCK_MAIN
+ifdef NNGIO_MOCK_TRANSPORT
 	$(foreach test_bin,$(BUILD_TEST_BINS), \
 	valgrind -s --leak-check=full \
 	 --show-leak-kinds=all \

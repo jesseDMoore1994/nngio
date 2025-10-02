@@ -6,7 +6,7 @@
  * handling, synchronous/asynchronous I/O, and logging.
  */
 
-#include "main/libnngio_main.h"
+#include "transport/libnngio_transport.h"
 
 #include <nng/nng.h>
 #include <nng/protocol/bus0/bus.h>

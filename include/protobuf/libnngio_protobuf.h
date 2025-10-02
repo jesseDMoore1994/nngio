@@ -16,7 +16,7 @@
 
 #ifndef LIBNNGIO_PROTOBUF_H
 #define LIBNNGIO_PROTOBUF_H
-#include "main/libnngio_main.h"
+#include "transport/libnngio_transport.h"
 #include "nngio_protobuf.pb-c.h"
 
 #define LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE 4096  ///< Max message size (bytes)

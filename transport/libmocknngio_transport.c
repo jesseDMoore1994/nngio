@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "main/libnngio_main.h"
+#include "transport/libnngio_transport.h"
 
 // Mock context structure
 struct libnngio_transport {
