@@ -90,27 +90,28 @@ void test_transport_config_helpers() {
 }
 
 /**
- * @brief Test protobuf configuration helper functions.
+ * @brief Test service configuration helper functions.
  */
-void test_protobuf_config_helpers() {
-  libnngio_log("INF", "TEST_PROTOBUF_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Testing protobuf configuration helper functions");
+void test_service_config_helpers() {
+  libnngio_log("INF", "TEST_SERVICE_CONFIG_HELPERS", __FILE__, __LINE__, -1,
+               "Testing service configuration helper functions");
   
-  LibnngioManagement__ProtobufConfig *config =
-      libnngio_management_create_protobuf_config(
-          "test-protobuf", "test-transport");
+  LibnngioManagement__ServiceConfig *config =
+      libnngio_management_create_service_config(
+          "test-service", "test-transport", "TransportManagement");
   
   assert(config != NULL);
-  assert(strcmp(config->name, "test-protobuf") == 0);
+  assert(strcmp(config->name, "test-service") == 0);
   assert(strcmp(config->transport_name, "test-transport") == 0);
+  assert(strcmp(config->service_type, "TransportManagement") == 0);
   
-  libnngio_log("INF", "TEST_PROTOBUF_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Protobuf config created: name=%s, transport=%s",
-               config->name, config->transport_name);
+  libnngio_log("INF", "TEST_SERVICE_CONFIG_HELPERS", __FILE__, __LINE__, -1,
+               "Service config created: name=%s, transport=%s, type=%s",
+               config->name, config->transport_name, config->service_type);
   
-  libnngio_management_free_protobuf_config(config);
-  libnngio_log("INF", "TEST_PROTOBUF_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Protobuf configuration freed successfully");
+  libnngio_management_free_service_config(config);
+  libnngio_log("INF", "TEST_SERVICE_CONFIG_HELPERS", __FILE__, __LINE__, -1,
+               "Service configuration freed successfully");
 }
 
 /**
@@ -122,44 +123,20 @@ void test_connection_config_helpers() {
   
   LibnngioManagement__ConnectionConfig *config =
       libnngio_management_create_connection_config(
-          "test-connection", "test-transport", "test-protobuf");
+          "test-connection", "test-transport", "test-service");
   
   assert(config != NULL);
   assert(strcmp(config->name, "test-connection") == 0);
   assert(strcmp(config->transport_name, "test-transport") == 0);
-  assert(strcmp(config->protobuf_name, "test-protobuf") == 0);
+  assert(strcmp(config->service_name, "test-service") == 0);
   
   libnngio_log("INF", "TEST_CONNECTION_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Connection config created: name=%s, transport=%s, protobuf=%s",
-               config->name, config->transport_name, config->protobuf_name);
+               "Connection config created: name=%s, transport=%s, service=%s",
+               config->name, config->transport_name, config->service_name);
   
   libnngio_management_free_connection_config(config);
   libnngio_log("INF", "TEST_CONNECTION_CONFIG_HELPERS", __FILE__, __LINE__, -1,
                "Connection configuration freed successfully");
-}
-
-/**
- * @brief Test protocol configuration helper functions.
- */
-void test_protocol_config_helpers() {
-  libnngio_log("INF", "TEST_PROTOCOL_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Testing protocol configuration helper functions");
-  
-  LibnngioManagement__ProtocolConfig *config =
-      libnngio_management_create_protocol_config(
-          "test-protocol", "A test protocol for demonstration");
-  
-  assert(config != NULL);
-  assert(strcmp(config->name, "test-protocol") == 0);
-  assert(strcmp(config->description, "A test protocol for demonstration") == 0);
-  
-  libnngio_log("INF", "TEST_PROTOCOL_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Protocol config created: name=%s, description=%s",
-               config->name, config->description);
-  
-  libnngio_management_free_protocol_config(config);
-  libnngio_log("INF", "TEST_PROTOCOL_CONFIG_HELPERS", __FILE__, __LINE__, -1,
-               "Protocol configuration freed successfully");
 }
 
 int main() {
@@ -175,9 +152,8 @@ int main() {
   test_management_init_free();
   test_management_start_stop();
   test_transport_config_helpers();
-  test_protobuf_config_helpers();
+  test_service_config_helpers();
   test_connection_config_helpers();
-  test_protocol_config_helpers();
   
   libnngio_log("INF", "TEST_MANAGEMENT", __FILE__, __LINE__, -1,
                "========================================");

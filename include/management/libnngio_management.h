@@ -3,20 +3,22 @@
  * @brief Management API for libnngio.
  *
  * This module provides unified management of transport configurations,
- * protobuf configurations, connections, and protocols through four separate
+ * service configurations, and connections through three separate
  * protobuf services exposed over an IPC transport.
  *
  * The management interface includes:
  * - TransportManagement: Handle transport operations (add, remove, list, get)
- * - ProtobufManagement: Handle protobuf operations (add, remove, list, get)
+ * - ServiceManagement: Handle service operations (add, remove, list, get)
  * - ConnectionManagement: Handle connection operations (add, remove, list, get)
- * - ProtocolManagement: Handle protocol operations (add, remove, list, get)
  *
  * Default Setup:
- * - One transport: "nngio-ipc" (IPC reply mode, "unix://libnngio_management")
- * - Four protobuf servers: one for each management service
- * - One protocol: "management"
- * - Four connections: linking nngio-ipc transport to each management service
+ * - One transport: "nngio-ipc" (IPC reply mode, "ipc:///tmp/libnngio_management.ipc")
+ * - Three management services: TransportManagement, ServiceManagement, ConnectionManagement
+ * - Three connections: linking nngio-ipc transport to each management service
+ * 
+ * Additional services can be attached:
+ * - ServiceDiscoveryService from the protobuf module
+ * - RpcService from the protobuf module
  */
 
 #ifndef LIBNNGIO_MANAGEMENT_H
@@ -55,13 +57,14 @@ typedef struct {
 } libnngio_management_transport_entry;
 
 /**
- * @brief Internal storage for a protobuf server configuration.
+ * @brief Internal storage for a service configuration.
  */
 typedef struct {
   char *name;
   char *transport_name;
+  char *service_type;
   libnngio_server *server;
-} libnngio_management_protobuf_entry;
+} libnngio_management_service_entry;
 
 /**
  * @brief Internal storage for a connection configuration.
@@ -69,25 +72,16 @@ typedef struct {
 typedef struct {
   char *name;
   char *transport_name;
-  char *protobuf_name;
+  char *service_name;
 } libnngio_management_connection_entry;
-
-/**
- * @brief Internal storage for a protocol configuration.
- */
-typedef struct {
-  char *name;
-  char *description;
-} libnngio_management_protocol_entry;
 
 /**
  * @brief Initialize a management context with default configuration.
  *
  * Creates:
- * - One transport: "nngio-ipc" (IPC reply mode, "unix://libnngio_management")
- * - Four protobuf servers: one for each management service
- * - One protocol: "management"
- * - Four connections: linking nngio-ipc transport to each management service
+ * - One transport: "nngio-ipc" (IPC reply mode, "ipc:///tmp/libnngio_management.ipc")
+ * - Three management services: TransportManagement, ServiceManagement, ConnectionManagement
+ * - Three connections: linking nngio-ipc transport to each management service
  *
  * @param[out] ctx Pointer to receive allocated management context.
  * @return Error code indicating success or failure.
@@ -155,33 +149,34 @@ void libnngio_management_free_transport_config(
     LibnngioManagement__TransportConfig *config);
 
 /**
- * @brief Create a protobuf configuration message.
+ * @brief Create a service configuration message.
  *
- * @param name Protobuf server name.
+ * @param name Service name.
  * @param transport_name Associated transport name.
- * @return Allocated ProtobufConfig message, or NULL on failure.
+ * @param service_type Type of service.
+ * @return Allocated ServiceConfig message, or NULL on failure.
  */
-LibnngioManagement__ProtobufConfig *libnngio_management_create_protobuf_config(
-    const char *name, const char *transport_name);
+LibnngioManagement__ServiceConfig *libnngio_management_create_service_config(
+    const char *name, const char *transport_name, const char *service_type);
 
 /**
- * @brief Free a protobuf configuration message.
+ * @brief Free a service configuration message.
  *
- * @param config ProtobufConfig message to free.
+ * @param config ServiceConfig message to free.
  */
-void libnngio_management_free_protobuf_config(
-    LibnngioManagement__ProtobufConfig *config);
+void libnngio_management_free_service_config(
+    LibnngioManagement__ServiceConfig *config);
 
 /**
  * @brief Create a connection configuration message.
  *
  * @param name Connection name.
  * @param transport_name Transport name.
- * @param protobuf_name Protobuf server name.
+ * @param service_name Service name.
  * @return Allocated ConnectionConfig message, or NULL on failure.
  */
 LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_config(
-    const char *name, const char *transport_name, const char *protobuf_name);
+    const char *name, const char *transport_name, const char *service_name);
 
 /**
  * @brief Free a connection configuration message.
@@ -190,23 +185,5 @@ LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_conf
  */
 void libnngio_management_free_connection_config(
     LibnngioManagement__ConnectionConfig *config);
-
-/**
- * @brief Create a protocol configuration message.
- *
- * @param name Protocol name.
- * @param description Protocol description.
- * @return Allocated ProtocolConfig message, or NULL on failure.
- */
-LibnngioManagement__ProtocolConfig *libnngio_management_create_protocol_config(
-    const char *name, const char *description);
-
-/**
- * @brief Free a protocol configuration message.
- *
- * @param config ProtocolConfig message to free.
- */
-void libnngio_management_free_protocol_config(
-    LibnngioManagement__ProtocolConfig *config);
 
 #endif // LIBNNGIO_MANAGEMENT_H

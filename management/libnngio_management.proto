@@ -18,23 +18,18 @@ message TransportConfig {
     uint64 max_msg_size = 10;  // Maximum message size
 }
 
-// Protobuf server configuration message
-message ProtobufConfig {
-    string name = 1;           // Unique name for the protobuf server
+// Service configuration message
+message ServiceConfig {
+    string name = 1;           // Unique name for the service
     string transport_name = 2; // Name of the associated transport
+    string service_type = 3;   // Type of service (e.g., "TransportManagement", "ServiceDiscoveryService")
 }
 
 // Connection configuration message
 message ConnectionConfig {
     string name = 1;              // Unique name for the connection
     string transport_name = 2;    // Transport to use
-    string protobuf_name = 3;     // Protobuf server to connect to
-}
-
-// Protocol configuration message
-message ProtocolConfig {
-    string name = 1;          // Unique name for the protocol
-    string description = 2;   // Protocol description
+    string service_name = 3;      // Service to connect to
 }
 
 // Transport Management Service Messages
@@ -73,40 +68,40 @@ message GetTransportResponse {
     TransportConfig config = 2;
 }
 
-// Protobuf Management Service Messages
-message AddProtobufRequest {
-    ProtobufConfig config = 1;
+// Service Management Service Messages
+message AddServiceRequest {
+    ServiceConfig config = 1;
 }
 
-message AddProtobufResponse {
+message AddServiceResponse {
     bool success = 1;
     string message = 2;
 }
 
-message RemoveProtobufRequest {
+message RemoveServiceRequest {
     string name = 1;
 }
 
-message RemoveProtobufResponse {
+message RemoveServiceResponse {
     bool success = 1;
     string message = 2;
 }
 
-message ListProtobufsRequest {
+message ListServicesRequest {
     // Empty request
 }
 
-message ListProtobufsResponse {
-    repeated ProtobufConfig protobufs = 1;
+message ListServicesResponse {
+    repeated ServiceConfig services = 1;
 }
 
-message GetProtobufRequest {
+message GetServiceRequest {
     string name = 1;
 }
 
-message GetProtobufResponse {
+message GetServiceResponse {
     bool found = 1;
-    ProtobufConfig config = 2;
+    ServiceConfig config = 2;
 }
 
 // Connection Management Service Messages
@@ -145,42 +140,6 @@ message GetConnectionResponse {
     ConnectionConfig config = 2;
 }
 
-// Protocol Management Service Messages
-message AddProtocolRequest {
-    ProtocolConfig config = 1;
-}
-
-message AddProtocolResponse {
-    bool success = 1;
-    string message = 2;
-}
-
-message RemoveProtocolRequest {
-    string name = 1;
-}
-
-message RemoveProtocolResponse {
-    bool success = 1;
-    string message = 2;
-}
-
-message ListProtocolsRequest {
-    // Empty request
-}
-
-message ListProtocolsResponse {
-    repeated ProtocolConfig protocols = 1;
-}
-
-message GetProtocolRequest {
-    string name = 1;
-}
-
-message GetProtocolResponse {
-    bool found = 1;
-    ProtocolConfig config = 2;
-}
-
 // Service definitions (for documentation purposes)
 service TransportManagement {
     rpc AddTransport(AddTransportRequest) returns (AddTransportResponse);
@@ -189,11 +148,11 @@ service TransportManagement {
     rpc GetTransport(GetTransportRequest) returns (GetTransportResponse);
 }
 
-service ProtobufManagement {
-    rpc AddProtobuf(AddProtobufRequest) returns (AddProtobufResponse);
-    rpc RemoveProtobuf(RemoveProtobufRequest) returns (RemoveProtobufResponse);
-    rpc ListProtobufs(ListProtobufsRequest) returns (ListProtobufsResponse);
-    rpc GetProtobuf(GetProtobufRequest) returns (GetProtobufResponse);
+service ServiceManagement {
+    rpc AddService(AddServiceRequest) returns (AddServiceResponse);
+    rpc RemoveService(RemoveServiceRequest) returns (RemoveServiceResponse);
+    rpc ListServices(ListServicesRequest) returns (ListServicesResponse);
+    rpc GetService(GetServiceRequest) returns (GetServiceResponse);
 }
 
 service ConnectionManagement {
@@ -201,11 +160,4 @@ service ConnectionManagement {
     rpc RemoveConnection(RemoveConnectionRequest) returns (RemoveConnectionResponse);
     rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse);
     rpc GetConnection(GetConnectionRequest) returns (GetConnectionResponse);
-}
-
-service ProtocolManagement {
-    rpc AddProtocol(AddProtocolRequest) returns (AddProtocolResponse);
-    rpc RemoveProtocol(RemoveProtocolRequest) returns (RemoveProtocolResponse);
-    rpc ListProtocols(ListProtocolsRequest) returns (ListProtocolsResponse);
-    rpc GetProtocol(GetProtocolRequest) returns (GetProtocolResponse);
 }

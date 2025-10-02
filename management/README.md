@@ -1,15 +1,14 @@
 # Management Module
 
-The management module provides unified management of transport configurations, protobuf configurations, connections, and protocols through four separate protobuf services exposed over an IPC transport.
+The management module provides unified management of transport configurations, service configurations, and connections through three separate protobuf services exposed over an IPC transport.
 
 ## Architecture
 
-The management module implements four separate protobuf services:
+The management module implements three separate protobuf services:
 
 1. **TransportManagement**: Handle transport operations (add, remove, list, get)
-2. **ProtobufManagement**: Handle protobuf operations (add, remove, list, get)
+2. **ServiceManagement**: Handle service operations (add, remove, list, get)
 3. **ConnectionManagement**: Handle connection operations (add, remove, list, get)
-4. **ProtocolManagement**: Handle protocol operations (add, remove, list, get)
 
 ## Default Configuration
 
@@ -20,15 +19,18 @@ When initialized, the management module sets up:
   - Mode: Listen (reply mode)
   - URL: `ipc:///tmp/libnngio_management.ipc`
 
-- **Four protobuf servers**: One for each management service
+- **Three management services**: Registered by default
   - TransportManagement server
-  - ProtobufManagement server
+  - ServiceManagement server
   - ConnectionManagement server
-  - ProtocolManagement server
 
-- **One protocol**: "management"
+- **Three connections**: Linking the IPC transport to each management service
 
-- **Four connections**: Linking the IPC transport to each management service
+### Additional Services
+
+The following services from the protobuf module can also be attached to the management IPC:
+- **ServiceDiscoveryService**: For service discovery
+- **RpcService**: For generic RPC calls
 
 ## Usage
 
@@ -73,26 +75,20 @@ LibnngioManagement__TransportConfig *transport_config =
     libnngio_management_create_transport_config(
         "my-transport", "listen", "rep", "ipc:///tmp/my.ipc");
 
-// Create a protobuf configuration
-LibnngioManagement__ProtobufConfig *protobuf_config =
-    libnngio_management_create_protobuf_config(
-        "my-protobuf", "my-transport");
+// Create a service configuration
+LibnngioManagement__ServiceConfig *service_config =
+    libnngio_management_create_service_config(
+        "my-service", "my-transport", "ServiceDiscoveryService");
 
 // Create a connection configuration
 LibnngioManagement__ConnectionConfig *connection_config =
     libnngio_management_create_connection_config(
-        "my-connection", "my-transport", "my-protobuf");
-
-// Create a protocol configuration
-LibnngioManagement__ProtocolConfig *protocol_config =
-    libnngio_management_create_protocol_config(
-        "my-protocol", "My custom protocol");
+        "my-connection", "my-transport", "my-service");
 
 // Free configurations when done
 libnngio_management_free_transport_config(transport_config);
-libnngio_management_free_protobuf_config(protobuf_config);
+libnngio_management_free_service_config(service_config);
 libnngio_management_free_connection_config(connection_config);
-libnngio_management_free_protocol_config(protocol_config);
 ```
 
 ## API Reference
@@ -157,13 +153,13 @@ Methods:
 - `ListTransports(ListTransportsRequest) returns (ListTransportsResponse)`
 - `GetTransport(GetTransportRequest) returns (GetTransportResponse)`
 
-### ProtobufManagement Service
+### ServiceManagement Service
 
 Methods:
-- `AddProtobuf(AddProtobufRequest) returns (AddProtobufResponse)`
-- `RemoveProtobuf(RemoveProtobufRequest) returns (RemoveProtobufResponse)`
-- `ListProtobufs(ListProtobufsRequest) returns (ListProtobufsResponse)`
-- `GetProtobuf(GetProtobufRequest) returns (GetProtobufResponse)`
+- `AddService(AddServiceRequest) returns (AddServiceResponse)`
+- `RemoveService(RemoveServiceRequest) returns (RemoveServiceResponse)`
+- `ListServices(ListServicesRequest) returns (ListServicesResponse)`
+- `GetService(GetServiceRequest) returns (GetServiceResponse)`
 
 ### ConnectionManagement Service
 
@@ -172,14 +168,6 @@ Methods:
 - `RemoveConnection(RemoveConnectionRequest) returns (RemoveConnectionResponse)`
 - `ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse)`
 - `GetConnection(GetConnectionRequest) returns (GetConnectionResponse)`
-
-### ProtocolManagement Service
-
-Methods:
-- `AddProtocol(AddProtocolRequest) returns (AddProtocolResponse)`
-- `RemoveProtocol(RemoveProtocolRequest) returns (RemoveProtocolResponse)`
-- `ListProtocols(ListProtocolsRequest) returns (ListProtocolsResponse)`
-- `GetProtocol(GetProtocolRequest) returns (GetProtocolResponse)`
 
 ## Building
 

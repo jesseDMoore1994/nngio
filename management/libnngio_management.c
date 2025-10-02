@@ -17,34 +17,28 @@ struct libnngio_management_context {
   libnngio_transport *ipc_transport;
   libnngio_context *ipc_context;
   
-  // Four management servers
+  // Three management servers
   libnngio_server *transport_server;
-  libnngio_server *protobuf_server;
+  libnngio_server *service_server;
   libnngio_server *connection_server;
-  libnngio_server *protocol_server;
   
   // Protobuf contexts for each server
   libnngio_protobuf_context *transport_proto_ctx;
-  libnngio_protobuf_context *protobuf_proto_ctx;
+  libnngio_protobuf_context *service_proto_ctx;
   libnngio_protobuf_context *connection_proto_ctx;
-  libnngio_protobuf_context *protocol_proto_ctx;
   
   // Storage for managed resources
   libnngio_management_transport_entry *transports;
   size_t n_transports;
   size_t transports_capacity;
   
-  libnngio_management_protobuf_entry *protobufs;
-  size_t n_protobufs;
-  size_t protobufs_capacity;
+  libnngio_management_service_entry *services;
+  size_t n_services;
+  size_t services_capacity;
   
   libnngio_management_connection_entry *connections;
   size_t n_connections;
   size_t connections_capacity;
-  
-  libnngio_management_protocol_entry *protocols;
-  size_t n_protocols;
-  size_t protocols_capacity;
   
   int running;
 };
@@ -216,10 +210,10 @@ static LibnngioProtobuf__RpcResponse__Status transport_get_handler(
 }
 
 // =============================================================================
-// Protobuf Management Handlers
+// Service Management Handlers
 // =============================================================================
 
-static LibnngioProtobuf__RpcResponse__Status protobuf_add_handler(
+static LibnngioProtobuf__RpcResponse__Status service_add_handler(
     const char *service_name, const char *method_name,
     const void *request_payload, size_t request_payload_len,
     void **response_payload, size_t *response_payload_len, void *user_data) {
@@ -230,20 +224,20 @@ static LibnngioProtobuf__RpcResponse__Status protobuf_add_handler(
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
   
-  LibnngioManagement__AddProtobufResponse resp = LIBNNGIO_MANAGEMENT__ADD_PROTOBUF_RESPONSE__INIT;
+  LibnngioManagement__AddServiceResponse resp = LIBNNGIO_MANAGEMENT__ADD_SERVICE_RESPONSE__INIT;
   resp.success = true;
-  resp.message = "Protobuf added successfully";
+  resp.message = "Service added successfully";
   
-  *response_payload_len = libnngio_management__add_protobuf_response__get_packed_size(&resp);
+  *response_payload_len = libnngio_management__add_service_response__get_packed_size(&resp);
   *response_payload = malloc(*response_payload_len);
   if (*response_payload) {
-    libnngio_management__add_protobuf_response__pack(&resp, *response_payload);
+    libnngio_management__add_service_response__pack(&resp, *response_payload);
   }
   
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static LibnngioProtobuf__RpcResponse__Status protobuf_remove_handler(
+static LibnngioProtobuf__RpcResponse__Status service_remove_handler(
     const char *service_name, const char *method_name,
     const void *request_payload, size_t request_payload_len,
     void **response_payload, size_t *response_payload_len, void *user_data) {
@@ -254,20 +248,20 @@ static LibnngioProtobuf__RpcResponse__Status protobuf_remove_handler(
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
   
-  LibnngioManagement__RemoveProtobufResponse resp = LIBNNGIO_MANAGEMENT__REMOVE_PROTOBUF_RESPONSE__INIT;
+  LibnngioManagement__RemoveServiceResponse resp = LIBNNGIO_MANAGEMENT__REMOVE_SERVICE_RESPONSE__INIT;
   resp.success = true;
-  resp.message = "Protobuf removed successfully";
+  resp.message = "Service removed successfully";
   
-  *response_payload_len = libnngio_management__remove_protobuf_response__get_packed_size(&resp);
+  *response_payload_len = libnngio_management__remove_service_response__get_packed_size(&resp);
   *response_payload = malloc(*response_payload_len);
   if (*response_payload) {
-    libnngio_management__remove_protobuf_response__pack(&resp, *response_payload);
+    libnngio_management__remove_service_response__pack(&resp, *response_payload);
   }
   
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static LibnngioProtobuf__RpcResponse__Status protobuf_list_handler(
+static LibnngioProtobuf__RpcResponse__Status service_list_handler(
     const char *service_name, const char *method_name,
     const void *request_payload, size_t request_payload_len,
     void **response_payload, size_t *response_payload_len, void *user_data) {
@@ -278,20 +272,20 @@ static LibnngioProtobuf__RpcResponse__Status protobuf_list_handler(
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
   
-  LibnngioManagement__ListProtobufsResponse resp = LIBNNGIO_MANAGEMENT__LIST_PROTOBUFS_RESPONSE__INIT;
-  resp.n_protobufs = 0;
-  resp.protobufs = NULL;
+  LibnngioManagement__ListServicesResponse resp = LIBNNGIO_MANAGEMENT__LIST_SERVICES_RESPONSE__INIT;
+  resp.n_services = 0;
+  resp.services = NULL;
   
-  *response_payload_len = libnngio_management__list_protobufs_response__get_packed_size(&resp);
+  *response_payload_len = libnngio_management__list_services_response__get_packed_size(&resp);
   *response_payload = malloc(*response_payload_len);
   if (*response_payload) {
-    libnngio_management__list_protobufs_response__pack(&resp, *response_payload);
+    libnngio_management__list_services_response__pack(&resp, *response_payload);
   }
   
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static LibnngioProtobuf__RpcResponse__Status protobuf_get_handler(
+static LibnngioProtobuf__RpcResponse__Status service_get_handler(
     const char *service_name, const char *method_name,
     const void *request_payload, size_t request_payload_len,
     void **response_payload, size_t *response_payload_len, void *user_data) {
@@ -302,14 +296,14 @@ static LibnngioProtobuf__RpcResponse__Status protobuf_get_handler(
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
   
-  LibnngioManagement__GetProtobufResponse resp = LIBNNGIO_MANAGEMENT__GET_PROTOBUF_RESPONSE__INIT;
+  LibnngioManagement__GetServiceResponse resp = LIBNNGIO_MANAGEMENT__GET_SERVICE_RESPONSE__INIT;
   resp.found = false;
   resp.config = NULL;
   
-  *response_payload_len = libnngio_management__get_protobuf_response__get_packed_size(&resp);
+  *response_payload_len = libnngio_management__get_service_response__get_packed_size(&resp);
   *response_payload = malloc(*response_payload_len);
   if (*response_payload) {
-    libnngio_management__get_protobuf_response__pack(&resp, *response_payload);
+    libnngio_management__get_service_response__pack(&resp, *response_payload);
   }
   
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
@@ -416,106 +410,6 @@ static LibnngioProtobuf__RpcResponse__Status connection_get_handler(
 }
 
 // =============================================================================
-// Protocol Management Handlers
-// =============================================================================
-
-static LibnngioProtobuf__RpcResponse__Status protocol_add_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__AddProtocolResponse resp = LIBNNGIO_MANAGEMENT__ADD_PROTOCOL_RESPONSE__INIT;
-  resp.success = true;
-  resp.message = "Protocol added successfully";
-  
-  *response_payload_len = libnngio_management__add_protocol_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__add_protocol_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status protocol_remove_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__RemoveProtocolResponse resp = LIBNNGIO_MANAGEMENT__REMOVE_PROTOCOL_RESPONSE__INIT;
-  resp.success = true;
-  resp.message = "Protocol removed successfully";
-  
-  *response_payload_len = libnngio_management__remove_protocol_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__remove_protocol_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status protocol_list_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__ListProtocolsResponse resp = LIBNNGIO_MANAGEMENT__LIST_PROTOCOLS_RESPONSE__INIT;
-  resp.n_protocols = 0;
-  resp.protocols = NULL;
-  
-  *response_payload_len = libnngio_management__list_protocols_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__list_protocols_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status protocol_get_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__GetProtocolResponse resp = LIBNNGIO_MANAGEMENT__GET_PROTOCOL_RESPONSE__INIT;
-  resp.found = false;
-  resp.config = NULL;
-  
-  *response_payload_len = libnngio_management__get_protocol_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__get_protocol_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-// =============================================================================
 // Public API Implementation
 // =============================================================================
 
@@ -535,21 +429,17 @@ libnngio_management_error_code libnngio_management_init(
   mgmt_ctx->transports_capacity = 10;
   mgmt_ctx->transports = calloc(mgmt_ctx->transports_capacity, sizeof(libnngio_management_transport_entry));
   
-  mgmt_ctx->protobufs_capacity = 10;
-  mgmt_ctx->protobufs = calloc(mgmt_ctx->protobufs_capacity, sizeof(libnngio_management_protobuf_entry));
+  mgmt_ctx->services_capacity = 10;
+  mgmt_ctx->services = calloc(mgmt_ctx->services_capacity, sizeof(libnngio_management_service_entry));
   
   mgmt_ctx->connections_capacity = 10;
   mgmt_ctx->connections = calloc(mgmt_ctx->connections_capacity, sizeof(libnngio_management_connection_entry));
   
-  mgmt_ctx->protocols_capacity = 10;
-  mgmt_ctx->protocols = calloc(mgmt_ctx->protocols_capacity, sizeof(libnngio_management_protocol_entry));
-  
-  if (!mgmt_ctx->transports || !mgmt_ctx->protobufs || 
-      !mgmt_ctx->connections || !mgmt_ctx->protocols) {
+  if (!mgmt_ctx->transports || !mgmt_ctx->services || 
+      !mgmt_ctx->connections) {
     free(mgmt_ctx->transports);
-    free(mgmt_ctx->protobufs);
+    free(mgmt_ctx->services);
     free(mgmt_ctx->connections);
-    free(mgmt_ctx->protocols);
     free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
   }
@@ -592,19 +482,13 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->protobuf_proto_ctx, mgmt_ctx->ipc_context);
+  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->service_proto_ctx, mgmt_ctx->ipc_context);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
   proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->connection_proto_ctx, mgmt_ctx->ipc_context);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->protocol_proto_ctx, mgmt_ctx->ipc_context);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
@@ -617,19 +501,13 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  proto_rv = libnngio_server_init(&mgmt_ctx->protobuf_server, mgmt_ctx->protobuf_proto_ctx);
+  proto_rv = libnngio_server_init(&mgmt_ctx->service_server, mgmt_ctx->service_proto_ctx);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
   proto_rv = libnngio_server_init(&mgmt_ctx->connection_server, mgmt_ctx->connection_proto_ctx);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  proto_rv = libnngio_server_init(&mgmt_ctx->protocol_server, mgmt_ctx->protocol_proto_ctx);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
@@ -649,15 +527,15 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  // Register ProtobufManagement service methods
-  libnngio_service_method protobuf_methods[] = {
-    {"AddProtobuf", protobuf_add_handler, mgmt_ctx},
-    {"RemoveProtobuf", protobuf_remove_handler, mgmt_ctx},
-    {"ListProtobufs", protobuf_list_handler, mgmt_ctx},
-    {"GetProtobuf", protobuf_get_handler, mgmt_ctx}
+  // Register ServiceManagement service methods
+  libnngio_service_method service_methods[] = {
+    {"AddService", service_add_handler, mgmt_ctx},
+    {"RemoveService", service_remove_handler, mgmt_ctx},
+    {"ListServices", service_list_handler, mgmt_ctx},
+    {"GetService", service_get_handler, mgmt_ctx}
   };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->protobuf_server, "ProtobufManagement", 
-                                               protobuf_methods, 4);
+  proto_rv = libnngio_server_register_service(mgmt_ctx->service_server, "ServiceManagement", 
+                                               service_methods, 4);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
@@ -677,20 +555,6 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  // Register ProtocolManagement service methods
-  libnngio_service_method protocol_methods[] = {
-    {"AddProtocol", protocol_add_handler, mgmt_ctx},
-    {"RemoveProtocol", protocol_remove_handler, mgmt_ctx},
-    {"ListProtocols", protocol_list_handler, mgmt_ctx},
-    {"GetProtocol", protocol_get_handler, mgmt_ctx}
-  };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->protocol_server, "ProtocolManagement", 
-                                               protocol_methods, 4);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
   mgmt_ctx->running = 0;
   *ctx = mgmt_ctx;
   return LIBNNGIO_MANAGEMENT_ERR_NONE;
@@ -701,15 +565,13 @@ void libnngio_management_free(libnngio_management_context *ctx) {
   
   // Free servers
   if (ctx->transport_server) libnngio_server_free(ctx->transport_server);
-  if (ctx->protobuf_server) libnngio_server_free(ctx->protobuf_server);
+  if (ctx->service_server) libnngio_server_free(ctx->service_server);
   if (ctx->connection_server) libnngio_server_free(ctx->connection_server);
-  if (ctx->protocol_server) libnngio_server_free(ctx->protocol_server);
   
   // Free protobuf contexts
   if (ctx->transport_proto_ctx) libnngio_protobuf_context_free(ctx->transport_proto_ctx);
-  if (ctx->protobuf_proto_ctx) libnngio_protobuf_context_free(ctx->protobuf_proto_ctx);
+  if (ctx->service_proto_ctx) libnngio_protobuf_context_free(ctx->service_proto_ctx);
   if (ctx->connection_proto_ctx) libnngio_protobuf_context_free(ctx->connection_proto_ctx);
-  if (ctx->protocol_proto_ctx) libnngio_protobuf_context_free(ctx->protocol_proto_ctx);
   
   // Free transport and context
   if (ctx->ipc_context) libnngio_context_free(ctx->ipc_context);
@@ -723,25 +585,20 @@ void libnngio_management_free(libnngio_management_context *ctx) {
   }
   free(ctx->transports);
   
-  for (size_t i = 0; i < ctx->n_protobufs; i++) {
-    free(ctx->protobufs[i].name);
-    free(ctx->protobufs[i].transport_name);
-    if (ctx->protobufs[i].server) libnngio_server_free(ctx->protobufs[i].server);
+  for (size_t i = 0; i < ctx->n_services; i++) {
+    free(ctx->services[i].name);
+    free(ctx->services[i].transport_name);
+    free(ctx->services[i].service_type);
+    if (ctx->services[i].server) libnngio_server_free(ctx->services[i].server);
   }
-  free(ctx->protobufs);
+  free(ctx->services);
   
   for (size_t i = 0; i < ctx->n_connections; i++) {
     free(ctx->connections[i].name);
     free(ctx->connections[i].transport_name);
-    free(ctx->connections[i].protobuf_name);
+    free(ctx->connections[i].service_name);
   }
   free(ctx->connections);
-  
-  for (size_t i = 0; i < ctx->n_protocols; i++) {
-    free(ctx->protocols[i].name);
-    free(ctx->protocols[i].description);
-  }
-  free(ctx->protocols);
   
   free(ctx);
 }
@@ -812,29 +669,31 @@ void libnngio_management_free_transport_config(
   free(config);
 }
 
-LibnngioManagement__ProtobufConfig *libnngio_management_create_protobuf_config(
-    const char *name, const char *transport_name) {
+LibnngioManagement__ServiceConfig *libnngio_management_create_service_config(
+    const char *name, const char *transport_name, const char *service_type) {
   
-  LibnngioManagement__ProtobufConfig *config = malloc(sizeof(LibnngioManagement__ProtobufConfig));
+  LibnngioManagement__ServiceConfig *config = malloc(sizeof(LibnngioManagement__ServiceConfig));
   if (!config) return NULL;
   
-  libnngio_management__protobuf_config__init(config);
+  libnngio_management__service_config__init(config);
   config->name = strdup_safe(name);
   config->transport_name = strdup_safe(transport_name);
+  config->service_type = strdup_safe(service_type);
   
   return config;
 }
 
-void libnngio_management_free_protobuf_config(
-    LibnngioManagement__ProtobufConfig *config) {
+void libnngio_management_free_service_config(
+    LibnngioManagement__ServiceConfig *config) {
   if (!config) return;
   free(config->name);
   free(config->transport_name);
+  free(config->service_type);
   free(config);
 }
 
 LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_config(
-    const char *name, const char *transport_name, const char *protobuf_name) {
+    const char *name, const char *transport_name, const char *service_name) {
   
   LibnngioManagement__ConnectionConfig *config = malloc(sizeof(LibnngioManagement__ConnectionConfig));
   if (!config) return NULL;
@@ -842,7 +701,7 @@ LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_conf
   libnngio_management__connection_config__init(config);
   config->name = strdup_safe(name);
   config->transport_name = strdup_safe(transport_name);
-  config->protobuf_name = strdup_safe(protobuf_name);
+  config->service_name = strdup_safe(service_name);
   
   return config;
 }
@@ -852,27 +711,6 @@ void libnngio_management_free_connection_config(
   if (!config) return;
   free(config->name);
   free(config->transport_name);
-  free(config->protobuf_name);
-  free(config);
-}
-
-LibnngioManagement__ProtocolConfig *libnngio_management_create_protocol_config(
-    const char *name, const char *description) {
-  
-  LibnngioManagement__ProtocolConfig *config = malloc(sizeof(LibnngioManagement__ProtocolConfig));
-  if (!config) return NULL;
-  
-  libnngio_management__protocol_config__init(config);
-  config->name = strdup_safe(name);
-  config->description = strdup_safe(description);
-  
-  return config;
-}
-
-void libnngio_management_free_protocol_config(
-    LibnngioManagement__ProtocolConfig *config) {
-  if (!config) return;
-  free(config->name);
-  free(config->description);
+  free(config->service_name);
   free(config);
 }
