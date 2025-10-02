@@ -20,7 +20,7 @@
 #include "libnngio_protobuf.pb-c.h"
 
 // Forward declaration
-struct libnngio_module_descriptor;
+typedef struct libnngio_module_descriptor libnngio_module_descriptor;
 
 #define LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE 65535  ///< Max message size (64k bytes)
 

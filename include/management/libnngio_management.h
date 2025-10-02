@@ -27,7 +27,7 @@
 #include "libnngio_management.pb-c.h"
 
 // Forward declaration
-struct libnngio_module_descriptor;
+typedef struct libnngio_module_descriptor libnngio_module_descriptor;
 
 /**
  * @brief Error codes for management operations.
