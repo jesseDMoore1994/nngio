@@ -91,6 +91,35 @@ typedef struct {
   size_t n_methods;                  ///< Number of methods
 } libnngio_service_registration;
 
+// ===============================================================================
+// MODULE INTERFACE
+// ===============================================================================
+
+/**
+ * @brief Module service descriptor.
+ * 
+ * Describes a single service provided by a module, including its name
+ * and the methods it implements.
+ */
+typedef struct {
+  const char *service_name;              ///< Name of the service
+  libnngio_service_method *methods;      ///< Array of methods for this service
+  size_t n_methods;                      ///< Number of methods in the service
+} libnngio_module_service;
+
+/**
+ * @brief Module descriptor.
+ * 
+ * Describes a module, including its protobuf package name and the services
+ * it provides. Each module should define one of these structures.
+ */
+typedef struct libnngio_module_descriptor {
+  const char *module_name;               ///< Name of the module (e.g., "management", "protobuf")
+  const char *protobuf_package;          ///< Protobuf package name (e.g., "LibnngioManagement")
+  libnngio_module_service *services;     ///< Array of services provided by this module
+  size_t n_services;                     ///< Number of services in the module
+} libnngio_module_descriptor;
+
 /**
  * @brief Server structure that encapsulates protobuf context and service logic.
  */
@@ -1165,6 +1194,21 @@ libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
 // =============================================================================
 // Module Interface
 // =============================================================================
+
+/**
+ * @brief Register all services from a module with a server.
+ * 
+ * This function registers all services from a module descriptor with the given
+ * server. It iterates through all services in the module and registers each one
+ * with a package-prefixed name to prevent collisions.
+ *
+ * @param server The server to register services with.
+ * @param module The module descriptor containing services to register.
+ * @return Error code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_module_register_services(
+    libnngio_server *server,
+    const libnngio_module_descriptor *module);
 
 /**
  * @brief Get the module descriptor for the protobuf module.

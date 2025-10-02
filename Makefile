@@ -12,7 +12,7 @@ BINS                   =
 # TEST_BINS are the list of test binaries to build
 TEST_BINS              = transport protobuf management
 # LIBS are the list of production libraries to build
-LIBS                   = module transport protobuf management
+LIBS                   = transport protobuf management
 # MOCK_LIBS are the list of mock libraries to build
 MOCK_LIBS              = transport
 # HAS_PROTO are the libraries that have protobuf definitions

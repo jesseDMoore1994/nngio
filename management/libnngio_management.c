@@ -4,7 +4,6 @@
  */
 
 #include "management/libnngio_management.h"
-#include "module/libnngio_module.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

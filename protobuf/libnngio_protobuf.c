@@ -4637,6 +4637,50 @@ static LibnngioProtobuf__RpcResponse__Status protobuf_service_discovery_handler(
  * Returns a descriptor that describes the protobuf module's services (RpcService
  * and ServiceDiscoveryService).
  *
+/**
+ * @brief Register all services from a module with a server.
+ * 
+ * This function registers all services from a module descriptor with the given
+ * server. It iterates through all services in the module and registers each one
+ * with a package-prefixed name to prevent collisions.
+ *
+ * @param server The server to register services with.
+ * @param module The module descriptor containing services to register.
+ * @return Error code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_module_register_services(
+    libnngio_server *server,
+    const libnngio_module_descriptor *module) {
+  
+  if (!server || !module) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+  
+  // Register each service from the module with package-prefixed name
+  for (size_t i = 0; i < module->n_services; i++) {
+    const libnngio_module_service *svc = &module->services[i];
+    
+    // Create prefixed service name: "Package.ServiceName"
+    size_t prefix_len = strlen(module->protobuf_package) + strlen(svc->service_name) + 2; // +2 for '.' and '\0'
+    char *prefixed_name = malloc(prefix_len);
+    if (!prefixed_name) {
+      return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
+    }
+    snprintf(prefixed_name, prefix_len, "%s.%s", module->protobuf_package, svc->service_name);
+    
+    libnngio_protobuf_error_code rv = libnngio_server_register_service(
+        server, prefixed_name, svc->methods, svc->n_methods);
+    
+    free(prefixed_name);
+    
+    if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+      return rv;
+    }
+  }
+  
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
  * @param user_data User data to pass to all handler functions (typically the server)
  * @return Pointer to the module descriptor.
  */
