@@ -16,8 +16,8 @@
  * to the internal message structures.
  */
 void test_protobuf_serde() {
-  LibnngioProtobuf__RpcRequestMessage rpc_request_msg =
-      LIBNNGIO_PROTOBUF__RPC_REQUEST_MESSAGE__INIT;
+  LibnngioProtobuf__RpcRequest rpc_request_msg =
+      LIBNNGIO_PROTOBUF__RPC_REQUEST__INIT;
   LibnngioProtobuf__LibnngioMessage nngio_msg = LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__INIT;
   void *buf = NULL;
   size_t len = 0;
@@ -25,7 +25,7 @@ void test_protobuf_serde() {
   nngio_msg.uuid = libnngio_protobuf_gen_uuid();
   nngio_msg.msg_case = LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_RPC_REQUEST;
   nngio_msg.rpc_request = &rpc_request_msg;
-  libnngio_protobuf__rpc_request_message__init(nngio_msg.rpc_request);
+  libnngio_protobuf__rpc_request__init(nngio_msg.rpc_request);
   nngio_msg.rpc_request->service_name = strdup("TestService");
   nngio_msg.rpc_request->method_name = strdup("TestMethod");
   nngio_msg.rpc_request->payload.len = 5;
@@ -100,7 +100,7 @@ void test_protobuf_helpers() {
 
   // ---- Test RpcRequestMessage ----
   const char payload[] = {0xDE, 0xAD, 0xBE, 0xEF};
-  LibnngioProtobuf__RpcRequestMessage *req =
+  LibnngioProtobuf__RpcRequest *req =
       nngio_create_rpc_request("Echo", "SayHello", payload, sizeof(payload));
   if (!req) {
     fprintf(stderr, "Failed to create RPC request\n");
@@ -109,8 +109,8 @@ void test_protobuf_helpers() {
   nngio_free_rpc_request(req);
 
   // ---- Test RpcResponseMessage ----
-  LibnngioProtobuf__RpcResponseMessage *rresp = nngio_create_rpc_response(
-      LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success, payload,
+  LibnngioProtobuf__RpcResponse *rresp = nngio_create_rpc_response(
+      LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success, payload,
       sizeof(payload), NULL);
   if (!rresp) {
     fprintf(stderr, "Failed to create RPC response\n");
@@ -119,7 +119,7 @@ void test_protobuf_helpers() {
   nngio_free_rpc_response(rresp);
 
   // ---- Test RawMessage ----
-  LibnngioProtobuf__RawMessage *raw =
+  LibnngioProtobuf__Raw *raw =
       nngio_create_raw_message(payload, sizeof(payload));
   if (!raw) {
     fprintf(stderr, "Failed to create RawMessage\n");
@@ -140,7 +140,7 @@ void test_protobuf_helpers() {
 
   // ---- Test NngioMessage (RPC Response) ----
   rresp = nngio_create_rpc_response(
-      LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success, payload,
+      LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success, payload,
       sizeof(payload), NULL);
   nmsg = nngio_create_nngio_message_with_rpc_response("uuid-456", rresp);
   if (!nmsg) {
@@ -259,14 +259,14 @@ void test_protobuf_raw_message() {
   // Prepare raw message
   const char *raw_msg = "Hello, Protobuf!";
   size_t raw_msg_len = strlen(raw_msg) + 1;  // Include null terminator
-  LibnngioProtobuf__RawMessage *raw =
+  LibnngioProtobuf__Raw *raw =
       nngio_create_raw_message(raw_msg, raw_msg_len);
   libnngio_log("INF", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
                "Prepared raw message for sending: %s", raw_msg);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RawMessage *fakeraw =
+  LibnngioProtobuf__Raw *fakeraw =
       nngio_create_raw_message(raw_msg, raw_msg_len);
   LibnngioProtobuf__LibnngioMessage *fakenmsg =
       nngio_create_nngio_message_with_raw("uuid-789", fakeraw);
@@ -279,7 +279,7 @@ void test_protobuf_raw_message() {
 #endif
 
   // Prepare to receive raw message
-  LibnngioProtobuf__RawMessage *recv_raw_message = NULL;
+  LibnngioProtobuf__Raw *recv_raw_message = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
                "Prepared raw message for sending.");
@@ -336,7 +336,7 @@ void test_protobuf_raw_message() {
     libnngio_log("ERR", "TEST_PROTOBUF_RAW_MESSAGE", __FILE__, __LINE__, -1,
                  "Sent: %s, Received: %s", raw_msg,
                  recv_raw_message->data.data);
-    libnngio_protobuf__raw_message__free_unpacked(recv_raw_message, NULL);
+    libnngio_protobuf__raw__free_unpacked(recv_raw_message, NULL);
     nngio_free_raw_message(raw);
     libnngio_protobuf_context_free(req_proto_ctx);
     libnngio_protobuf_context_free(rep_proto_ctx);
@@ -426,12 +426,12 @@ void test_protobuf_rpc() {
                "Protobuf contexts initialized successfully.");
 
   // Prepare RPC request message
-  LibnngioProtobuf__RpcRequestMessage *rpc_request_msg = nngio_create_rpc_request(
+  LibnngioProtobuf__RpcRequest *rpc_request_msg = nngio_create_rpc_request(
       "TestService", "TestMethod", (const uint8_t *)"Hello", 5);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RpcRequestMessage *fakerpc = nngio_create_rpc_request(
+  LibnngioProtobuf__RpcRequest *fakerpc = nngio_create_rpc_request(
       "TestService", "TestMethod", (const uint8_t *)"Hello", 5);
   LibnngioProtobuf__LibnngioMessage *fakemsg =
       nngio_create_nngio_message_with_rpc_request("uuid-123", fakerpc);
@@ -444,7 +444,7 @@ void test_protobuf_rpc() {
 #endif
 
   // Prepare to receive RPC request message
-  LibnngioProtobuf__RpcRequestMessage *recv_request_msg = NULL;
+  LibnngioProtobuf__RpcRequest *recv_request_msg = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                "Prepared RPC request message for sending.");
@@ -533,16 +533,16 @@ void test_protobuf_rpc() {
   libnngio_log("INF", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                "Sending RPC response...");
   // Prepare RPC response message
-  LibnngioProtobuf__RpcResponseMessage *rpc_response_msg =
+  LibnngioProtobuf__RpcResponse *rpc_response_msg =
       nngio_create_rpc_response(
-          LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success,
+          LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success,
           (const uint8_t *)"Goodbye", 7, NULL);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RpcResponseMessage *fakerpc_response =
+  LibnngioProtobuf__RpcResponse *fakerpc_response =
       nngio_create_rpc_response(
-          LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success,
+          LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success,
           (const uint8_t *)"Goodbye", 7, NULL);
   LibnngioProtobuf__LibnngioMessage *fake_response_msg =
       nngio_create_nngio_message_with_rpc_response("uuid-456",
@@ -557,7 +557,7 @@ void test_protobuf_rpc() {
 #endif
 
   // Prepare to receive RPC response message
-  LibnngioProtobuf__RpcResponseMessage *recv_response_msg = NULL;
+  LibnngioProtobuf__RpcResponse *recv_response_msg = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RPC", __FILE__, __LINE__, -1,
                "Prepared RPC response message for sending.");
@@ -633,7 +633,7 @@ void test_protobuf_rpc() {
 
   // all this selective freeing is done because the messages are on the stack
   // and only the internal pointers need to be freed, otherwise I think that
-  // the libnngio_protobuf__rpc_response_message__free_unpacked could be used
+  // the libnngio_protobuf__rpc_response__free_unpacked could be used
   // but that would require heap allocation of the messages
   nngio_free_rpc_response(recv_response_msg);
   nngio_free_rpc_response(rpc_response_msg);
@@ -1026,14 +1026,14 @@ void test_protobuf_raw_message_async() {
   // Prepare raw message
   const char *raw_msg = "Hello, Protobuf!";
   size_t raw_msg_len = strlen(raw_msg) + 1;  // Include null terminator
-  LibnngioProtobuf__RawMessage *raw =
+  LibnngioProtobuf__Raw *raw =
       nngio_create_raw_message(raw_msg, raw_msg_len);
   libnngio_log("INF", "TEST_PROTOBUF_RAW_MESSAGE_ASYNC", __FILE__, __LINE__, -1,
                "Prepared raw message for sending: %s", raw_msg);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RawMessage *fakeraw =
+  LibnngioProtobuf__Raw *fakeraw =
       nngio_create_raw_message(raw_msg, raw_msg_len);
   LibnngioProtobuf__LibnngioMessage *fakenmsg = nngio_create_nngio_message_with_raw(
       "11aa5292-1e8d-4c4f-8d38-cb1d53e0e34b", fakeraw);
@@ -1049,7 +1049,7 @@ void test_protobuf_raw_message_async() {
   async_test_sync recv_sync = {0}, send_sync = {0};
 
   // Prepare to receive raw message
-  LibnngioProtobuf__RawMessage *recv_raw_message = NULL;
+  LibnngioProtobuf__Raw *recv_raw_message = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RAW_MESSAGE_ASYNC", __FILE__, __LINE__, -1,
                "Prepared raw message for sending.");
@@ -1246,12 +1246,12 @@ void test_protobuf_rpc_async(void) {
                "Protobuf contexts initialized successfully.");
 
   // Prepare RPC request message
-  LibnngioProtobuf__RpcRequestMessage *rpc_request_msg = nngio_create_rpc_request(
+  LibnngioProtobuf__RpcRequest *rpc_request_msg = nngio_create_rpc_request(
       "TestService", "TestMethod", (const uint8_t *)"Hello", 5);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RpcRequestMessage *fakerpc = nngio_create_rpc_request(
+  LibnngioProtobuf__RpcRequest *fakerpc = nngio_create_rpc_request(
       "TestService", "TestMethod", (const uint8_t *)"Hello", 5);
   LibnngioProtobuf__LibnngioMessage *fakemsg =
       nngio_create_nngio_message_with_rpc_request("uuid-123", fakerpc);
@@ -1266,7 +1266,7 @@ void test_protobuf_rpc_async(void) {
   async_test_sync recv_sync = {0}, send_sync = {0};
 
   // Prepare to receive RPC request message
-  LibnngioProtobuf__RpcRequestMessage *recv_request_msg = NULL;
+  LibnngioProtobuf__RpcRequest *recv_request_msg = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
                "Prepared RPC request message for sending.");
@@ -1390,16 +1390,16 @@ void test_protobuf_rpc_async(void) {
   libnngio_log("INF", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
                "Sending RPC response...");
   // Prepare RPC response message
-  LibnngioProtobuf__RpcResponseMessage *rpc_response_msg =
+  LibnngioProtobuf__RpcResponse *rpc_response_msg =
       nngio_create_rpc_response(
-          LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success,
+          LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success,
           (const uint8_t *)"Goodbye", 7, NULL);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RpcResponseMessage *fakerpc_response =
+  LibnngioProtobuf__RpcResponse *fakerpc_response =
       nngio_create_rpc_response(
-          LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success,
+          LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success,
           (const uint8_t *)"Goodbye", 7, NULL);
   LibnngioProtobuf__LibnngioMessage *fake_response_msg =
       nngio_create_nngio_message_with_rpc_response("uuid-456",
@@ -1417,7 +1417,7 @@ void test_protobuf_rpc_async(void) {
   memset(&send_sync, 0, sizeof(async_test_sync));
 
   // Prepare to receive RPC response message
-  LibnngioProtobuf__RpcResponseMessage *recv_response_msg = NULL;
+  LibnngioProtobuf__RpcResponse *recv_response_msg = NULL;
 
   libnngio_log("INF", "TEST_PROTOBUF_RPC_ASYNC", __FILE__, __LINE__, -1,
                "Prepared RPC response message for sending.");
@@ -1533,7 +1533,7 @@ void test_protobuf_rpc_async(void) {
 
   // all this selective freeing is done because the messages are on the stack
   // and only the internal pointers need to be freed, otherwise I think that
-  // the libnngio_protobuf__rpc_response_message__free_unpacked could be used
+  // the libnngio_protobuf__rpc_response__free_unpacked could be used
   // but that would require heap allocation of the messages
   nngio_free_rpc_response(recv_response_msg);
   nngio_free_rpc_response(rpc_response_msg);
@@ -1985,14 +1985,14 @@ void test_protobuf_send_recv() {
                "Generated UUID: %s", uuid);
 
   // Prepare to send a raw message
-  LibnngioProtobuf__RawMessage *raw_msg =
+  LibnngioProtobuf__Raw *raw_msg =
       nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
   LibnngioProtobuf__LibnngioMessage *msg =
       nngio_create_nngio_message_with_raw(uuid, raw_msg);
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RawMessage *fakeraw =
+  LibnngioProtobuf__Raw *fakeraw =
       nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
   LibnngioProtobuf__LibnngioMessage *fake_msg =
       nngio_create_nngio_message_with_raw(uuid, fakeraw);
@@ -2050,9 +2050,9 @@ void test_protobuf_send_recv() {
   }
 
   // Validate received message
-  if (recv_msg->raw_message->data.len != msg->raw_message->data.len ||
-      memcmp(recv_msg->raw_message->data.data, msg->raw_message->data.data,
-             msg->raw_message->data.len) != 0) {
+  if (recv_msg->raw->data.len != msg->raw->data.len ||
+      memcmp(recv_msg->raw->data.data, msg->raw->data.data,
+             msg->raw->data.len) != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
                  "Payload mismatch");
     nngio_free_nngio_message(recv_msg);
@@ -2069,8 +2069,8 @@ void test_protobuf_send_recv() {
   libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
                "Raw message sent and received successfully.");
   libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
-               "data: %.*s", (int)recv_msg->raw_message->data.len,
-               recv_msg->raw_message->data.data);
+               "data: %.*s", (int)recv_msg->raw->data.len,
+               recv_msg->raw->data.data);
 
   free(uuid);
   nngio_free_nngio_message(recv_msg);
@@ -2154,7 +2154,7 @@ void test_protobuf_send_recv_async() {
                "Generated UUID: %s", uuid);
 
   // Prepare to send a raw message
-  LibnngioProtobuf__RawMessage *raw_msg =
+  LibnngioProtobuf__Raw *raw_msg =
       nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
   LibnngioProtobuf__LibnngioMessage *msg =
       nngio_create_nngio_message_with_raw(uuid, raw_msg);
@@ -2172,7 +2172,7 @@ void test_protobuf_send_recv_async() {
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mocking: set expected receive buffer for REP context
-  LibnngioProtobuf__RawMessage *fakeraw =
+  LibnngioProtobuf__Raw *fakeraw =
       nngio_create_raw_message((const uint8_t *)"Hello, World!", 13);
   LibnngioProtobuf__LibnngioMessage *fake_msg =
       nngio_create_nngio_message_with_raw(uuid, fakeraw);
@@ -2283,20 +2283,20 @@ void test_protobuf_send_recv_async() {
       (void *)recv_msg, (void *)(*recv_msg));
 
   // Validate received message
-  if ((*recv_msg)->raw_message->data.len != msg->raw_message->data.len ||
-      memcmp((*recv_msg)->raw_message->data.data, msg->raw_message->data.data,
-             msg->raw_message->data.len) != 0) {
+  if ((*recv_msg)->raw->data.len != msg->raw->data.len ||
+      memcmp((*recv_msg)->raw->data.data, msg->raw->data.data,
+             msg->raw->data.len) != 0) {
     libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC_ASYNC", __FILE__,
                  __LINE__, -1, "Payload mismatch");
     libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC_ASYNC", __FILE__,
                  __LINE__, -1, "Expected (%zu): %.*s",
-                 msg->raw_message->data.len, (int)msg->raw_message->data.len,
-                 msg->raw_message->data.data);
+                 msg->raw->data.len, (int)msg->raw->data.len,
+                 msg->raw->data.data);
     libnngio_log("ERR", "TEST_PROTOBUF_SEND_RECV_ASYNC_ASYNC", __FILE__,
                  __LINE__, -1, "Received (%zu): %.*s",
-                 (*recv_msg)->raw_message->data.len,
-                 (int)(*recv_msg)->raw_message->data.len,
-                 (*recv_msg)->raw_message->data.data);
+                 (*recv_msg)->raw->data.len,
+                 (int)(*recv_msg)->raw->data.len,
+                 (*recv_msg)->raw->data.data);
     nngio_free_nngio_message(*recv_msg);
     nngio_free_nngio_message(msg);
     libnngio_protobuf_context_free(req_proto_ctx);
@@ -2311,8 +2311,8 @@ void test_protobuf_send_recv_async() {
   libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
                "Raw message sent and received successfully.");
   libnngio_log("INF", "TEST_PROTOBUF_SEND_RECV", __FILE__, __LINE__, -1,
-               "data: %.*s", (int)(*recv_msg)->raw_message->data.len,
-               (*recv_msg)->raw_message->data.data);
+               "data: %.*s", (int)(*recv_msg)->raw->data.len,
+               (*recv_msg)->raw->data.data);
 
   free(uuid);
   nngio_free_nngio_message(*recv_msg);
@@ -2328,7 +2328,7 @@ void test_protobuf_send_recv_async() {
 
 // Service implementation test handlers
 
-static LibnngioProtobuf__RpcResponseMessage__Status echo_say_hello_handler(
+static LibnngioProtobuf__RpcResponse__Status echo_say_hello_handler(
     const char *service_name, const char *method_name,
     const void *request_payload, size_t request_payload_len,
     void **response_payload, size_t *response_payload_len, void *user_data) {
@@ -2344,17 +2344,17 @@ static LibnngioProtobuf__RpcResponseMessage__Status echo_say_hello_handler(
   *response_payload = malloc(*response_payload_len);
   if (*response_payload == NULL) {
     *response_payload_len = 0;
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__InternalError;
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
 
   memcpy(*response_payload, prefix, prefix_len);
   memcpy((char *)*response_payload + prefix_len, request_payload,
          request_payload_len);
 
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success;
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static LibnngioProtobuf__RpcResponseMessage__Status math_add_handler(
+static LibnngioProtobuf__RpcResponse__Status math_add_handler(
     const char *service_name, const char *method_name,
     const void *request_payload, size_t request_payload_len,
     void **response_payload, size_t *response_payload_len, void *user_data) {
@@ -2366,7 +2366,7 @@ static LibnngioProtobuf__RpcResponseMessage__Status math_add_handler(
   if (request_payload_len != 8) {
     *response_payload = NULL;
     *response_payload_len = 0;
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__InvalidRequest;
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
 
   const int *inputs = (const int *)request_payload;
@@ -2376,11 +2376,11 @@ static LibnngioProtobuf__RpcResponseMessage__Status math_add_handler(
   *response_payload = malloc(*response_payload_len);
   if (*response_payload == NULL) {
     *response_payload_len = 0;
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__InternalError;
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
 
   memcpy(*response_payload, &result, sizeof(int));
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE_MESSAGE__STATUS__Success;
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
 void test_rpc_service_discovery() {
@@ -3152,13 +3152,13 @@ static void test_rpc(void) {
                "Testing rpc call to Echo.SayHello...");
 
   // create rpc request
-  LibnngioProtobuf__RpcRequestMessage *rpc_request = nngio_create_rpc_request(
+  LibnngioProtobuf__RpcRequest *rpc_request = nngio_create_rpc_request(
       "Echo", "SayHello", "World!", strlen("World!"));
-  LibnngioProtobuf__RpcRequestMessage *recv_rpc_request = NULL;
+  LibnngioProtobuf__RpcRequest *recv_rpc_request = NULL;
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mock rpc request
-  LibnngioProtobuf__RpcRequestMessage *fakerq =
+  LibnngioProtobuf__RpcRequest *fakerq =
       nngio_copy_rpc_request(rpc_request);
   LibnngioProtobuf__LibnngioMessage *mock_request_msg =
       nngio_create_nngio_message_with_rpc_request("uuid-req", fakerq);
@@ -3195,12 +3195,12 @@ static void test_rpc(void) {
   // handle the request
   libnngio_log("INF", "TEST_RPC", __FILE__, __LINE__, -1,
                "Handling the RPC request...");
-  LibnngioProtobuf__RpcResponseMessage *rpc_response = NULL;
+  LibnngioProtobuf__RpcResponse *rpc_response = NULL;
   proto_rv = libnngio_server_create_rpc_response(server, recv_rpc_request,
                                                  &rpc_response);
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mock rpc response
-  LibnngioProtobuf__RpcResponseMessage *fakeresp =
+  LibnngioProtobuf__RpcResponse *fakeresp =
       nngio_copy_rpc_response(rpc_response);
   LibnngioProtobuf__LibnngioMessage *mock_response_msg =
       nngio_create_nngio_message_with_rpc_response("uuid-resp", fakeresp);
@@ -3243,7 +3243,7 @@ static void test_rpc(void) {
   libnngio_log("INF", "TEST_RPC", __FILE__, __LINE__, -1,
                "Client receiving RPC response...");
 
-  LibnngioProtobuf__RpcResponseMessage *client_recv_response = NULL;
+  LibnngioProtobuf__RpcResponse *client_recv_response = NULL;
   proto_rv = libnngio_client_recv_rpc_response(client, &client_recv_response);
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(client_recv_response != NULL);
@@ -3428,13 +3428,13 @@ static void test_rpc_asyc(void) {
                "Testing rpc call to Echo.SayHello...");
 
   // create rpc request
-  LibnngioProtobuf__RpcRequestMessage *rpc_request = nngio_create_rpc_request(
+  LibnngioProtobuf__RpcRequest *rpc_request = nngio_create_rpc_request(
       "Echo", "SayHello", "World!", strlen("World!"));
-  LibnngioProtobuf__RpcRequestMessage *recv_rpc_request = NULL;
+  LibnngioProtobuf__RpcRequest *recv_rpc_request = NULL;
 
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mock rpc request
-  LibnngioProtobuf__RpcRequestMessage *fakerq =
+  LibnngioProtobuf__RpcRequest *fakerq =
       nngio_copy_rpc_request(rpc_request);
   LibnngioProtobuf__LibnngioMessage *mock_request_msg =
       nngio_create_nngio_message_with_rpc_request("uuid-req", fakerq);
@@ -3450,8 +3450,8 @@ static void test_rpc_asyc(void) {
   libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
                "Sending an asynchronous RPC request...");
 
-  LibnngioProtobuf__RpcRequestMessage *actual_rpc_request = NULL;
-  LibnngioProtobuf__RpcResponseMessage *actual_rpc_response = NULL;
+  LibnngioProtobuf__RpcRequest *actual_rpc_request = NULL;
+  LibnngioProtobuf__RpcResponse *actual_rpc_response = NULL;
   rpc_sync_t send_sync = {0}, recv_sync = {0};
 
   proto_rv = libnngio_server_handle_rpc_request_async(
@@ -3534,7 +3534,7 @@ static void test_rpc_asyc(void) {
   // prepare client to receive the response
 #ifdef NNGIO_MOCK_TRANSPORT
   // Mock rpc response
-  LibnngioProtobuf__RpcResponseMessage *fakeresp =
+  LibnngioProtobuf__RpcResponse *fakeresp =
       nngio_copy_rpc_response(actual_rpc_response);
   LibnngioProtobuf__LibnngioMessage *mock_response_msg =
       nngio_create_nngio_message_with_rpc_response("uuid-resp", fakeresp);
@@ -3549,7 +3549,7 @@ static void test_rpc_asyc(void) {
 
   libnngio_log("INF", "TEST_RPC_ASYNC", __FILE__, __LINE__, -1,
                "Preparing client to receive asynchronous RPC response...");
-  LibnngioProtobuf__RpcResponseMessage *client_recv_response = NULL;
+  LibnngioProtobuf__RpcResponse *client_recv_response = NULL;
   memset(&recv_sync, 0, sizeof(recv_sync));
   memset(&send_sync, 0, sizeof(send_sync));
   proto_rv = libnngio_client_recv_rpc_response_async(
