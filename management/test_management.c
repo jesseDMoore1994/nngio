@@ -15,7 +15,6 @@
 #include "management/libnngio_management.h"
 #include "protobuf/libnngio_protobuf.h"
 #include "transport/libnngio_transport.h"
-#include "management/libnngio_management.pb-c.h"
 
 /**
  * @brief Test management context initialization and cleanup.
@@ -185,7 +184,6 @@ void test_service_discovery() {
     .recv_timeout_ms = 5000,
     .send_timeout_ms = 5000,
     .max_msg_size = 0,
-    .n_options = 0,
     .options = NULL
   };
   
@@ -369,7 +367,6 @@ void test_service_discovery_async() {
     .recv_timeout_ms = 5000,
     .send_timeout_ms = 5000,
     .max_msg_size = 0,
-    .n_options = 0,
     .options = NULL
   };
   
@@ -502,7 +499,6 @@ void test_rpc_service_invoke_sync() {
     .recv_timeout_ms = 5000,
     .send_timeout_ms = 5000,
     .max_msg_size = 0,
-    .n_options = 0,
     .options = NULL
   };
   
@@ -630,7 +626,6 @@ void test_rpc_service_invoke_async() {
     .recv_timeout_ms = 5000,
     .send_timeout_ms = 5000,
     .max_msg_size = 0,
-    .n_options = 0,
     .options = NULL
   };
   

@@ -17,7 +17,6 @@
  *   proto_ctx -> ctx: is the underlying libnngio_context used for transport.
  */
 #include "protobuf/libnngio_protobuf.h"
-#include "module/libnngio_module.h"
 
 #include <nng/nng.h>  // for nng_strerror
 #include <stdio.h>
@@ -4632,12 +4631,6 @@ static LibnngioProtobuf__RpcResponse__Status protobuf_service_discovery_handler(
 }
 
 /**
- * @brief Get the module descriptor for the protobuf module.
- * 
- * Returns a descriptor that describes the protobuf module's services (RpcService
- * and ServiceDiscoveryService).
- *
-/**
  * @brief Register all services from a module with a server.
  * 
  * This function registers all services from a module descriptor with the given
@@ -4681,6 +4674,12 @@ libnngio_protobuf_error_code libnngio_module_register_services(
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
 
+/**
+ * @brief Get the module descriptor for the protobuf module.
+ * 
+ * Returns a descriptor that describes the protobuf module's services (RpcService
+ * and ServiceDiscoveryService).
+ *
  * @param user_data User data to pass to all handler functions (typically the server)
  * @return Pointer to the module descriptor.
  */
