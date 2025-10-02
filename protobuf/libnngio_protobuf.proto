@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package NngioProtobuf;
+package LibnngioProtobuf;
 
 // Example usage:
 // 1. A server defines its services and RPC methods using protobuf.
@@ -47,7 +47,7 @@ message RawMessage {
     bytes data = 1; // Arbitrary binary data
 }
 
-message NngioMessage {
+message LibnngioMessage {
     oneof msg {
         ServiceDiscoveryRequest service_discovery_request = 1;
         ServiceDiscoveryResponse service_discovery_response = 2;

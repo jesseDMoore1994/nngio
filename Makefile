@@ -30,8 +30,8 @@ BUILD_TEST_BINS        = $(addprefix $(BUILD_DIR)/test_, $(TEST_BINS))
 # Note: I only want static libs, but you can enable shared libs if you want
 BUILD_LIBS             = $(STATIC_LIBS) # $(SHARED_LIBS)
 BUILD_MOCK_LIBS        = $(MOCK_STATIC_LIBS) # $(MOCK_SHARED_LIBS)
-BUILD_PROTO            = $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(addsuffix .pb-c.o, $(HAS_PROTO)))
-INCLUDE_PROTO          = $(addprefix $(BUILD_DIR)/$(PROJECT_NAME)_, $(addsuffix .pb-c.h, $(HAS_PROTO)))
+BUILD_PROTO            = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix .pb-c.o, $(HAS_PROTO)))
+INCLUDE_PROTO          = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix .pb-c.h, $(HAS_PROTO)))
 
 
 # uppercase all letters in the mock libs variable
@@ -59,11 +59,11 @@ STATIC_LIBS_GROUPED = -Wl,--start-group $(foreach lib,$(STATIC_LIBS),-l:./$(lib)
 
 # Build protobuf files
 $(INCLUDE_PROTO): $(BUILD_PROTO)
-$(BUILD_PROTO): $(BUILD_DIR)/$(PROJECT_NAME)_%.pb-c.o:
+$(BUILD_PROTO): $(BUILD_DIR)/lib$(PROJECT_NAME)_%.pb-c.o:
 	echo "Generating protobuf files: $@"
 	mkdir -p $(BUILD_DIR)
-	protoc --c_out=$(BUILD_DIR) --proto_path=$* $*/$(PROJECT_NAME)_$*.proto
-	$(CC) -c $(BUILD_DIR)/$(PROJECT_NAME)_$*.pb-c.c -o $@ -fPIC
+	protoc --c_out=$(BUILD_DIR) --proto_path=$* $*/lib$(PROJECT_NAME)_$*.proto
+	$(CC) -c $(BUILD_DIR)/lib$(PROJECT_NAME)_$*.pb-c.c -o $@ -fPIC
 
 # Build binaries
 $(BUILD_DIR)/$(PROJECT_NAME)_%: NIX_CFLAGS_COMPILE += $(STATIC_LIBS_GROUPED)
