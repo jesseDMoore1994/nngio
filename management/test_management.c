@@ -404,13 +404,25 @@ void test_service_discovery_async() {
   async_test_state state = {0, 0, NULL};
   
   // Send async service discovery request
-  libnngio_protobuf_recv_cb_info cb_info = {
+  libnngio_protobuf_send_cb_info send_cb_info = {
+    .user_cb = NULL,
+    .user_data = NULL
+  };
+  
+  proto_rv = libnngio_protobuf_send_service_discovery_request_async(
+      client_proto_ctx, request, send_cb_info);
+  
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  
+  // Receive async service discovery response
+  LibnngioProtobuf__ServiceDiscoveryResponse *response = NULL;
+  libnngio_protobuf_recv_cb_info recv_cb_info = {
     .user_cb = (libnngio_protobuf_recv_async_cb)async_service_discovery_cb,
     .user_data = &state
   };
   
-  proto_rv = libnngio_protobuf_send_service_discovery_request_async(
-      client_proto_ctx, request, cb_info);
+  proto_rv = libnngio_protobuf_recv_service_discovery_response_async(
+      client_proto_ctx, &response, recv_cb_info);
   
   libnngio_log("INF", "TEST_SERVICE_DISCOVERY_ASYNC", __FILE__, __LINE__, -1,
                "Async service discovery request sent, waiting for response...");
@@ -548,8 +560,13 @@ void test_rpc_service_invoke_sync() {
                rpc_request->service_name, rpc_request->method_name);
   
   // Send RPC request
+  proto_rv = libnngio_protobuf_send_rpc_request(client_proto_ctx, rpc_request);
+  
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  
+  // Receive RPC response
   LibnngioProtobuf__RpcResponse *rpc_response = NULL;
-  proto_rv = libnngio_protobuf_send_rpc_request(client_proto_ctx, rpc_request, &rpc_response);
+  proto_rv = libnngio_protobuf_recv_rpc_response(client_proto_ctx, &rpc_response);
   
   if (proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE && rpc_response != NULL) {
     libnngio_log("INF", "TEST_RPC_SERVICE_INVOKE_SYNC", __FILE__, __LINE__, -1,
@@ -678,13 +695,25 @@ void test_rpc_service_invoke_async() {
   async_test_state state = {0, 0, NULL};
   
   // Send async RPC request
-  libnngio_protobuf_recv_cb_info cb_info = {
+  libnngio_protobuf_send_cb_info send_cb_info = {
+    .user_cb = NULL,
+    .user_data = NULL
+  };
+  
+  proto_rv = libnngio_protobuf_send_rpc_request_async(
+      client_proto_ctx, rpc_request, send_cb_info);
+  
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  
+  // Receive async RPC response
+  LibnngioProtobuf__RpcResponse *rpc_response = NULL;
+  libnngio_protobuf_recv_cb_info recv_cb_info = {
     .user_cb = (libnngio_protobuf_recv_async_cb)async_rpc_response_cb,
     .user_data = &state
   };
   
-  proto_rv = libnngio_protobuf_send_rpc_request_async(
-      client_proto_ctx, rpc_request, cb_info);
+  proto_rv = libnngio_protobuf_recv_rpc_response_async(
+      client_proto_ctx, &rpc_response, recv_cb_info);
   
   libnngio_log("INF", "TEST_RPC_SERVICE_INVOKE_ASYNC", __FILE__, __LINE__, -1,
                "Async RPC request sent, waiting for response...");
