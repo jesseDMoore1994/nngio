@@ -22,6 +22,16 @@ A module descriptor (`libnngio_module_descriptor`) contains:
 
 The interface provides `libnngio_module_register_services()` which registers all services from a module descriptor with a server in one call.
 
+## Service Name Prefixing
+
+To prevent service name collisions when multiple modules are loaded, the module interface automatically prefixes all service names with their package name when registering them with a server.
+
+For example:
+- A service named `TransportManagement` from package `LibnngioManagement` becomes `LibnngioManagement.TransportManagement`
+- A service named `RpcService` from package `LibnngioProtobuf` becomes `LibnngioProtobuf.RpcService`
+
+This prefixing is handled automatically by `libnngio_module_register_services()`.
+
 ## Usage
 
 ### Implementing a Module

@@ -4,16 +4,18 @@ The management module provides unified management of transport configurations, s
 
 ## Architecture
 
-The management module implements a single server with five registered protobuf services:
+The management module implements a single server with five registered protobuf services. All service names are prefixed with their package name to prevent collisions:
 
-### Management Services (3)
-1. **TransportManagement**: Handle transport operations (add, remove, list, get)
-2. **ServiceManagement**: Handle service operations (add, remove, list, get)
-3. **ConnectionManagement**: Handle connection operations (add, remove, list, get)
+### Management Services (3) - Package: LibnngioManagement
+1. **LibnngioManagement.TransportManagement**: Handle transport operations (add, remove, list, get)
+2. **LibnngioManagement.ServiceManagement**: Handle service operations (add, remove, list, get)
+3. **LibnngioManagement.ConnectionManagement**: Handle connection operations (add, remove, list, get)
 
-### Protobuf Module Services (2)
-4. **RpcService**: Generic RPC call interface for invoking any registered service method
-5. **ServiceDiscoveryService**: Service discovery to list all available services
+### Protobuf Module Services (2) - Package: LibnngioProtobuf
+4. **LibnngioProtobuf.RpcService**: Generic RPC call interface for invoking any registered service method
+5. **LibnngioProtobuf.ServiceDiscoveryService**: Service discovery to list all available services
+
+The package prefix prevents service name collisions when multiple modules are loaded.
 
 ## Default Configuration
 

@@ -105,9 +105,18 @@ static int add_services_from_module(libnngio_management_context *ctx,
       ctx->services_capacity = new_capacity;
     }
     
-    // Add the service entry
+    // Add the service entry with prefixed name: "Package.ServiceName"
     libnngio_management_service_entry *entry = &ctx->services[ctx->n_services];
-    entry->name = strdup_safe(mod_svc->service_name);
+    
+    // Create prefixed service name
+    size_t prefix_len = strlen(module->protobuf_package) + strlen(mod_svc->service_name) + 2;
+    char *prefixed_name = malloc(prefix_len);
+    if (!prefixed_name) {
+      return -1;
+    }
+    snprintf(prefixed_name, prefix_len, "%s.%s", module->protobuf_package, mod_svc->service_name);
+    
+    entry->name = prefixed_name;
     entry->transport_name = strdup_safe(transport_name);
     entry->service_type = strdup_safe(module->module_name);
     entry->server = ctx->management_server; // Reference to the management server
