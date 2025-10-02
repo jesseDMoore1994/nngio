@@ -220,6 +220,6 @@ void libnngio_management_free_connection_config(
  * @param user_data User data to pass to all handler functions (typically the management context)
  * @return Pointer to the module descriptor.
  */
-const struct libnngio_module_descriptor* libnngio_management_get_module_descriptor(void *user_data);
+const libnngio_module_descriptor* libnngio_management_get_module_descriptor(void *user_data);
 
 #endif // LIBNNGIO_MANAGEMENT_H

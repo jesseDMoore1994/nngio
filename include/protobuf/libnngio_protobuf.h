@@ -1176,6 +1176,6 @@ libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
  * @param user_data User data to pass to all handler functions (typically the server)
  * @return Pointer to the module descriptor.
  */
-const struct libnngio_module_descriptor* libnngio_protobuf_get_module_descriptor(void *user_data);
+const libnngio_module_descriptor* libnngio_protobuf_get_module_descriptor(void *user_data);
 
 #endif  // LIBNNGIO_PROTOBUF_H
