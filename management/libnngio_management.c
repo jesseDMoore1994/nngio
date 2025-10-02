@@ -607,7 +607,7 @@ void libnngio_management_free(libnngio_management_context *ctx) {
     free(ctx->services[i].name);
     free(ctx->services[i].transport_name);
     free(ctx->services[i].service_type);
-    if (ctx->services[i].server) libnngio_server_free(ctx->services[i].server);
+    // Note: server is a reference to management_server, freed separately above
   }
   free(ctx->services);
   
