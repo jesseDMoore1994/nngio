@@ -1,14 +1,19 @@
 # Management Module
 
-The management module provides unified management of transport configurations, service configurations, and connections through three separate protobuf services exposed over an IPC transport.
+The management module provides unified management of transport configurations, service configurations, and connections through a single management server with five protobuf services exposed over an IPC transport.
 
 ## Architecture
 
-The management module implements three separate protobuf services:
+The management module implements a single server with five registered protobuf services:
 
+### Management Services (3)
 1. **TransportManagement**: Handle transport operations (add, remove, list, get)
 2. **ServiceManagement**: Handle service operations (add, remove, list, get)
 3. **ConnectionManagement**: Handle connection operations (add, remove, list, get)
+
+### Protobuf Module Services (2)
+4. **RpcService**: Generic RPC call interface for invoking any registered service method
+5. **ServiceDiscoveryService**: Service discovery to list all available services
 
 ## Default Configuration
 
@@ -19,18 +24,7 @@ When initialized, the management module sets up:
   - Mode: Listen (reply mode)
   - URL: `ipc:///tmp/libnngio_management.ipc`
 
-- **Three management services**: Registered by default
-  - TransportManagement server
-  - ServiceManagement server
-  - ConnectionManagement server
-
-- **Three connections**: Linking the IPC transport to each management service
-
-### Additional Services
-
-The following services from the protobuf module can also be attached to the management IPC:
-- **ServiceDiscoveryService**: For service discovery
-- **RpcService**: For generic RPC calls
+- **One management server** with all five services registered and available through the management IPC transport
 
 ## Usage
 
@@ -145,6 +139,8 @@ const char *libnngio_management_get_url(libnngio_management_context *ctx);
 
 ## Protobuf Services
 
+All five services are registered on the single management server and accessible through the management IPC transport.
+
 ### TransportManagement Service
 
 Methods:
@@ -168,6 +164,16 @@ Methods:
 - `RemoveConnection(RemoveConnectionRequest) returns (RemoveConnectionResponse)`
 - `ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse)`
 - `GetConnection(GetConnectionRequest) returns (GetConnectionResponse)`
+
+### RpcService (from protobuf module)
+
+Methods:
+- `CallRpc(RpcRequest) returns (RpcResponse)` - Generic RPC interface for calling any registered service method
+
+### ServiceDiscoveryService (from protobuf module)
+
+Methods:
+- `GetServices(ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse)` - Returns list of all registered services
 
 ## Building
 

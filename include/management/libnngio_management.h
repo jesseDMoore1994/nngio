@@ -3,22 +3,20 @@
  * @brief Management API for libnngio.
  *
  * This module provides unified management of transport configurations,
- * service configurations, and connections through three separate
- * protobuf services exposed over an IPC transport.
+ * service configurations, and connections through a single management server
+ * with five protobuf services exposed over an IPC transport.
  *
  * The management interface includes:
  * - TransportManagement: Handle transport operations (add, remove, list, get)
  * - ServiceManagement: Handle service operations (add, remove, list, get)
  * - ConnectionManagement: Handle connection operations (add, remove, list, get)
+ * - RpcService: Generic RPC call interface (from protobuf module)
+ * - ServiceDiscoveryService: Service discovery interface (from protobuf module)
  *
  * Default Setup:
  * - One transport: "nngio-ipc" (IPC reply mode, "ipc:///tmp/libnngio_management.ipc")
- * - Three management services: TransportManagement, ServiceManagement, ConnectionManagement
- * - Three connections: linking nngio-ipc transport to each management service
- * 
- * Additional services can be attached:
- * - ServiceDiscoveryService from the protobuf module
- * - RpcService from the protobuf module
+ * - One management server with all five services registered
+ * - Services are available through the management IPC transport
  */
 
 #ifndef LIBNNGIO_MANAGEMENT_H
@@ -80,8 +78,12 @@ typedef struct {
  *
  * Creates:
  * - One transport: "nngio-ipc" (IPC reply mode, "ipc:///tmp/libnngio_management.ipc")
- * - Three management services: TransportManagement, ServiceManagement, ConnectionManagement
- * - Three connections: linking nngio-ipc transport to each management service
+ * - One management server with five registered services:
+ *   * TransportManagement (management module)
+ *   * ServiceManagement (management module)
+ *   * ConnectionManagement (management module)
+ *   * RpcService (protobuf module)
+ *   * ServiceDiscoveryService (protobuf module)
  *
  * @param[out] ctx Pointer to receive allocated management context.
  * @return Error code indicating success or failure.

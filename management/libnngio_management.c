@@ -17,15 +17,11 @@ struct libnngio_management_context {
   libnngio_transport *ipc_transport;
   libnngio_context *ipc_context;
   
-  // Three management servers
-  libnngio_server *transport_server;
-  libnngio_server *service_server;
-  libnngio_server *connection_server;
+  // Single management server with all services
+  libnngio_server *management_server;
   
-  // Protobuf contexts for each server
-  libnngio_protobuf_context *transport_proto_ctx;
-  libnngio_protobuf_context *service_proto_ctx;
-  libnngio_protobuf_context *connection_proto_ctx;
+  // Single protobuf context for the management server
+  libnngio_protobuf_context *management_proto_ctx;
   
   // Storage for managed resources
   libnngio_management_transport_entry *transports;
@@ -410,6 +406,88 @@ static LibnngioProtobuf__RpcResponse__Status connection_get_handler(
 }
 
 // =============================================================================
+// Protobuf Module Service Handlers (RpcService, ServiceDiscoveryService)
+// =============================================================================
+
+static LibnngioProtobuf__RpcResponse__Status rpc_call_handler(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len, void *user_data) {
+  
+  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
+  if (!ctx || !ctx->management_server) {
+    *response_payload = strdup("Invalid context");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Deserialize RPC request
+  LibnngioProtobuf__RpcRequest *req =
+      libnngio_protobuf__rpc_request__unpack(NULL, request_payload_len, request_payload);
+  if (!req) {
+    *response_payload = strdup("Failed to parse RPC request");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+  
+  // Process the RPC request through the server
+  LibnngioProtobuf__RpcResponse *rpc_resp = NULL;
+  libnngio_protobuf_error_code rv = libnngio_server_create_rpc_response(
+      ctx->management_server, req, &rpc_resp);
+  
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !rpc_resp) {
+    libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
+    *response_payload = strdup("Failed to process RPC request");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Serialize the RPC response
+  *response_payload_len = libnngio_protobuf__rpc_response__get_packed_size(rpc_resp);
+  *response_payload = malloc(*response_payload_len);
+  if (*response_payload) {
+    libnngio_protobuf__rpc_response__pack(rpc_resp, *response_payload);
+  }
+  
+  // Clean up
+  libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
+  nngio_free_rpc_response(rpc_resp);
+  
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
+
+static LibnngioProtobuf__RpcResponse__Status service_discovery_handler(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len, void *user_data) {
+  
+  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
+  if (!ctx || !ctx->management_server) {
+    *response_payload = strdup("Invalid context");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Create service discovery response
+  LibnngioProtobuf__ServiceDiscoveryResponse *disc_resp = NULL;
+  libnngio_protobuf_error_code rv = libnngio_server_create_service_discovery_response(
+      ctx->management_server, &disc_resp);
+  
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !disc_resp) {
+    *response_payload = strdup("Failed to create service discovery response");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Serialize the response
+  *response_payload_len = libnngio_protobuf__service_discovery_response__get_packed_size(disc_resp);
+  *response_payload = malloc(*response_payload_len);
+  if (*response_payload) {
+    libnngio_protobuf__service_discovery_response__pack(disc_resp, *response_payload);
+  }
+  
+  // Clean up
+  nngio_free_service_discovery_response(disc_resp);
+  
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
+
+// =============================================================================
 // Public API Implementation
 // =============================================================================
 
@@ -473,41 +551,17 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_TRANSPORT;
   }
   
-  // Initialize protobuf contexts
+  // Initialize single protobuf context for management
   libnngio_protobuf_error_code proto_rv;
   
-  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->transport_proto_ctx, mgmt_ctx->ipc_context);
+  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->management_proto_ctx, mgmt_ctx->ipc_context);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->service_proto_ctx, mgmt_ctx->ipc_context);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  proto_rv = libnngio_protobuf_context_init(&mgmt_ctx->connection_proto_ctx, mgmt_ctx->ipc_context);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  // Initialize servers
-  proto_rv = libnngio_server_init(&mgmt_ctx->transport_server, mgmt_ctx->transport_proto_ctx);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  proto_rv = libnngio_server_init(&mgmt_ctx->service_server, mgmt_ctx->service_proto_ctx);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_management_free(mgmt_ctx);
-    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
-  }
-  
-  proto_rv = libnngio_server_init(&mgmt_ctx->connection_server, mgmt_ctx->connection_proto_ctx);
+  // Initialize single management server
+  proto_rv = libnngio_server_init(&mgmt_ctx->management_server, mgmt_ctx->management_proto_ctx);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
@@ -520,7 +574,7 @@ libnngio_management_error_code libnngio_management_init(
     {"ListTransports", transport_list_handler, mgmt_ctx},
     {"GetTransport", transport_get_handler, mgmt_ctx}
   };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->transport_server, "TransportManagement", 
+  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "TransportManagement", 
                                                transport_methods, 4);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
@@ -534,7 +588,7 @@ libnngio_management_error_code libnngio_management_init(
     {"ListServices", service_list_handler, mgmt_ctx},
     {"GetService", service_get_handler, mgmt_ctx}
   };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->service_server, "ServiceManagement", 
+  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "ServiceManagement", 
                                                service_methods, 4);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
@@ -548,8 +602,30 @@ libnngio_management_error_code libnngio_management_init(
     {"ListConnections", connection_list_handler, mgmt_ctx},
     {"GetConnection", connection_get_handler, mgmt_ctx}
   };
-  proto_rv = libnngio_server_register_service(mgmt_ctx->connection_server, "ConnectionManagement", 
+  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "ConnectionManagement", 
                                                connection_methods, 4);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_management_free(mgmt_ctx);
+    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  
+  // Register RpcService from protobuf module
+  libnngio_service_method rpc_methods[] = {
+    {"CallRpc", rpc_call_handler, mgmt_ctx}
+  };
+  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "RpcService", 
+                                               rpc_methods, 1);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_management_free(mgmt_ctx);
+    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  
+  // Register ServiceDiscoveryService from protobuf module
+  libnngio_service_method discovery_methods[] = {
+    {"GetServices", service_discovery_handler, mgmt_ctx}
+  };
+  proto_rv = libnngio_server_register_service(mgmt_ctx->management_server, "ServiceDiscoveryService", 
+                                               discovery_methods, 1);
   if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
@@ -563,15 +639,11 @@ libnngio_management_error_code libnngio_management_init(
 void libnngio_management_free(libnngio_management_context *ctx) {
   if (!ctx) return;
   
-  // Free servers
-  if (ctx->transport_server) libnngio_server_free(ctx->transport_server);
-  if (ctx->service_server) libnngio_server_free(ctx->service_server);
-  if (ctx->connection_server) libnngio_server_free(ctx->connection_server);
+  // Free single management server
+  if (ctx->management_server) libnngio_server_free(ctx->management_server);
   
-  // Free protobuf contexts
-  if (ctx->transport_proto_ctx) libnngio_protobuf_context_free(ctx->transport_proto_ctx);
-  if (ctx->service_proto_ctx) libnngio_protobuf_context_free(ctx->service_proto_ctx);
-  if (ctx->connection_proto_ctx) libnngio_protobuf_context_free(ctx->connection_proto_ctx);
+  // Free single protobuf context
+  if (ctx->management_proto_ctx) libnngio_protobuf_context_free(ctx->management_proto_ctx);
   
   // Free transport and context
   if (ctx->ipc_context) libnngio_context_free(ctx->ipc_context);
