@@ -10,7 +10,7 @@ PROJECT_NAME_UPPERCASE = NNGIO
 # BINS are the list of production binaries to build
 BINS                   =
 # TEST_BINS are the list of test binaries to build
-TEST_BINS              = transport protobuf
+TEST_BINS              = transport protobuf management
 # LIBS are the list of production libraries to build
 LIBS                   = transport protobuf management
 # MOCK_LIBS are the list of mock libraries to build
