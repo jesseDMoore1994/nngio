@@ -127,6 +127,14 @@ libnngio_management_error_code libnngio_management_stop(
 const char *libnngio_management_get_url(libnngio_management_context *ctx);
 
 /**
+ * @brief Get the underlying management server instance.
+ *
+ * @param ctx Management context.
+ * @return Pointer to the management server, or NULL if not initialized.
+ */
+libnngio_server *libnngio_management_get_server(libnngio_management_context *ctx);
+
+/**
  * @brief Register a module's services with the management server.
  * 
  * This function registers all services from a module descriptor with the management

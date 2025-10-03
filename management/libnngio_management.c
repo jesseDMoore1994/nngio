@@ -649,6 +649,11 @@ const char *libnngio_management_get_url(libnngio_management_context *ctx) {
   return "ipc:///tmp/libnngio_management.ipc";
 }
 
+libnngio_server *libnngio_management_get_server(libnngio_management_context *ctx) {
+  if (!ctx) return NULL;
+  return ctx->management_server;
+}
+
 libnngio_management_error_code libnngio_management_register_module(
     libnngio_management_context *ctx,
     const libnngio_module_descriptor *module) {
