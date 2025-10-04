@@ -142,6 +142,10 @@ void test_connection_config_helpers() {
                "Connection configuration freed successfully");
 }
 
+static void client_cb_stub(void *arg) {
+  (void)arg;
+}
+
 /**
  * @brief Test service discovery with management server and client.
  * 
@@ -190,7 +194,7 @@ void test_service_discovery() {
   assert(rv == 0);
   
   libnngio_context *client_ctx = NULL;
-  rv = libnngio_context_init(&client_ctx, client_transport, &client_config, NULL, NULL);
+  rv = libnngio_context_init(&client_ctx, client_transport, &client_config, client_cb_stub, NULL);
   assert(rv == 0);
   
   libnngio_protobuf_context *client_proto_ctx = NULL;

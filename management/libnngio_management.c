@@ -468,6 +468,12 @@ static LibnngioProtobuf__RpcResponse__Status connection_get_handler(
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
+// create server context callback for management module
+static void management_server_callback(void *arg) {
+  // No-op for now
+  (void)arg;
+}
+
 // =============================================================================
 // Public API Implementation
 // =============================================================================
@@ -511,8 +517,8 @@ libnngio_management_error_code libnngio_management_init(
     .tls_cert = NULL,
     .tls_key = NULL,
     .tls_ca_cert = NULL,
-    .recv_timeout_ms = -1,
-    .send_timeout_ms = -1,
+    .recv_timeout_ms = 0,
+    .send_timeout_ms = 0,
     .max_msg_size = 0,
     .options = NULL,
     .option_count = 0
@@ -526,7 +532,7 @@ libnngio_management_error_code libnngio_management_init(
   }
   
   // Initialize IPC context
-  rv = libnngio_context_init(&mgmt_ctx->ipc_context, mgmt_ctx->ipc_transport, &ipc_config, NULL, NULL);
+  rv = libnngio_context_init(&mgmt_ctx->ipc_context, mgmt_ctx->ipc_transport, &ipc_config, management_server_callback, mgmt_ctx);
   if (rv != 0) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_TRANSPORT;
