@@ -53,7 +53,7 @@ void test_management_start_stop() {
   libnngio_management_error_code err = libnngio_management_init(&ctx);
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
-  err = libnngio_management_start(ctx);
+  err = libnngio_management_start(ctx, NULL);  // NULL for synchronous mode
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   libnngio_log("INF", "TEST_MANAGEMENT_START_STOP", __FILE__, __LINE__, -1,
                "Management server started successfully");
@@ -167,7 +167,7 @@ void test_service_discovery() {
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   assert(server_ctx != NULL);
   
-  err = libnngio_management_start(server_ctx);
+  err = libnngio_management_start(server_ctx, NULL);  // NULL for synchronous mode
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
   const char *url = libnngio_management_get_url(server_ctx);
@@ -413,7 +413,7 @@ void test_service_discovery_async() {
   libnngio_management_error_code err = libnngio_management_init(&server_ctx);
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
-  err = libnngio_management_start(server_ctx);
+  err = libnngio_management_start(server_ctx, NULL)  // NULL for synchronous mode;
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
   const char *url = libnngio_management_get_url(server_ctx);
@@ -593,7 +593,7 @@ void test_rpc_service_invoke_sync() {
   libnngio_management_error_code err = libnngio_management_init(&server_ctx);
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
-  err = libnngio_management_start(server_ctx);
+  err = libnngio_management_start(server_ctx, NULL)  // NULL for synchronous mode;
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
   const char *url = libnngio_management_get_url(server_ctx);
@@ -759,7 +759,7 @@ void test_rpc_service_invoke_async() {
   libnngio_management_error_code err = libnngio_management_init(&server_ctx);
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
-  err = libnngio_management_start(server_ctx);
+  err = libnngio_management_start(server_ctx, NULL)  // NULL for synchronous mode;
   assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
   
   const char *url = libnngio_management_get_url(server_ctx);
