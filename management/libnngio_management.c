@@ -479,7 +479,7 @@ static void management_server_callback(void *arg) {
 // =============================================================================
 
 libnngio_management_error_code libnngio_management_init(
-    libnngio_management_context **ctx) {
+    libnngio_management_context **ctx, libnngio_ctx_cb callback) {
   if (!ctx) {
     return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
   }
@@ -531,8 +531,8 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_TRANSPORT;
   }
   
-  // Initialize IPC context (without callback - will be set in start function)
-  rv = libnngio_context_init(&mgmt_ctx->ipc_context, mgmt_ctx->ipc_transport, &ipc_config, NULL, NULL);
+  // Initialize IPC context with provided callback (NULL for sync, callback for async)
+  rv = libnngio_context_init(&mgmt_ctx->ipc_context, mgmt_ctx->ipc_transport, &ipc_config, callback, mgmt_ctx);
   if (rv != 0) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_TRANSPORT;
@@ -628,37 +628,9 @@ void libnngio_management_free(libnngio_management_context *ctx) {
 }
 
 libnngio_management_error_code libnngio_management_start(
-    libnngio_management_context *ctx, libnngio_ctx_cb callback) {
+    libnngio_management_context *ctx) {
   if (!ctx) {
     return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
-  }
-  
-  // Re-initialize context with the provided callback (NULL for sync, callback for async)
-  // First free the existing context
-  if (ctx->ipc_context) {
-    libnngio_context_free(ctx->ipc_context);
-    ctx->ipc_context = NULL;
-  }
-  
-  // Re-create IPC config
-  libnngio_config ipc_config = {
-    .mode = LIBNNGIO_MODE_LISTEN,
-    .proto = LIBNNGIO_PROTO_REP,
-    .url = "ipc:///tmp/libnngio_management.ipc",
-    .tls_cert = NULL,
-    .tls_key = NULL,
-    .tls_ca_cert = NULL,
-    .recv_timeout_ms = 0,
-    .send_timeout_ms = 0,
-    .max_msg_size = 0,
-    .options = NULL,
-    .option_count = 0
-  };
-  
-  // Re-initialize context with or without callback
-  int rv = libnngio_context_init(&ctx->ipc_context, ctx->ipc_transport, &ipc_config, callback, ctx);
-  if (rv != 0) {
-    return LIBNNGIO_MANAGEMENT_ERR_TRANSPORT;
   }
   
   // Start the IPC context

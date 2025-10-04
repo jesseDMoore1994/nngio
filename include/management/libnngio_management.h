@@ -85,11 +85,16 @@ typedef struct {
  *   * RpcService (protobuf module)
  *   * ServiceDiscoveryService (protobuf module)
  *
+ * Mode Selection:
+ * - If callback is NULL: Server operates in synchronous mode
+ * - If callback is provided: Server operates in asynchronous mode with callback
+ *
  * @param[out] ctx Pointer to receive allocated management context.
+ * @param callback Optional callback for asynchronous mode (NULL for synchronous).
  * @return Error code indicating success or failure.
  */
 libnngio_management_error_code libnngio_management_init(
-    libnngio_management_context **ctx);
+    libnngio_management_context **ctx, libnngio_ctx_cb callback);
 
 /**
  * @brief Free a management context and all associated resources.
@@ -102,17 +107,12 @@ void libnngio_management_free(libnngio_management_context *ctx);
  * @brief Start the management server.
  *
  * Begins listening on the IPC transport and handling incoming requests.
- * 
- * Mode Selection:
- * - If callback is NULL: Server operates in synchronous mode
- * - If callback is provided: Server operates in asynchronous mode with callback
  *
  * @param ctx Management context.
- * @param callback Optional callback for asynchronous mode (NULL for synchronous).
  * @return Error code indicating success or failure.
  */
 libnngio_management_error_code libnngio_management_start(
-    libnngio_management_context *ctx, libnngio_ctx_cb callback);
+    libnngio_management_context *ctx);
 
 /**
  * @brief Stop the management server.
