@@ -4348,10 +4348,24 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
   char *found_method_name = NULL;
   libnngio_service_method *method_handler = NULL;
 
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Creating RPC response for service '%s' method '%s'.",
+               request->service_name, request->method_name);
+
   for (size_t i = 0; i < server->n_services; i++) {
+    libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+                 __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+                 "Checking registered service '%s' for match.",
+                 server->services[i].service_name);
     if (strcmp(server->services[i].service_name, service_name) == 0) {
       found_service_name = server->services[i].service_name;
       for (size_t j = 0; j < server->services[i].n_methods; j++) {
+        libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE",
+                     __FILE__, __LINE__,
+                     libnngio_context_id(server->proto_ctx->ctx),
+                     "Checking method '%s' for match.",
+                     server->services[i].methods[j].method_name);
         if (strcmp(server->services[i].methods[j].method_name, method_name) ==
             0) {
           found_method_name = server->services[i].methods[j].method_name;
@@ -4395,20 +4409,40 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
     return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
   }
 
+
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Invoking handler for service '%s' method '%s'.",
+               request->service_name, request->method_name);
   // Call the method handler to get the response
   status = method_handler->handler(
       service_name, method_name, request->payload.data, request->payload.len,
       &payload, &payload_len, method_handler->user_data);
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Handler for service '%s' method '%s' returned status %d.",
+               request->service_name, request->method_name, status);
 
   // If the handler is successful, the payload is the data
   // If the handler is not successful, the payload is the error message
 
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Creating RPC response with status %d.", status);
   if(status == LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success) {
+    libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+                 __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+                 "RPC response created successfully with payload length %zu.",
+                 payload_len);
     (*response) = nngio_create_rpc_response(status, payload, payload_len, "");
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_NONE;
   }
   else {
+    libnngio_log("ERR", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+                 __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+                 "RPC response created with error status %d and message: %s",
+                 status, (char *)payload);
     (*response) = nngio_create_rpc_response(status, NULL, 0, payload);
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
@@ -4536,4 +4570,176 @@ libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
   }
 
   return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+// =============================================================================
+// Module Interface Implementation
+// =============================================================================
+
+/**
+ * @brief Handler wrapper for RpcService.CallRpc method.
+ * 
+ * This wrapper adapts the generic RPC handler interface to the module interface.
+ */
+static LibnngioProtobuf__RpcResponse__Status protobuf_rpc_call_handler(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len, void *user_data) {
+  
+  libnngio_server *server = (libnngio_server *)user_data;
+  if (!server) {
+    *response_payload = strdup("Invalid server context");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Deserialize RPC request
+  LibnngioProtobuf__RpcRequest *req =
+      libnngio_protobuf__rpc_request__unpack(NULL, request_payload_len, request_payload);
+  if (!req) {
+    *response_payload = strdup("Failed to parse RPC request");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+  
+  // Process the RPC request through the server
+  LibnngioProtobuf__RpcResponse *rpc_resp = NULL;
+  libnngio_protobuf_error_code rv = libnngio_server_create_rpc_response(
+      server, req, &rpc_resp);
+  
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !rpc_resp) {
+    libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
+    *response_payload = strdup("Failed to process RPC request");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Serialize the RPC response
+  *response_payload_len = libnngio_protobuf__rpc_response__get_packed_size(rpc_resp);
+  *response_payload = malloc(*response_payload_len);
+  if (*response_payload) {
+    libnngio_protobuf__rpc_response__pack(rpc_resp, *response_payload);
+  }
+  
+  // Clean up
+  libnngio_protobuf__rpc_request__free_unpacked(req, NULL);
+  nngio_free_rpc_response(rpc_resp);
+  
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
+
+/**
+ * @brief Handler wrapper for ServiceDiscoveryService.GetServices method.
+ * 
+ * This wrapper adapts the service discovery handler interface to the module interface.
+ */
+static LibnngioProtobuf__RpcResponse__Status protobuf_service_discovery_handler(
+    const char *service_name, const char *method_name,
+    const void *request_payload, size_t request_payload_len,
+    void **response_payload, size_t *response_payload_len, void *user_data) {
+  
+  libnngio_server *server = (libnngio_server *)user_data;
+  if (!server) {
+    *response_payload = strdup("Invalid server context");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Create service discovery response
+  LibnngioProtobuf__ServiceDiscoveryResponse *disc_resp = NULL;
+  libnngio_protobuf_error_code rv = libnngio_server_create_service_discovery_response(
+      server, &disc_resp);
+  
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE || !disc_resp) {
+    *response_payload = strdup("Failed to create service discovery response");
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  
+  // Serialize the response
+  *response_payload_len = libnngio_protobuf__service_discovery_response__get_packed_size(disc_resp);
+  *response_payload = malloc(*response_payload_len);
+  if (*response_payload) {
+    libnngio_protobuf__service_discovery_response__pack(disc_resp, *response_payload);
+  }
+  
+  // Clean up
+  nngio_free_service_discovery_response(disc_resp);
+  
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
+
+/**
+ * @brief Register all services from a module with a server.
+ * 
+ * This function registers all services from a module descriptor with the given
+ * server. It iterates through all services in the module and registers each one
+ * with a package-prefixed name to prevent collisions.
+ *
+ * @param server The server to register services with.
+ * @param module The module descriptor containing services to register.
+ * @return Error code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_module_register_services(
+    libnngio_server *server,
+    const libnngio_module_descriptor *module) {
+  
+  if (!server || !module) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+  
+  // Register each service from the module with package-prefixed name
+  for (size_t i = 0; i < module->n_services; i++) {
+    const libnngio_module_service *svc = &module->services[i];
+    
+    // Create prefixed service name: "Package.ServiceName"
+    size_t prefix_len = strlen(module->protobuf_package) + strlen(svc->service_name) + 2; // +2 for '.' and '\0'
+    char *prefixed_name = malloc(prefix_len);
+    if (!prefixed_name) {
+      return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
+    }
+    snprintf(prefixed_name, prefix_len, "%s.%s", module->protobuf_package, svc->service_name);
+    
+    libnngio_protobuf_error_code rv = libnngio_server_register_service(
+        server, prefixed_name, svc->methods, svc->n_methods);
+    
+    free(prefixed_name);
+    
+    if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+      return rv;
+    }
+  }
+  
+  return LIBNNGIO_PROTOBUF_ERR_NONE;
+}
+
+/**
+ * @brief Get the module descriptor for the protobuf module.
+ * 
+ * Returns a descriptor that describes the protobuf module's services (RpcService
+ * and ServiceDiscoveryService).
+ *
+ * @param user_data User data to pass to all handler functions (typically the server)
+ * @return Pointer to the module descriptor.
+ */
+const libnngio_module_descriptor* libnngio_protobuf_get_module_descriptor(void *user_data) {
+  // Static method arrays
+  static libnngio_service_method rpc_methods[1];
+  static libnngio_service_method discovery_methods[1];
+  
+  // Initialize RPC service methods
+  rpc_methods[0] = (libnngio_service_method){"CallRpc", protobuf_rpc_call_handler, user_data};
+  
+  // Initialize service discovery methods
+  discovery_methods[0] = (libnngio_service_method){"GetServices", protobuf_service_discovery_handler, user_data};
+  
+  // Static service descriptors
+  static libnngio_module_service services[2];
+  services[0] = (libnngio_module_service){"RpcService", rpc_methods, 1};
+  services[1] = (libnngio_module_service){"ServiceDiscoveryService", discovery_methods, 1};
+  
+  // Static module descriptor
+  static libnngio_module_descriptor descriptor = {
+    .module_name = "protobuf",
+    .protobuf_package = "LibnngioProtobuf",
+    .services = services,
+    .n_services = 2
+  };
+  
+  return &descriptor;
 }
