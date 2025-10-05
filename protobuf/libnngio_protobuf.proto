@@ -58,10 +58,53 @@ message LibnngioMessage {
     string uuid = 6; // Unique identifier for the message
 }
 
+message LibnngioTransport {
+    enum TransportMode {
+        Dial = 0; // Client mode
+        Listen = 1; // Server mode
+    }
+    enum TransportProtocol {
+        Pair = 0; // Pair protocol
+        Req = 1; // Request protocol
+        Rep = 2; // Reply protocol
+        Pub = 3; // Publish protocol
+        Sub = 4; // Subscribe protocol
+        Push = 5; // Push protocol
+        Pull = 6; // Pull protocol
+        Serveyor = 7; // Surveyor protocol
+        Respondent = 8; // Respondent protocol
+        Bus = 9; // Bus protocol
+    }
+
+    TransportMode mode = 1; // Mode of the transport
+    TransportProtocol protocol = 2; // Protocol of the transport
+    string address = 3; // Address to connect or bind to
+
+    string tls_cert = 4; // TLS certificate for secure connections
+    string tls_key = 5; // TLS private key for secure connections
+    string tls_ca = 6; // TLS CA certificate for secure connections
+
+    uint32 recv_timeout_ms = 7; // Receive timeout in milliseconds
+    uint32 send_timeout_ms = 8; // Send timeout in milliseconds
+    uint64 max_msg_size = 9; // Maximum message size in bytes
+}
+
+message TransportDiscoveryRequest {
+    // Empty message for requesting service discovery
+}
+
+message TransportDiscoveryResponse {
+    repeated LibnngioTransport transports = 1; // List of available transports
+}
+
 service RpcService {
     rpc CallRpc(RpcRequest) returns (RpcResponse);
 }
 
 service ServiceDiscoveryService {
     rpc GetServices(ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse);
+}
+
+service TransportDiscoveryService {
+    rpc GetTransports(TransportDiscoveryRequest) returns (TransportDiscoveryResponse);
 }

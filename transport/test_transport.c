@@ -4,8 +4,8 @@
  *      Tests include TCP and TLS transports, synchronous and asynchronous
  *      operations, and various messaging patterns (REQ/REP, PUB/SUB,
  * PUSH/PULL). Uses assertions to validate expected behaviors. Tests can be run
- * with or without mocking support. Compile with -DNNGIO_MOCK_TRANSPORT to enable
- * mocking.
+ * with or without mocking support. Compile with -DNNGIO_MOCK_TRANSPORT to
+ * enable mocking.
  */
 
 #include <assert.h>

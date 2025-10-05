@@ -16,10 +16,11 @@
 
 #ifndef LIBNNGIO_PROTOBUF_H
 #define LIBNNGIO_PROTOBUF_H
-#include "transport/libnngio_transport.h"
 #include "libnngio_protobuf.pb-c.h"
+#include "transport/libnngio_transport.h"
 
-#define LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE 65535  ///< Max message size (64k bytes)
+#define LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE \
+  65535  ///< Max message size (64k bytes)
 
 /**
  * @brief define error codes for rpc software errors
@@ -49,14 +50,17 @@ typedef struct libnngio_protobuf_context libnngio_protobuf_context;
 
 // Service implementation structures and functions
 
+// forward declare the typedef'd server and client structs
+// so we can reference them in callbacks
+struct libnngio_server;
+struct libnngio_client;
+
 /**
  * @brief RPC method handler callback type.
  *
  * This callback is invoked when an RPC request is received for a registered
  * method.
  *
- * @param service_name Name of the service being called.
- * @param method_name Name of the method being called.
  * @param request_payload Input payload for the RPC call.
  * @param request_payload_len Length of the input payload.
  * @param response_payload Pointer to receive allocated response payload.
@@ -65,18 +69,21 @@ typedef struct libnngio_protobuf_context libnngio_protobuf_context;
  * @return LibnngioProtobuf__RpcResponse__Status indicating the result.
  */
 typedef LibnngioProtobuf__RpcResponse__Status (
-    *libnngio_rpc_method_handler)(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data);
+    *libnngio_protobuf_method_handler)(struct libnngio_server *server,
+                                       const void *request_payload,
+                                       size_t request_payload_len,
+                                       void **response_payload,
+                                       size_t *response_payload_len,
+                                       void *user_data);
 
 /**
  * @brief Service method registration structure.
  */
 typedef struct {
-  char *method_name;                    ///< Name of the method
-  libnngio_rpc_method_handler handler;  ///< Handler function for the method
-  void *user_data;                      ///< User data for the handler
+  char *method_name;  ///< Name of the method
+  libnngio_protobuf_method_handler
+      handler;      ///< Handler function for the method
+  void *user_data;  ///< User data for the handler
 } libnngio_service_method;
 
 /**
@@ -158,8 +165,8 @@ typedef void (*libnngio_protobuf_server_send_async_cb)(
  * @param user_data User data pointer provided at call time.
  */
 typedef void (*libnngio_protobuf_server_recv_async_cb)(
-    libnngio_server *server, int result, LibnngioProtobuf__LibnngioMessage **msg,
-    void *user_data);
+    libnngio_server *server, int result,
+    LibnngioProtobuf__LibnngioMessage **msg, void *user_data);
 
 /**
  * @brief Asynchronous operation send callback for client updates.
@@ -182,8 +189,8 @@ typedef void (*libnngio_protobuf_client_send_async_cb)(
  * @param user_data User data pointer provided at call time.
  */
 typedef void (*libnngio_protobuf_client_recv_async_cb)(
-    libnngio_client *client, int result, LibnngioProtobuf__LibnngioMessage **msg,
-    void *user_data);
+    libnngio_client *client, int result,
+    LibnngioProtobuf__LibnngioMessage **msg, void *user_data);
 
 /**
  * @brief send callback wrapper structure. Convenience for passing a bundle
@@ -214,8 +221,8 @@ typedef struct {
 } libnngio_protobuf_recv_cb_info;
 
 /*
- * @brief Define function to convert LibnngioProtobuf__LibnngioMessage__MsgCase enum
- * to string
+ * @brief Define function to convert LibnngioProtobuf__LibnngioMessage__MsgCase
+ * enum to string
  */
 char *libnngio_protobuf_nngio_msg_case_str(
     LibnngioProtobuf__LibnngioMessage__MsgCase msg_case);
@@ -275,11 +282,12 @@ int libnngio_protobuf_context_get_transport_rv(libnngio_protobuf_context *ctx);
  * @param name Name of the service.
  * @param methods Array of method names.
  * @param n_methods Number of methods.
- * @return Pointer to the allocated LibnngioProtobuf__Service, or NULL on failure.
+ * @return Pointer to the allocated LibnngioProtobuf__Service, or NULL on
+ * failure.
  */
 LibnngioProtobuf__Service *nngio_create_service(const char *name,
-                                             const char **methods,
-                                             size_t n_methods);
+                                                const char **methods,
+                                                size_t n_methods);
 
 /**
  * @brief Free a LibnngioProtobuf__Service structure and its contents.
@@ -296,7 +304,8 @@ void nngio_free_service(LibnngioProtobuf__Service *svc);
  * @brief Create a LibnngioProtobuf__ServiceDiscoveryResponse structure and
  * populate its fields.
  *
- * Allocates and initializes a LibnngioProtobuf__ServiceDiscoveryResponse with the
+ * Allocates and initializes a LibnngioProtobuf__ServiceDiscoveryResponse with
+ the
  * given services. Takes ownership of the provided service pointers.
  *
  * @param services Array of pointers to LibnngioProtobuf__Service.
@@ -329,9 +338,10 @@ void nngio_free_service_discovery_response(
  * @param payload_len Size of the payload data.
  * @return Pointer to the allocated request message, or NULL on failure.
  */
-LibnngioProtobuf__RpcRequest *nngio_create_rpc_request(
-    const char *service_name, const char *method_name, const void *payload,
-    size_t payload_len);
+LibnngioProtobuf__RpcRequest *nngio_create_rpc_request(const char *service_name,
+                                                       const char *method_name,
+                                                       const void *payload,
+                                                       size_t payload_len);
 
 /**
  * @brief Free a LibnngioProtobuf__RpcRequest and its contents.
@@ -377,7 +387,7 @@ void nngio_free_rpc_response(LibnngioProtobuf__RpcResponse *msg);
  * @return Pointer to the allocated raw message, or NULL on failure.
  */
 LibnngioProtobuf__Raw *nngio_create_raw_message(const void *data,
-                                                    size_t data_len);
+                                                size_t data_len);
 
 /**
  * @brief Free a LibnngioProtobuf__Raw and its contents.
@@ -389,10 +399,11 @@ LibnngioProtobuf__Raw *nngio_create_raw_message(const void *data,
 void nngio_free_raw_message(LibnngioProtobuf__Raw *msg);
 
 /**
- * @brief Create a LibnngioProtobuf__LibnngioMessage containing a RpcRequestMessage.
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
+ * RpcRequestMessage.
  *
- * Allocates and initializes an LibnngioMessage. Takes ownership of the rpc_request
- * pointer.
+ * Allocates and initializes an LibnngioMessage. Takes ownership of the
+ * rpc_request pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param rpc_request Pointer to a LibnngioProtobuf__RpcRequest.
@@ -402,7 +413,8 @@ LibnngioProtobuf__LibnngioMessage *nngio_create_nngio_message_with_rpc_request(
     const char *uuid, LibnngioProtobuf__RpcRequest *rpc_request);
 
 /**
- * @brief Create a LibnngioProtobuf__LibnngioMessage containing a RpcResponseMessage.
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
+ * RpcResponseMessage.
  *
  * Allocates and initializes an LibnngioMessage. Takes ownership of the
  * rpc_response pointer.
@@ -417,8 +429,8 @@ LibnngioProtobuf__LibnngioMessage *nngio_create_nngio_message_with_rpc_response(
 /**
  * @brief Create a LibnngioProtobuf__LibnngioMessage containing a RawMessage.
  *
- * Allocates and initializes an LibnngioMessage. Takes ownership of the raw_message
- * pointer.
+ * Allocates and initializes an LibnngioMessage. Takes ownership of the
+ * raw_message pointer.
  *
  * @param uuid Unique identifier string for the message.
  * @param raw_message Pointer to a LibnngioProtobuf__Raw.
@@ -460,7 +472,8 @@ nngio_create_nngio_message_with_service_discovery_response(
 /**
  * @brief Free a LibnngioProtobuf__LibnngioMessage and its contents.
  *
- * Frees all memory associated with the LibnngioMessage, including nested messages.
+ * Frees all memory associated with the LibnngioMessage, including nested
+ * messages.
  *
  * @param msg Pointer to the LibnngioMessage to free.
  */
@@ -474,7 +487,8 @@ void nngio_free_nngio_message(LibnngioProtobuf__LibnngioMessage *msg);
  * @param src Pointer to the source service to copy.
  * @return Pointer to deep-copied service, or NULL on failure.
  */
-LibnngioProtobuf__Service *nngio_copy_service(const LibnngioProtobuf__Service *src);
+LibnngioProtobuf__Service *nngio_copy_service(
+    const LibnngioProtobuf__Service *src);
 
 /**
  * @brief Deep copy a LibnngioProtobuf__ServiceDiscoveryResponse structure.
@@ -485,7 +499,8 @@ LibnngioProtobuf__Service *nngio_copy_service(const LibnngioProtobuf__Service *s
  * @param src Pointer to the source response to copy.
  * @return Pointer to deep-copied response, or NULL on failure.
  */
-LibnngioProtobuf__ServiceDiscoveryResponse *nngio_copy_service_discovery_response(
+LibnngioProtobuf__ServiceDiscoveryResponse *
+nngio_copy_service_discovery_response(
     const LibnngioProtobuf__ServiceDiscoveryResponse *src);
 
 /**
@@ -520,8 +535,7 @@ LibnngioProtobuf__RpcResponse *nngio_copy_rpc_response(
  * @param src Pointer to the source raw message to copy.
  * @return Pointer to deep-copied raw message, or NULL on failure.
  */
-LibnngioProtobuf__Raw *nngio_copy_raw_message(
-    const LibnngioProtobuf__Raw *src);
+LibnngioProtobuf__Raw *nngio_copy_raw_message(const LibnngioProtobuf__Raw *src);
 
 /**
  * @brief Deep copy a LibnngioProtobuf__LibnngioMessage structure.
@@ -614,8 +628,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
-    libnngio_protobuf_context *ctx,
-    const LibnngioProtobuf__RpcRequest *request,
+    libnngio_protobuf_context *ctx, const LibnngioProtobuf__RpcRequest *request,
     libnngio_protobuf_send_cb_info cb_info);
 
 /**
@@ -674,8 +687,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response(
-    libnngio_protobuf_context *ctx,
-    LibnngioProtobuf__RpcResponse **response);
+    libnngio_protobuf_context *ctx, LibnngioProtobuf__RpcResponse **response);
 
 /**
  * @brief Receive an RPC response asynchronously.
@@ -687,8 +699,7 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response_async(
-    libnngio_protobuf_context *ctx,
-    LibnngioProtobuf__RpcResponse **response,
+    libnngio_protobuf_context *ctx, LibnngioProtobuf__RpcResponse **response,
     libnngio_protobuf_recv_cb_info cb_info);
 
 /**
@@ -805,7 +816,8 @@ libnngio_protobuf_recv_service_discovery_response_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_send(
-    libnngio_protobuf_context *ctx, const LibnngioProtobuf__LibnngioMessage *msg);
+    libnngio_protobuf_context *ctx,
+    const LibnngioProtobuf__LibnngioMessage *msg);
 
 /**
  * @brief Send a generic LibnngioMessage asynchronously.
@@ -817,7 +829,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_async(
-    libnngio_protobuf_context *ctx, const LibnngioProtobuf__LibnngioMessage *msg,
+    libnngio_protobuf_context *ctx,
+    const LibnngioProtobuf__LibnngioMessage *msg,
     libnngio_protobuf_send_cb_info cb_info);
 
 /**
@@ -893,7 +906,8 @@ libnngio_protobuf_error_code libnngio_server_create_service_discovery_response(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_recv_service_discovery_request(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request);
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request);
 
 /**
  * @brief Receive a service discovery request asynchronously with the server
@@ -906,7 +920,8 @@ s * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code
 libnngio_server_recv_service_discovery_request_async(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request,
     libnngio_protobuf_recv_cb_info cb_info);
 
 /**
@@ -1001,7 +1016,8 @@ libnngio_protobuf_error_code libnngio_client_recv_service_discovery_response(
  */
 libnngio_protobuf_error_code
 libnngio_client_recv_service_discovery_response_async(
-    libnngio_client *client, LibnngioProtobuf__ServiceDiscoveryResponse **response,
+    libnngio_client *client,
+    LibnngioProtobuf__ServiceDiscoveryResponse **response,
     libnngio_protobuf_recv_cb_info cb_info);
 
 /**
@@ -1069,7 +1085,8 @@ libnngio_protobuf_error_code libnngio_client_recv_rpc_response_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_handle_service_discovery(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request,
     LibnngioProtobuf__ServiceDiscoveryResponse **response);
 
 /**
@@ -1082,7 +1099,8 @@ libnngio_protobuf_error_code libnngio_server_handle_service_discovery(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_handle_service_discovery_async(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request,
     LibnngioProtobuf__ServiceDiscoveryResponse **response,
     libnngio_protobuf_recv_cb_info recv_cb_info);
 
@@ -1129,8 +1147,7 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_send_rpc_response(
-    libnngio_server *server,
-    const LibnngioProtobuf__RpcResponse *response);
+    libnngio_server *server, const LibnngioProtobuf__RpcResponse *response);
 
 /**
  * @brief send an RPC response asynchronously with the server.
@@ -1140,8 +1157,7 @@ libnngio_protobuf_error_code libnngio_server_send_rpc_response(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_send_rpc_response_async(
-    libnngio_server *server,
-    const LibnngioProtobuf__RpcResponse *response,
+    libnngio_server *server, const LibnngioProtobuf__RpcResponse *response,
     libnngio_protobuf_send_cb_info cb_info);
 
 /**

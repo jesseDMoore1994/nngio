@@ -53,7 +53,8 @@ static void get_random_bytes(uint8_t *buf, size_t len) {
 }
 
 /**
- * @brief Convert LibnngioProtobuf__LibnngioMessage__MsgCase to human-readable string.
+ * @brief Convert LibnngioProtobuf__LibnngioMessage__MsgCase to human-readable
+ * string.
  *
  * @param msg_case The message case to convert.
  * @return A pointer to a static string describing the message case.
@@ -217,8 +218,8 @@ int libnngio_protobuf_context_get_transport_rv(libnngio_protobuf_context *ctx) {
  * @return Pointer to the allocated service, or NULL on failure.
  */
 LibnngioProtobuf__Service *nngio_create_service(const char *name,
-                                             const char **methods,
-                                             size_t n_methods) {
+                                                const char **methods,
+                                                size_t n_methods) {
   LibnngioProtobuf__Service *svc = malloc(sizeof(LibnngioProtobuf__Service));
   if (!svc) return NULL;
   libnngio_protobuf__service__init(svc);
@@ -268,7 +269,8 @@ nngio_create_service_discovery_response(LibnngioProtobuf__Service **services,
   libnngio_protobuf__service_discovery_response__init(resp);
   resp->n_services = n_services;
   resp->services =
-      n_services ? malloc(sizeof(LibnngioProtobuf__Service *) * n_services) : NULL;
+      n_services ? malloc(sizeof(LibnngioProtobuf__Service *) * n_services)
+                 : NULL;
   for (size_t i = 0; i < n_services; ++i) {
     resp->services[i] = services[i];
   }
@@ -307,9 +309,10 @@ void nngio_free_service_discovery_response(
  * @param payload_len Length of payload data.
  * @return Pointer to allocated request, or NULL on failure.
  */
-LibnngioProtobuf__RpcRequest *nngio_create_rpc_request(
-    const char *service_name, const char *method_name, const void *payload,
-    size_t payload_len) {
+LibnngioProtobuf__RpcRequest *nngio_create_rpc_request(const char *service_name,
+                                                       const char *method_name,
+                                                       const void *payload,
+                                                       size_t payload_len) {
   LibnngioProtobuf__RpcRequest *msg =
       malloc(sizeof(LibnngioProtobuf__RpcRequest));
   if (!msg) return NULL;
@@ -393,7 +396,7 @@ void nngio_free_rpc_response(LibnngioProtobuf__RpcResponse *msg) {
  * @return Pointer to allocated raw message, or NULL on failure.
  */
 LibnngioProtobuf__Raw *nngio_create_raw_message(const void *data,
-                                                    size_t data_len) {
+                                                size_t data_len) {
   LibnngioProtobuf__Raw *msg = malloc(sizeof(LibnngioProtobuf__Raw));
   if (!msg) return NULL;
   libnngio_protobuf__raw__init(msg);
@@ -419,7 +422,8 @@ void nngio_free_raw_message(LibnngioProtobuf__Raw *msg) {
 }
 
 /**
- * @brief Create a LibnngioProtobuf__LibnngioMessage containing a RpcRequestMessage.
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
+ * RpcRequestMessage.
  *
  * Allocates and initializes an LibnngioMessage. Takes ownership of rpc_request.
  *
@@ -440,9 +444,11 @@ LibnngioProtobuf__LibnngioMessage *nngio_create_nngio_message_with_rpc_request(
 }
 
 /**
- * @brief Create a LibnngioProtobuf__LibnngioMessage containing a RpcResponseMessage.
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
+ * RpcResponseMessage.
  *
- * Allocates and initializes an LibnngioMessage. Takes ownership of rpc_response.
+ * Allocates and initializes an LibnngioMessage. Takes ownership of
+ * rpc_response.
  *
  * @param uuid Unique identifier string.
  * @param rpc_response Pointer to a RpcResponseMessage.
@@ -499,7 +505,8 @@ nngio_create_nngio_message_with_service_discovery_request(
   if (!msg) return NULL;
   libnngio_protobuf__libnngio_message__init(msg);
   msg->uuid = strdup(uuid ? uuid : "");
-  msg->msg_case = LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST;
+  msg->msg_case =
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST;
   msg->service_discovery_request = req;
   return msg;
 }
@@ -522,7 +529,8 @@ nngio_create_nngio_message_with_service_discovery_response(
   if (!msg) return NULL;
   libnngio_protobuf__libnngio_message__init(msg);
   msg->uuid = strdup(uuid ? uuid : "");
-  msg->msg_case = LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_RESPONSE;
+  msg->msg_case =
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_RESPONSE;
   msg->service_discovery_response = resp;
   return msg;
 }
@@ -574,7 +582,8 @@ void nngio_free_nngio_message(LibnngioProtobuf__LibnngioMessage *msg) {
 /**
  * @brief Deep copy a LibnngioProtobuf__Service structure.
  */
-LibnngioProtobuf__Service *nngio_copy_service(const LibnngioProtobuf__Service *src) {
+LibnngioProtobuf__Service *nngio_copy_service(
+    const LibnngioProtobuf__Service *src) {
   if (!src) return NULL;
   return nngio_create_service(src->name, (const char **)src->methods,
                               src->n_methods);
@@ -583,7 +592,8 @@ LibnngioProtobuf__Service *nngio_copy_service(const LibnngioProtobuf__Service *s
 /**
  * @brief Deep copy a LibnngioProtobuf__ServiceDiscoveryResponse structure.
  */
-LibnngioProtobuf__ServiceDiscoveryResponse *nngio_copy_service_discovery_response(
+LibnngioProtobuf__ServiceDiscoveryResponse *
+nngio_copy_service_discovery_response(
     const LibnngioProtobuf__ServiceDiscoveryResponse *src) {
   if (!src) return NULL;
   LibnngioProtobuf__Service **services = NULL;
@@ -870,7 +880,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_raw_message_async(
   cb_data->ctx = ctx;
   cb_data->user_data = cb_info.user_data;
   cb_data->msg = nngio_msg;
-  cb_data->len = libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
+  cb_data->len =
+      libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
   cb_data->buffer = malloc(cb_data->len);
 
   if (!cb_data) {
@@ -1299,8 +1310,7 @@ static void send_rpc_request_async_cb(libnngio_context *ctx, int result,
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
-    libnngio_protobuf_context *ctx,
-    const LibnngioProtobuf__RpcRequest *request,
+    libnngio_protobuf_context *ctx, const LibnngioProtobuf__RpcRequest *request,
     libnngio_protobuf_send_cb_info cb_info) {
   libnngio_protobuf_error_code rv;
 
@@ -1351,7 +1361,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
   cb_data->client = cb_info.client;
   cb_data->user_data = cb_info.user_data;
   cb_data->msg = nngio_msg;
-  cb_data->len = libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
+  cb_data->len =
+      libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
   cb_data->buffer = malloc(cb_data->len);
 
   if (!cb_data) {
@@ -1376,7 +1387,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
   libnngio_protobuf__libnngio_message__pack(cb_data->msg, cb_data->buffer);
   libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_RPC_REQUEST_ASYNC", __FILE__,
                __LINE__, libnngio_context_id(ctx->ctx),
-               "Serialized raw message (%s) of size %zu bytes.",
+               "Serialized rpc request message (%s) of size %zu bytes.",
                nngio_msg->uuid, cb_data->len);
 
   // Send the serialized buffer asynchronously using the underlying libnngio
@@ -1408,8 +1419,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_request_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_request(
-    libnngio_protobuf_context *ctx,
-    LibnngioProtobuf__RpcRequest **request) {
+    libnngio_protobuf_context *ctx, LibnngioProtobuf__RpcRequest **request) {
   libnngio_protobuf_error_code rv;
   uint8_t *buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
   size_t len = LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE;
@@ -1447,7 +1457,8 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_request(
     return rv;
   }
 
-  if (nngio_msg->msg_case != LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_RPC_REQUEST) {
+  if (nngio_msg->msg_case !=
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_RPC_REQUEST) {
     libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_REQUEST", __FILE__,
                  __LINE__, libnngio_context_id(ctx->ctx),
                  "Received message is not an RPC request (msg_case=%s).",
@@ -1828,7 +1839,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response_async(
   cb_data->client = cb_info.client;
   cb_data->user_data = cb_info.user_data;
   cb_data->msg = nngio_msg;
-  cb_data->len = libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
+  cb_data->len =
+      libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
   cb_data->buffer = malloc(cb_data->len);
 
   if (!cb_data) {
@@ -1885,8 +1897,7 @@ libnngio_protobuf_error_code libnngio_protobuf_send_rpc_response_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response(
-    libnngio_protobuf_context *ctx,
-    LibnngioProtobuf__RpcResponse **response) {
+    libnngio_protobuf_context *ctx, LibnngioProtobuf__RpcResponse **response) {
   libnngio_protobuf_error_code rv;
 
   uint8_t *buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
@@ -1926,7 +1937,8 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response(
     return rv;
   }
 
-  if (nngio_msg->msg_case != LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_RPC_RESPONSE) {
+  if (nngio_msg->msg_case !=
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_RPC_RESPONSE) {
     libnngio_log("ERR", "LIBNNGIO_PROTOBUF_RECV_RPC_RESPONSE", __FILE__,
                  __LINE__, libnngio_context_id(ctx->ctx),
                  "Received message is not an RPC response (msg_case=%s).",
@@ -2058,8 +2070,7 @@ static void recv_rpc_response_async_cb(libnngio_context *ctx, int result,
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv_rpc_response_async(
-    libnngio_protobuf_context *ctx,
-    LibnngioProtobuf__RpcResponse **response,
+    libnngio_protobuf_context *ctx, LibnngioProtobuf__RpcResponse **response,
     libnngio_protobuf_recv_cb_info cb_info) {
   libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
 
@@ -2150,7 +2161,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_service_discovery_request(
   }
 
   // Wrap the ServiceDiscoveryRequest in a LibnngioMessage
-  LibnngioProtobuf__LibnngioMessage nngio_msg = LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__INIT;
+  LibnngioProtobuf__LibnngioMessage nngio_msg =
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__INIT;
   nngio_msg.uuid = libnngio_protobuf_gen_uuid();
   nngio_msg.msg_case =
       LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST;
@@ -2321,7 +2333,8 @@ libnngio_protobuf_send_service_discovery_request_async(
   cb_data->client = cb_info.client;
   cb_data->user_data = cb_info.user_data;
   cb_data->msg = nngio_msg;
-  cb_data->len = libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
+  cb_data->len =
+      libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
   cb_data->buffer = malloc(cb_data->len);
 
   if (!cb_data) {
@@ -2482,8 +2495,9 @@ static void recv_service_discovery_request_async_cb(libnngio_context *ctx,
                  __LINE__, libnngio_context_id(ctx),
                  "Failed to unpack LibnngioMessage from received buffer.");
     rv = LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED;
-  } else if (nngio_msg->msg_case !=
-             LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST) {
+  } else if (
+      nngio_msg->msg_case !=
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_REQUEST) {
     libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_REQUEST_ASYNC_CB", __FILE__,
                  __LINE__, libnngio_context_id(ctx),
                  "Received message is not a RPC Request (msg_case=%d).",
@@ -2810,7 +2824,8 @@ libnngio_protobuf_send_service_discovery_response_async(
   cb_data->client = cb_info.client;
   cb_data->user_data = cb_info.user_data;
   cb_data->msg = nngio_msg;
-  cb_data->len = libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
+  cb_data->len =
+      libnngio_protobuf__libnngio_message__get_packed_size(nngio_msg);
   cb_data->buffer = malloc(cb_data->len);
 
   if (!cb_data) {
@@ -2972,8 +2987,9 @@ static void recv_service_discovery_response_async_cb(libnngio_context *ctx,
                  __LINE__, libnngio_context_id(ctx),
                  "Failed to unpack LibnngioMessage from received buffer.");
     rv = LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED;
-  } else if (nngio_msg->msg_case !=
-             LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_RESPONSE) {
+  } else if (
+      nngio_msg->msg_case !=
+      LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_SERVICE_DISCOVERY_RESPONSE) {
     libnngio_log("ERR", "RECV_SERVICE_DISCOVERY_RESPONSE_ASYNC_CB", __FILE__,
                  __LINE__, libnngio_context_id(ctx),
                  "Received message is not a RPC Response (msg_case=%d).",
@@ -3146,7 +3162,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send(
   }
 
   // Serialize the LibnngioMessage to a buffer
-  size_t packed_size = libnngio_protobuf__libnngio_message__get_packed_size(message);
+  size_t packed_size =
+      libnngio_protobuf__libnngio_message__get_packed_size(message);
   uint8_t *buffer = malloc(packed_size);
   if (buffer == NULL) {
     libnngio_log("ERR", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
@@ -3159,8 +3176,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send(
   libnngio_protobuf__libnngio_message__pack(message, buffer);
   libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND", __FILE__, __LINE__,
                libnngio_context_id(ctx->ctx),
-               "Serialized LibnngioMessage (%s) of size %zu bytes.", message->uuid,
-               packed_size);
+               "Serialized LibnngioMessage (%s) of size %zu bytes.",
+               message->uuid, packed_size);
 
   // Send the serialized buffer using the underlying libnngio context
   ctx->transport_rv = libnngio_context_send(ctx->ctx, buffer, packed_size);
@@ -3234,7 +3251,8 @@ static void send_async_cb(libnngio_context *ctx, int result, void *data,
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_send_async(
-    libnngio_protobuf_context *ctx, const LibnngioProtobuf__LibnngioMessage *message,
+    libnngio_protobuf_context *ctx,
+    const LibnngioProtobuf__LibnngioMessage *message,
     libnngio_protobuf_send_cb_info cb_info) {
   libnngio_protobuf_error_code rv;
 
@@ -3300,8 +3318,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_async(
   libnngio_protobuf__libnngio_message__pack(cb_data->msg, cb_data->buffer);
   libnngio_log("DBG", "LIBNNGIO_PROTOBUF_SEND_ASYNC", __FILE__, __LINE__,
                libnngio_context_id(ctx->ctx),
-               "Serialized LibnngioMessage (%s) of size %zu bytes.", message->uuid,
-               cb_data->len);
+               "Serialized LibnngioMessage (%s) of size %zu bytes.",
+               message->uuid, cb_data->len);
 
   // Send the serialized buffer asynchronously using the underlying libnngio
   // context
@@ -3331,7 +3349,8 @@ libnngio_protobuf_error_code libnngio_protobuf_send_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_protobuf_recv(
-    libnngio_protobuf_context *ctx, LibnngioProtobuf__LibnngioMessage **message) {
+    libnngio_protobuf_context *ctx,
+    LibnngioProtobuf__LibnngioMessage **message) {
   libnngio_protobuf_error_code rv;
   uint8_t *buffer = calloc(LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE, sizeof(uint8_t));
   size_t len = LIBNNGIO_PROTOBUF_MAX_MESSAGE_SIZE;
@@ -3374,7 +3393,8 @@ libnngio_protobuf_error_code libnngio_protobuf_recv(
                "Unpacked LibnngioMessage successfully.");
   libnngio_log("DBG", "LIBNNGIO_PROTOBUF_RECV", __FILE__, __LINE__,
                libnngio_context_id(ctx->ctx),
-               "LibnngioMessage details: UUID='%s', msg_case=%s.", nngio_msg->uuid,
+               "LibnngioMessage details: UUID='%s', msg_case=%s.",
+               nngio_msg->uuid,
                libnngio_protobuf_nngio_msg_case_str(nngio_msg->msg_case));
 
   // Copy the received message to the user-provided structure
@@ -3567,6 +3587,90 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_async(
 }
 
 // Service implementation functions
+static LibnngioProtobuf__RpcResponse__Status call_rpc_handler(
+    libnngio_server *s, const void *request_data, size_t request_size,
+    void **response_data, size_t *response_size, void *user_data) {
+  if (user_data == NULL || request_data == NULL || request_size == 0) {
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+  LibnngioProtobuf__RpcRequest *request =
+      libnngio_protobuf__rpc_request__unpack(NULL, request_size, request_data);
+  if (request == NULL) {
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+
+  char *service_name = NULL;
+  char *method_name = NULL;
+  libnngio_service_registration *service = NULL;
+  libnngio_service_method *method = NULL;
+
+  // Find the service and method
+  for (size_t i = 0; i < s->n_services; i++) {
+    if (strcmp(s->services[i].service_name, request->service_name) == 0) {
+      service_name = s->services[i].service_name;
+      service = &s->services[i];
+    }
+  }
+
+  if (service_name == NULL) {
+    libnngio_protobuf__rpc_request__free_unpacked(request, NULL);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__ServiceNotFound;
+  }
+
+  for (size_t j = 0; j < service->n_methods; j++) {
+    if (strcmp(service->methods[j].method_name, request->method_name) == 0) {
+      method_name = service->methods[j].method_name;
+      method = &service->methods[j];
+    }
+  }
+
+  if (method_name == NULL) {
+    libnngio_protobuf__rpc_request__free_unpacked(request, NULL);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__MethodNotFound;
+  }
+
+  // Prevent recursive CallRpc calls
+  if (strcmp(service_name, "LibnngioProtobuf.RpcService") == 0 &&
+      strcmp(method_name, "CallRpc") == 0) {
+    libnngio_protobuf__rpc_request__free_unpacked(request, NULL);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+
+  // Call the method handler
+  LibnngioProtobuf__RpcResponse__Status status =
+      method->handler(s, request->payload.data, request->payload.len,
+                      response_data, response_size, method->user_data);
+  libnngio_protobuf__rpc_request__free_unpacked(request, NULL);
+  return status;
+}
+
+static LibnngioProtobuf__RpcResponse__Status get_services_handler(
+    libnngio_server *s, const void *request_data, size_t request_size,
+    void **response_data, size_t *response_size, void *user_data) {
+  if (user_data == NULL) {
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  LibnngioProtobuf__ServiceDiscoveryResponse *response = NULL;
+  libnngio_protobuf_error_code rv = LIBNNGIO_PROTOBUF_ERR_NONE;
+
+  rv = libnngio_server_create_service_discovery_response(s, &response);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+
+  *response_size =
+      libnngio_protobuf__service_discovery_response__get_packed_size(response);
+  *response_data = malloc(*response_size);
+  if (*response_data == NULL) {
+    libnngio_protobuf__service_discovery_response__free_unpacked(response,
+                                                                 NULL);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+
+  libnngio_protobuf__service_discovery_response__pack(response, *response_data);
+  libnngio_protobuf__service_discovery_response__free_unpacked(response, NULL);
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
+}
 
 /**
  * @brief Initialize a libnngio_server with the given protobuf context.
@@ -3586,6 +3690,33 @@ libnngio_protobuf_error_code libnngio_server_init(
   (*server)->services = NULL;
   (*server)->n_services = 0;
   (*server)->running = 0;
+
+  libnngio_service_method rpc_service_method = {0};
+  rpc_service_method.method_name = "CallRpc";
+  rpc_service_method.handler = call_rpc_handler;
+  rpc_service_method.user_data = *server;
+
+  libnngio_protobuf_error_code rv = libnngio_server_register_service(
+      *server, "LibnngioProtobuf.RpcService", &rpc_service_method, 1);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    free(*server);
+    *server = NULL;
+    return rv;
+  }
+
+  libnngio_service_method get_services_method = {0};
+  get_services_method.method_name = "GetServices";
+  get_services_method.handler = get_services_handler;
+  get_services_method.user_data = *server;
+
+  rv = libnngio_server_register_service(
+      *server, "LibnngioProtobuf.ServiceDiscoveryService", &get_services_method,
+      1);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_server_free(*server);
+    *server = NULL;
+    return rv;
+  }
 
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
@@ -3732,7 +3863,8 @@ create_service_discovery_response(libnngio_service_registration *services,
         free(response->services[i]->name);
         free(response->services[i]);
         for (size_t k = 0; k < i; k++) {
-          libnngio_protobuf__service__free_unpacked(response->services[k], NULL);
+          libnngio_protobuf__service__free_unpacked(response->services[k],
+                                                    NULL);
         }
         free(response->services);
         free(response);
@@ -3777,7 +3909,8 @@ libnngio_protobuf_error_code libnngio_server_create_service_discovery_response(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_recv_service_discovery_request(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request) {
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request) {
   if (server == NULL || server->proto_ctx == NULL ||
       server->proto_ctx->ctx == NULL || request == NULL) {
     return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
@@ -3797,7 +3930,8 @@ libnngio_protobuf_error_code libnngio_server_recv_service_discovery_request(
  */
 libnngio_protobuf_error_code
 libnngio_server_recv_service_discovery_request_async(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request,
     libnngio_protobuf_recv_cb_info cb_info) {
   if (server == NULL || server->proto_ctx == NULL ||
       server->proto_ctx->ctx == NULL || request == NULL) {
@@ -3957,7 +4091,8 @@ libnngio_protobuf_error_code libnngio_client_recv_service_discovery_response(
 
   rv = libnngio_client_populate_services_from_response(client, *response);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_protobuf__service_discovery_response__free_unpacked(*response, NULL);
+    libnngio_protobuf__service_discovery_response__free_unpacked(*response,
+                                                                 NULL);
     *response = NULL;
     return rv;
   }
@@ -3970,8 +4105,8 @@ libnngio_protobuf_error_code libnngio_client_recv_service_discovery_response(
  * client's discovered services.
  */
 static void client_service_discovery_response_cb(
-    libnngio_client *client, int result, LibnngioProtobuf__LibnngioMessage **message,
-    void *user_data) {
+    libnngio_client *client, int result,
+    LibnngioProtobuf__LibnngioMessage **message, void *user_data) {
   if (result != 0 || message == NULL || *message == NULL) {
     libnngio_log("ERR", "CLIENT_SERVICE_DISCOVERY_RESPONSE_CB", __FILE__,
                  __LINE__, libnngio_context_id(client->proto_ctx->ctx),
@@ -4016,7 +4151,8 @@ static void client_service_discovery_response_cb(
  */
 libnngio_protobuf_error_code
 libnngio_client_recv_service_discovery_response_async(
-    libnngio_client *client, LibnngioProtobuf__ServiceDiscoveryResponse **response,
+    libnngio_client *client,
+    LibnngioProtobuf__ServiceDiscoveryResponse **response,
     libnngio_protobuf_recv_cb_info cb_info) {
   if (client == NULL || client->proto_ctx == NULL ||
       client->proto_ctx->ctx == NULL || response == NULL) {
@@ -4153,7 +4289,7 @@ libnngio_protobuf_error_code libnngio_client_recv_rpc_response_async(
   }
 
   return libnngio_protobuf_recv_rpc_response_async(client->proto_ctx, response,
-                                                  cb_info);
+                                                   cb_info);
 }
 
 /**
@@ -4166,7 +4302,8 @@ libnngio_protobuf_error_code libnngio_client_recv_rpc_response_async(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_handle_service_discovery(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request,
     LibnngioProtobuf__ServiceDiscoveryResponse **response) {
   libnngio_protobuf_error_code rv;
 
@@ -4203,8 +4340,8 @@ libnngio_protobuf_error_code libnngio_server_handle_service_discovery(
 }
 
 static void server_prepare_service_discovery_response_cb(
-    libnngio_server *server, int result, LibnngioProtobuf__LibnngioMessage **msg,
-    void *user_data) {
+    libnngio_server *server, int result,
+    LibnngioProtobuf__LibnngioMessage **msg, void *user_data) {
   if (result != 0 || msg == NULL || *msg == NULL) {
     libnngio_log("ERR", "SERVER_PREPARE_SERVICE_DISCOVERY_RESPONSE_CB",
                  __FILE__, __LINE__,
@@ -4255,7 +4392,8 @@ static void server_prepare_service_discovery_response_cb(
  * @return libnngio_protobuf_error_code indicating success or failure.
  */
 libnngio_protobuf_error_code libnngio_server_handle_service_discovery_async(
-    libnngio_server *server, LibnngioProtobuf__ServiceDiscoveryRequest **request,
+    libnngio_server *server,
+    LibnngioProtobuf__ServiceDiscoveryRequest **request,
     LibnngioProtobuf__ServiceDiscoveryResponse **response,
     libnngio_protobuf_recv_cb_info recv_cb_info) {
   libnngio_protobuf_error_code rv;
@@ -4317,7 +4455,7 @@ libnngio_protobuf_error_code libnngio_server_recv_rpc_request_async(
   }
 
   return libnngio_protobuf_recv_rpc_request_async(server->proto_ctx, request,
-                                                 cb_info);
+                                                  cb_info);
 }
 
 /**
@@ -4396,19 +4534,18 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
   }
 
   // Call the method handler to get the response
-  status = method_handler->handler(
-      service_name, method_name, request->payload.data, request->payload.len,
-      &payload, &payload_len, method_handler->user_data);
+  status = method_handler->handler(server, request->payload.data,
+                                   request->payload.len, &payload, &payload_len,
+                                   method_handler->user_data);
 
   // If the handler is successful, the payload is the data
   // If the handler is not successful, the payload is the error message
 
-  if(status == LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success) {
+  if (status == LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success) {
     (*response) = nngio_create_rpc_response(status, payload, payload_len, "");
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_NONE;
-  }
-  else {
+  } else {
     (*response) = nngio_create_rpc_response(status, NULL, 0, payload);
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
@@ -4453,11 +4590,10 @@ libnngio_protobuf_error_code libnngio_server_send_rpc_response_async(
 }
 
 static void server_prepare_rpc_response_cb(
-    libnngio_server *server, int result, LibnngioProtobuf__LibnngioMessage **msg,
-    void *user_data) {
+    libnngio_server *server, int result,
+    LibnngioProtobuf__LibnngioMessage **msg, void *user_data) {
   if (result != 0 || msg == NULL || *msg == NULL) {
-    libnngio_log("ERR", "SERVER_PREPARE_RPC_RESPONSE_CB",
-                 __FILE__, __LINE__,
+    libnngio_log("ERR", "SERVER_PREPARE_RPC_RESPONSE_CB", __FILE__, __LINE__,
                  libnngio_context_id(server->proto_ctx->ctx),
                  "Error in prepare rpc response callback: %d", result);
     return;
@@ -4466,16 +4602,15 @@ static void server_prepare_rpc_response_cb(
   if ((*msg)->msg_case !=
       LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_RPC_REQUEST) {
     libnngio_log(
-        "ERR", "SERVER_PREPARE_RPC_RESPONSE_CB", __FILE__,
-        __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+        "ERR", "SERVER_PREPARE_RPC_RESPONSE_CB", __FILE__, __LINE__,
+        libnngio_context_id(server->proto_ctx->ctx),
         "Received unexpected message type in prepare rpc response callback.");
     return;
   }
 
   // this is left here for completeness, though we don't actually use the
   // request to generate the response in this simple implementation
-  LibnngioProtobuf__RpcRequest *request =
-      (*msg)->rpc_request;
+  LibnngioProtobuf__RpcRequest *request = (*msg)->rpc_request;
 
   // the server storage holds the pointer to the response that we need to
   // populate create a new response message and populate it with the server's
@@ -4486,17 +4621,13 @@ static void server_prepare_rpc_response_cb(
   libnngio_protobuf_error_code rv =
       libnngio_server_create_rpc_response(server, request, response);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_log("ERR", "SERVER_PREPARE_RPC_RESPONSE_CB",
-                 __FILE__, __LINE__,
+    libnngio_log("ERR", "SERVER_PREPARE_RPC_RESPONSE_CB", __FILE__, __LINE__,
                  libnngio_context_id(server->proto_ctx->ctx),
                  "Failed to create rpc response: %d", rv);
-  }
-  else {
-    libnngio_log("INF", "SERVER_PREPARE_RPC_RESPONSE_CB",
-             __FILE__, __LINE__,
-             libnngio_context_id(server->proto_ctx->ctx),
-             "Created RPC response.");
-
+  } else {
+    libnngio_log("INF", "SERVER_PREPARE_RPC_RESPONSE_CB", __FILE__, __LINE__,
+                 libnngio_context_id(server->proto_ctx->ctx),
+                 "Created RPC response.");
   }
 }
 
@@ -4520,8 +4651,8 @@ libnngio_protobuf_error_code libnngio_server_handle_rpc_request_async(
     return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
   }
 
-  libnngio_log("DBG", "LIBNNGIO_SERVER_HANDLE_RPC_REQUEST_ASYNC",
-               __FILE__, __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+  libnngio_log("DBG", "LIBNNGIO_SERVER_HANDLE_RPC_REQUEST_ASYNC", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
                "Handling RPC request asynchronously.");
 
   // set server storage to point to the response pointer
