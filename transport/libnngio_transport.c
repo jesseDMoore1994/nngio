@@ -787,6 +787,8 @@ void libnngio_context_start(libnngio_context *ctx) {
   } else {
     libnngio_log("WRN", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
                  "No callback defined for context ID %d.", ctx->id);
+    libnngio_log("WRN", "LIBNNGIO_CONTEXT_START", __FILE__, __LINE__, ctx->id,
+                 "Transport can no longer be async!.", ctx->id);
   }
 }
 

@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package LibnngioManagement;
+
+// Common message types for management operations
+
+// Transport configuration message
+message TransportConfig {
+    string name = 1;           // Unique name for the transport
+    string mode = 2;           // "dial" or "listen"
+    string protocol = 3;       // Protocol type (pair, req, rep, pub, sub, etc.)
+    string url = 4;            // Transport URL
+    string tls_cert = 5;       // Optional TLS certificate path
+    string tls_key = 6;        // Optional TLS key path
+    string tls_ca_cert = 7;    // Optional TLS CA certificate path
+    int32 recv_timeout_ms = 8; // Receive timeout in milliseconds
+    int32 send_timeout_ms = 9; // Send timeout in milliseconds
+    uint64 max_msg_size = 10;  // Maximum message size
+}
+
+// Service configuration message
+message ServiceConfig {
+    string name = 1;           // Unique name for the service
+    string transport_name = 2; // Name of the associated transport
+    string service_type = 3;   // Type of service (e.g., "TransportManagement", "ServiceDiscoveryService")
+}
+
+// Transport Management Service Messages
+message AddTransportRequest {
+    TransportConfig config = 1;
+}
+
+message AddTransportResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message RemoveTransportRequest {
+    string name = 1;
+}
+
+message RemoveTransportResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ListTransportsRequest {
+    // Empty request
+}
+
+message ListTransportsResponse {
+    repeated TransportConfig transports = 1;
+}
+
+message GetTransportRequest {
+    string name = 1;
+}
+
+message GetTransportResponse {
+    bool found = 1;
+    TransportConfig config = 2;
+}
+
+// Service Management Service Messages
+message AddServiceRequest {
+    ServiceConfig config = 1;
+}
+
+message AddServiceResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message RemoveServiceRequest {
+    string name = 1;
+}
+
+message RemoveServiceResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ListServicesRequest {
+    // Empty request
+}
+
+message ListServicesResponse {
+    repeated ServiceConfig services = 1;
+}
+
+message GetServiceRequest {
+    string name = 1;
+}
+
+message GetServiceResponse {
+    bool found = 1;
+    ServiceConfig config = 2;
+}
+
+// Service definitions (for documentation purposes)
+service TransportManagement {
+    rpc AddTransport(AddTransportRequest) returns (AddTransportResponse);
+    rpc RemoveTransport(RemoveTransportRequest) returns (RemoveTransportResponse);
+    rpc ListTransports(ListTransportsRequest) returns (ListTransportsResponse);
+    rpc GetTransport(GetTransportRequest) returns (GetTransportResponse);
+}
+
+service ServiceManagement {
+    rpc AddService(AddServiceRequest) returns (AddServiceResponse);
+    rpc RemoveService(RemoveServiceRequest) returns (RemoveServiceResponse);
+    rpc ListServices(ListServicesRequest) returns (ListServicesResponse);
+    rpc GetService(GetServiceRequest) returns (GetServiceResponse);
+}
