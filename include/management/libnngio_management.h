@@ -141,8 +141,9 @@ libnngio_context *libnngio_management_get_transport_context(libnngio_management_
  * @brief Register a module's services with the management server.
  * 
  * This function registers all services from a module descriptor with the management
- * server and adds them to the internal service tracking list. The services will be
- * available through the management IPC transport.
+ * server via the module system (modsys). The module's services will be automatically
+ * registered with the management server and will be available through the management
+ * IPC transport.
  *
  * @param ctx Management context.
  * @param module Module descriptor containing services to register.
@@ -151,6 +152,31 @@ libnngio_context *libnngio_management_get_transport_context(libnngio_management_
 libnngio_management_error_code libnngio_management_register_module(
     libnngio_management_context *ctx,
     const struct libnngio_module_descriptor *module);
+
+/**
+ * @brief Unregister a module from the management server.
+ * 
+ * This function unregisters a module and its services from the management server
+ * via the module system (modsys). The module's services will no longer be available
+ * through the management IPC transport.
+ *
+ * @param ctx Management context.
+ * @param module_name Name of the module to unregister.
+ * @return Error code indicating success or failure.
+ */
+libnngio_management_error_code libnngio_management_unregister_module(
+    libnngio_management_context *ctx,
+    const char *module_name);
+
+/**
+ * @brief Get the number of registered modules.
+ * 
+ * Returns the count of modules currently registered with the management server.
+ *
+ * @param ctx Management context.
+ * @return Number of registered modules, or 0 if ctx is NULL.
+ */
+size_t libnngio_management_get_module_count(libnngio_management_context *ctx);
 
 // =============================================================================
 // Configuration Helper Functions

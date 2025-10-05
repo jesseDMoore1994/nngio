@@ -4,6 +4,7 @@
  */
 
 #include "management/libnngio_management.h"
+#include "modsys/libnngio_modsys.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +23,9 @@ struct libnngio_management_context {
   
   // Single protobuf context for the management server
   libnngio_protobuf_context *management_proto_ctx;
+  
+  // Module system for managing registered modules
+  libnngio_modsys_context *modsys;
   
   // Storage for managed resources
   libnngio_management_transport_entry *transports;
@@ -462,30 +466,39 @@ libnngio_management_error_code libnngio_management_init(
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  // List of available modules to load
-  const char *transport_name = "nngio-ipc";
-  
-  // Register services from the management module using the module interface
-  const libnngio_module_descriptor *mgmt_module = libnngio_management_get_module_descriptor(mgmt_ctx);
-  proto_rv = libnngio_module_register_services(mgmt_ctx->management_server, mgmt_module);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+  // Initialize module system
+  libnngio_modsys_error_code modsys_rv = libnngio_modsys_init(&mgmt_ctx->modsys);
+  if (modsys_rv != LIBNNGIO_MODSYS_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
-  // Add services from management module to the services list
+  
+  // Transport name for module registration
+  const char *transport_name = "nngio-ipc";
+  
+  // Register management module via modsys
+  const libnngio_module_descriptor *mgmt_module = libnngio_management_get_module_descriptor(mgmt_ctx);
+  modsys_rv = libnngio_modsys_register_module(mgmt_ctx->modsys, mgmt_module, 
+                                               mgmt_ctx->management_server, transport_name);
+  if (modsys_rv != LIBNNGIO_MODSYS_ERR_NONE) {
+    libnngio_management_free(mgmt_ctx);
+    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  // Add services from management module to the services list (for backward compatibility)
   if (add_services_from_module(mgmt_ctx, mgmt_module, transport_name) != 0) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
   }
   
-  // Register services from the protobuf module using the module interface
+  // Register protobuf module via modsys
   const libnngio_module_descriptor *protobuf_module = libnngio_protobuf_get_module_descriptor(mgmt_ctx->management_server);
-  proto_rv = libnngio_module_register_services(mgmt_ctx->management_server, protobuf_module);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+  modsys_rv = libnngio_modsys_register_module(mgmt_ctx->modsys, protobuf_module,
+                                               mgmt_ctx->management_server, transport_name);
+  if (modsys_rv != LIBNNGIO_MODSYS_ERR_NONE) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
-  // Add services from protobuf module to the services list
+  // Add services from protobuf module to the services list (for backward compatibility)
   if (add_services_from_module(mgmt_ctx, protobuf_module, transport_name) != 0) {
     libnngio_management_free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
@@ -498,6 +511,9 @@ libnngio_management_error_code libnngio_management_init(
 
 void libnngio_management_free(libnngio_management_context *ctx) {
   if (!ctx) return;
+  
+  // Free module system
+  if (ctx->modsys) libnngio_modsys_free(ctx->modsys);
   
   // Free single management server
   if (ctx->management_server) libnngio_server_free(ctx->management_server);
@@ -551,19 +567,68 @@ libnngio_management_error_code libnngio_management_register_module(
     return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
   }
   
-  // Register the module's services with the management server
-  libnngio_protobuf_error_code proto_rv = 
-      libnngio_module_register_services(ctx->management_server, module);
-  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+  // Register module via modsys
+  libnngio_modsys_error_code modsys_rv = 
+      libnngio_modsys_register_module(ctx->modsys, module, 
+                                       ctx->management_server, "nngio-ipc");
+  if (modsys_rv != LIBNNGIO_MODSYS_ERR_NONE) {
+    if (modsys_rv == LIBNNGIO_MODSYS_ERR_ALREADY_EXISTS) {
+      return LIBNNGIO_MANAGEMENT_ERR_ALREADY_EXISTS;
+    }
     return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
   }
   
-  // Add the services to the management context's service list
+  // Add the services to the management context's service list (for backward compatibility)
   if (add_services_from_module(ctx, module, "nngio-ipc") != 0) {
     return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
   }
   
   return LIBNNGIO_MANAGEMENT_ERR_NONE;
+}
+
+libnngio_management_error_code libnngio_management_unregister_module(
+    libnngio_management_context *ctx,
+    const char *module_name) {
+  if (!ctx || !module_name) {
+    return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
+  }
+  
+  // Find and remove services from the service list (for backward compatibility)
+  size_t write_idx = 0;
+  for (size_t i = 0; i < ctx->n_services; i++) {
+    // Check if this service belongs to the module being unregistered
+    if (ctx->services[i].service_type && 
+        strcmp(ctx->services[i].service_type, module_name) == 0) {
+      // Free this service entry
+      free(ctx->services[i].name);
+      free(ctx->services[i].transport_name);
+      free(ctx->services[i].service_type);
+    } else {
+      // Keep this service
+      if (write_idx != i) {
+        ctx->services[write_idx] = ctx->services[i];
+      }
+      write_idx++;
+    }
+  }
+  ctx->n_services = write_idx;
+  
+  // Unregister module via modsys
+  libnngio_modsys_error_code modsys_rv = 
+      libnngio_modsys_unregister_module(ctx->modsys, module_name);
+  if (modsys_rv != LIBNNGIO_MODSYS_ERR_NONE) {
+    if (modsys_rv == LIBNNGIO_MODSYS_ERR_NOT_FOUND) {
+      return LIBNNGIO_MANAGEMENT_ERR_NOT_FOUND;
+    }
+    return LIBNNGIO_MANAGEMENT_ERR_INTERNAL;
+  }
+  
+  return LIBNNGIO_MANAGEMENT_ERR_NONE;
+}
+
+size_t libnngio_management_get_module_count(libnngio_management_context *ctx) {
+  if (!ctx || !ctx->modsys) return 0;
+  return libnngio_modsys_get_module_count(ctx->modsys);
 }
 
 // =============================================================================

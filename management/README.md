@@ -1,21 +1,35 @@
 # Management Module
 
-The management module provides unified management of transport configurations, service configurations, and connections through a single management server with five protobuf services exposed over an IPC transport.
+The management module provides unified management of transport configurations, service configurations, and connections through a single management server with protobuf services exposed over an IPC transport. The module system (modsys) handles module registration and lifecycle management.
 
 ## Architecture
 
-The management module implements a single server with five registered protobuf services. All service names are prefixed with their package name to prevent collisions:
+The management module uses a module-based architecture where modules (not individual services) are registered and unregistered. Each module contains one or more services that are automatically registered when the module is added.
 
-### Management Services (3) - Package: LibnngioManagement
+### Module System (modsys)
+
+The module system provides:
+- Centralized module registration and unregistration
+- Automatic service registration when modules are added
+- Automatic service unregistration when modules are removed
+- Module lifecycle management
+- Prevention of duplicate module registration
+
+### Default Registered Modules
+
+When initialized, the management module automatically registers two modules:
+
+#### Management Module - Package: LibnngioManagement
+Services:
 1. **LibnngioManagement.TransportManagement**: Handle transport operations (add, remove, list, get)
 2. **LibnngioManagement.ServiceManagement**: Handle service operations (add, remove, list, get)
-3. **LibnngioManagement.ConnectionManagement**: Handle connection operations (add, remove, list, get)
 
-### Protobuf Module Services (2) - Package: LibnngioProtobuf
-4. **LibnngioProtobuf.RpcService**: Generic RPC call interface for invoking any registered service method
-5. **LibnngioProtobuf.ServiceDiscoveryService**: Service discovery to list all available services
+#### Protobuf Module - Package: LibnngioProtobuf
+Services:
+3. **LibnngioProtobuf.RpcService**: Generic RPC call interface for invoking any registered service method
+4. **LibnngioProtobuf.ServiceDiscoveryService**: Service discovery to list all available services
 
-The package prefix prevents service name collisions when multiple modules are loaded.
+All service names are prefixed with their package name to prevent collisions when multiple modules are loaded.
 
 ## Default Configuration
 
@@ -26,11 +40,9 @@ When initialized, the management module sets up:
   - Mode: Listen (reply mode)
   - URL: `ipc:///tmp/libnngio_management.ipc`
 
-- **One management server** with services automatically loaded from available modules:
-  - Management module services (TransportManagement, ServiceManagement, ConnectionManagement)
-  - Protobuf module services (RpcService, ServiceDiscoveryService)
+- **One management server** with services automatically loaded from registered modules via the module system (modsys)
 
-The services list is dynamically populated from the module descriptors, making it easy to track and manage all registered services.
+- **Module system (modsys)** for tracking and managing registered modules
 
 ## Usage
 
@@ -65,30 +77,41 @@ err = libnngio_management_stop(ctx);
 libnngio_management_free(ctx);
 ```
 
-### Registering Additional Modules
+### Registering and Unregistering Modules
 
-You can register additional modules after initialization to add more services dynamically:
+The management module operates at the module level, not the service level. You can register and unregister modules dynamically:
 
 ```c
 #include "management/libnngio_management.h"
-#include "module/libnngio_module.h"
 
 // Initialize management context
 libnngio_management_context *ctx = NULL;
-libnngio_management_init(&ctx);
+libnngio_management_init(&ctx, NULL);
 
-// Register a custom module's services
+// Register a custom module
 const libnngio_module_descriptor *custom_module = my_custom_get_module_descriptor(user_data);
 libnngio_management_error_code err = libnngio_management_register_module(ctx, custom_module);
 if (err != LIBNNGIO_MANAGEMENT_ERR_NONE) {
     // Handle error
 }
 
-// Now the custom module's services are available on the management server
-// and tracked in the internal services list
+// The module's services are now available on the management server
+// and tracked by the module system (modsys)
+
+// Check how many modules are registered
+size_t module_count = libnngio_management_get_module_count(ctx);
+printf("Registered modules: %zu\n", module_count);
+
+// Unregister a module when no longer needed
+err = libnngio_management_unregister_module(ctx, "custom_module");
+if (err != LIBNNGIO_MANAGEMENT_ERR_NONE) {
+    // Handle error
+}
+
+// The module's services are now removed from the management server
 ```
 
-The services list is automatically populated from module descriptors, eliminating the need to manually create service entries.
+The module system automatically handles service registration and unregistration, eliminating the need to manually manage individual services.
 
 ### Configuration Helpers
 
@@ -167,6 +190,39 @@ Get the management IPC URL.
 ```c
 const char *libnngio_management_get_url(libnngio_management_context *ctx);
 ```
+
+### Module Management Functions
+
+#### `libnngio_management_register_module`
+Register a module with the management server via the module system.
+
+```c
+libnngio_management_error_code libnngio_management_register_module(
+    libnngio_management_context *ctx,
+    const libnngio_module_descriptor *module);
+```
+
+Automatically registers all services from the module descriptor with the management server.
+
+#### `libnngio_management_unregister_module`
+Unregister a module from the management server.
+
+```c
+libnngio_management_error_code libnngio_management_unregister_module(
+    libnngio_management_context *ctx,
+    const char *module_name);
+```
+
+Automatically unregisters all services belonging to the module.
+
+#### `libnngio_management_get_module_count`
+Get the number of registered modules.
+
+```c
+size_t libnngio_management_get_module_count(libnngio_management_context *ctx);
+```
+
+Returns the count of modules currently registered with the management server via modsys.
 
 ## Protobuf Services
 

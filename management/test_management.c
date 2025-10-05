@@ -949,6 +949,70 @@ void test_rpc_service_invoke_async() {
                "========================================");
 }
 
+/**
+ * @brief Test module registration and unregistration via modsys.
+ * 
+ * This test verifies that modules can be registered and unregistered correctly,
+ * and that the module count is tracked properly.
+ */
+void test_module_registration() {
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "========================================");
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Testing module registration and unregistration");
+  
+  // Initialize management context
+  libnngio_management_context *ctx = NULL;
+  libnngio_management_error_code err = libnngio_management_init(&ctx, NULL);
+  assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
+  assert(ctx != NULL);
+  
+  // Check initial module count (should be 2: management + protobuf)
+  size_t initial_count = libnngio_management_get_module_count(ctx);
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Initial module count: %zu", initial_count);
+  assert(initial_count == 2);
+  
+  // Try to register the management module again (should fail - already exists)
+  const libnngio_module_descriptor *mgmt_module = libnngio_management_get_module_descriptor(ctx);
+  err = libnngio_management_register_module(ctx, mgmt_module);
+  assert(err == LIBNNGIO_MANAGEMENT_ERR_ALREADY_EXISTS);
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Duplicate registration correctly rejected");
+  
+  // Module count should still be 2
+  size_t count_after_dup = libnngio_management_get_module_count(ctx);
+  assert(count_after_dup == 2);
+  
+  // Try to unregister a non-existent module (should fail - not found)
+  err = libnngio_management_unregister_module(ctx, "nonexistent_module");
+  assert(err == LIBNNGIO_MANAGEMENT_ERR_NOT_FOUND);
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Unregister of non-existent module correctly rejected");
+  
+  // Unregister the management module
+  err = libnngio_management_unregister_module(ctx, "management");
+  assert(err == LIBNNGIO_MANAGEMENT_ERR_NONE);
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Management module unregistered successfully");
+  
+  // Module count should now be 1 (only protobuf)
+  size_t count_after_unreg = libnngio_management_get_module_count(ctx);
+  assert(count_after_unreg == 1);
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Module count after unregistration: %zu", count_after_unreg);
+  
+  // Clean up
+  libnngio_management_free(ctx);
+  
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "========================================");
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "Module registration test completed!");
+  libnngio_log("INF", "TEST_MODULE_REGISTRATION", __FILE__, __LINE__, -1,
+               "========================================");
+}
+
 int main() {
   atexit(libnngio_cleanup);
 
@@ -966,6 +1030,7 @@ int main() {
   test_management_init_free();
   test_transport_config_helpers();
   test_service_config_helpers();
+  test_module_registration();
   test_service_discovery();
   test_service_discovery_async();
   test_rpc_service_invoke_sync();
