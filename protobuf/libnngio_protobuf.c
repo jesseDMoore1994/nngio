@@ -4348,10 +4348,24 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
   char *found_method_name = NULL;
   libnngio_service_method *method_handler = NULL;
 
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Creating RPC response for service '%s' method '%s'.",
+               request->service_name, request->method_name);
+
   for (size_t i = 0; i < server->n_services; i++) {
+    libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+                 __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+                 "Checking registered service '%s' for match.",
+                 server->services[i].service_name);
     if (strcmp(server->services[i].service_name, service_name) == 0) {
       found_service_name = server->services[i].service_name;
       for (size_t j = 0; j < server->services[i].n_methods; j++) {
+        libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE",
+                     __FILE__, __LINE__,
+                     libnngio_context_id(server->proto_ctx->ctx),
+                     "Checking method '%s' for match.",
+                     server->services[i].methods[j].method_name);
         if (strcmp(server->services[i].methods[j].method_name, method_name) ==
             0) {
           found_method_name = server->services[i].methods[j].method_name;
@@ -4395,20 +4409,40 @@ libnngio_protobuf_error_code libnngio_server_create_rpc_response(
     return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
   }
 
+
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Invoking handler for service '%s' method '%s'.",
+               request->service_name, request->method_name);
   // Call the method handler to get the response
   status = method_handler->handler(
       service_name, method_name, request->payload.data, request->payload.len,
       &payload, &payload_len, method_handler->user_data);
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Handler for service '%s' method '%s' returned status %d.",
+               request->service_name, request->method_name, status);
 
   // If the handler is successful, the payload is the data
   // If the handler is not successful, the payload is the error message
 
+  libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+               __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+               "Creating RPC response with status %d.", status);
   if(status == LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success) {
+    libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+                 __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+                 "RPC response created successfully with payload length %zu.",
+                 payload_len);
     (*response) = nngio_create_rpc_response(status, payload, payload_len, "");
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_NONE;
   }
   else {
+    libnngio_log("ERR", "LIBNNGIO_SERVER_CREATE_RPC_RESPONSE", __FILE__,
+                 __LINE__, libnngio_context_id(server->proto_ctx->ctx),
+                 "RPC response created with error status %d and message: %s",
+                 status, (char *)payload);
     (*response) = nngio_create_rpc_response(status, NULL, 0, payload);
     free(payload);
     return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;

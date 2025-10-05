@@ -65,15 +65,6 @@ typedef struct {
 } libnngio_management_service_entry;
 
 /**
- * @brief Internal storage for a connection configuration.
- */
-typedef struct {
-  char *name;
-  char *transport_name;
-  char *service_name;
-} libnngio_management_connection_entry;
-
-/**
  * @brief Initialize a management context with default configuration.
  *
  * Creates:
@@ -140,6 +131,14 @@ const char *libnngio_management_get_url(libnngio_management_context *ctx);
 libnngio_server *libnngio_management_get_server(libnngio_management_context *ctx);
 
 /**
+ * @brief Get the underlying management server instance.
+ *
+ * @param ctx Management context.
+ * @return Pointer to the underlying transport context.
+ */
+libnngio_context *libnngio_management_get_transport_context(libnngio_management_context *ctx);
+
+/**
  * @brief Register a module's services with the management server.
  * 
  * This function registers all services from a module descriptor with the management
@@ -196,25 +195,6 @@ LibnngioManagement__ServiceConfig *libnngio_management_create_service_config(
  */
 void libnngio_management_free_service_config(
     LibnngioManagement__ServiceConfig *config);
-
-/**
- * @brief Create a connection configuration message.
- *
- * @param name Connection name.
- * @param transport_name Transport name.
- * @param service_name Service name.
- * @return Allocated ConnectionConfig message, or NULL on failure.
- */
-LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_config(
-    const char *name, const char *transport_name, const char *service_name);
-
-/**
- * @brief Free a connection configuration message.
- *
- * @param config ConnectionConfig message to free.
- */
-void libnngio_management_free_connection_config(
-    LibnngioManagement__ConnectionConfig *config);
 
 // =============================================================================
 // Module Interface

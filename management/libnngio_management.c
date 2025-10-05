@@ -32,10 +32,6 @@ struct libnngio_management_context {
   size_t n_services;
   size_t services_capacity;
   
-  libnngio_management_connection_entry *connections;
-  size_t n_connections;
-  size_t connections_capacity;
-  
   int running;
 };
 
@@ -332,13 +328,35 @@ static LibnngioProtobuf__RpcResponse__Status service_list_handler(
   }
   
   LibnngioManagement__ListServicesResponse resp = LIBNNGIO_MANAGEMENT__LIST_SERVICES_RESPONSE__INIT;
-  resp.n_services = 0;
-  resp.services = NULL;
+  libnngio_management__list_services_response__init(&resp);
+  resp.n_services = ctx->n_services;
+  if (ctx->n_services > 0) {
+    resp.services = malloc(ctx->n_services * sizeof(LibnngioManagement__ServiceConfig *));
+    for (size_t i = 0; i < ctx->n_services; i++) {
+      libnngio_management_service_entry *entry = &ctx->services[i];
+      LibnngioManagement__ServiceConfig *svc_cfg = malloc(sizeof(LibnngioManagement__ServiceConfig));
+      libnngio_management__service_config__init(svc_cfg);
+      svc_cfg->name = entry->name;
+      svc_cfg->transport_name = entry->transport_name;
+      svc_cfg->service_type = entry->service_type;
+      resp.services[i] = svc_cfg;
+    }
+  } else {
+    resp.services = NULL;
+  }
   
   *response_payload_len = libnngio_management__list_services_response__get_packed_size(&resp);
   *response_payload = malloc(*response_payload_len);
   if (*response_payload) {
     libnngio_management__list_services_response__pack(&resp, *response_payload);
+  }
+
+  // free resources
+  if (resp.services) {
+    for (size_t i = 0; i < resp.n_services; i++) {
+      free(resp.services[i]);
+    }
+    free(resp.services);
   }
   
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
@@ -368,111 +386,6 @@ static LibnngioProtobuf__RpcResponse__Status service_get_handler(
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-// =============================================================================
-// Connection Management Handlers
-// =============================================================================
-
-static LibnngioProtobuf__RpcResponse__Status connection_add_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__AddConnectionResponse resp = LIBNNGIO_MANAGEMENT__ADD_CONNECTION_RESPONSE__INIT;
-  resp.success = true;
-  resp.message = "Connection added successfully";
-  
-  *response_payload_len = libnngio_management__add_connection_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__add_connection_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status connection_remove_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__RemoveConnectionResponse resp = LIBNNGIO_MANAGEMENT__REMOVE_CONNECTION_RESPONSE__INIT;
-  resp.success = true;
-  resp.message = "Connection removed successfully";
-  
-  *response_payload_len = libnngio_management__remove_connection_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__remove_connection_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status connection_list_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__ListConnectionsResponse resp = LIBNNGIO_MANAGEMENT__LIST_CONNECTIONS_RESPONSE__INIT;
-  resp.n_connections = 0;
-  resp.connections = NULL;
-  
-  *response_payload_len = libnngio_management__list_connections_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__list_connections_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-static LibnngioProtobuf__RpcResponse__Status connection_get_handler(
-    const char *service_name, const char *method_name,
-    const void *request_payload, size_t request_payload_len,
-    void **response_payload, size_t *response_payload_len, void *user_data) {
-  
-  libnngio_management_context *ctx = (libnngio_management_context *)user_data;
-  if (!ctx) {
-    *response_payload = strdup("Invalid context");
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  
-  LibnngioManagement__GetConnectionResponse resp = LIBNNGIO_MANAGEMENT__GET_CONNECTION_RESPONSE__INIT;
-  resp.found = false;
-  resp.config = NULL;
-  
-  *response_payload_len = libnngio_management__get_connection_response__get_packed_size(&resp);
-  *response_payload = malloc(*response_payload_len);
-  if (*response_payload) {
-    libnngio_management__get_connection_response__pack(&resp, *response_payload);
-  }
-  
-  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
-}
-
-// create server context callback for management module
-static void management_server_callback(void *arg) {
-  // No-op for now
-  (void)arg;
-}
 
 // =============================================================================
 // Public API Implementation
@@ -497,14 +410,9 @@ libnngio_management_error_code libnngio_management_init(
   mgmt_ctx->services_capacity = 10;
   mgmt_ctx->services = calloc(mgmt_ctx->services_capacity, sizeof(libnngio_management_service_entry));
   
-  mgmt_ctx->connections_capacity = 10;
-  mgmt_ctx->connections = calloc(mgmt_ctx->connections_capacity, sizeof(libnngio_management_connection_entry));
-  
-  if (!mgmt_ctx->transports || !mgmt_ctx->services || 
-      !mgmt_ctx->connections) {
+  if (!mgmt_ctx->transports || !mgmt_ctx->services) {
     free(mgmt_ctx->transports);
     free(mgmt_ctx->services);
-    free(mgmt_ctx->connections);
     free(mgmt_ctx);
     return LIBNNGIO_MANAGEMENT_ERR_MEMORY;
   }
@@ -617,37 +525,7 @@ void libnngio_management_free(libnngio_management_context *ctx) {
   }
   free(ctx->services);
   
-  for (size_t i = 0; i < ctx->n_connections; i++) {
-    free(ctx->connections[i].name);
-    free(ctx->connections[i].transport_name);
-    free(ctx->connections[i].service_name);
-  }
-  free(ctx->connections);
-  
   free(ctx);
-}
-
-libnngio_management_error_code libnngio_management_start(
-    libnngio_management_context *ctx) {
-  if (!ctx) {
-    return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
-  }
-  
-  // Start the IPC context
-  libnngio_context_start(ctx->ipc_context);
-  ctx->running = 1;
-  
-  return LIBNNGIO_MANAGEMENT_ERR_NONE;
-}
-
-libnngio_management_error_code libnngio_management_stop(
-    libnngio_management_context *ctx) {
-  if (!ctx) {
-    return LIBNNGIO_MANAGEMENT_ERR_INVALID_PARAM;
-  }
-  
-  ctx->running = 0;
-  return LIBNNGIO_MANAGEMENT_ERR_NONE;
 }
 
 const char *libnngio_management_get_url(libnngio_management_context *ctx) {
@@ -658,6 +536,12 @@ const char *libnngio_management_get_url(libnngio_management_context *ctx) {
 libnngio_server *libnngio_management_get_server(libnngio_management_context *ctx) {
   if (!ctx) return NULL;
   return ctx->management_server;
+}
+
+libnngio_context *libnngio_management_get_transport_context(
+    libnngio_management_context *ctx) {
+  if (!ctx) return NULL;
+  return ctx->ipc_context;
 }
 
 libnngio_management_error_code libnngio_management_register_module(
@@ -743,29 +627,6 @@ void libnngio_management_free_service_config(
   free(config);
 }
 
-LibnngioManagement__ConnectionConfig *libnngio_management_create_connection_config(
-    const char *name, const char *transport_name, const char *service_name) {
-  
-  LibnngioManagement__ConnectionConfig *config = malloc(sizeof(LibnngioManagement__ConnectionConfig));
-  if (!config) return NULL;
-  
-  libnngio_management__connection_config__init(config);
-  config->name = strdup_safe(name);
-  config->transport_name = strdup_safe(transport_name);
-  config->service_name = strdup_safe(service_name);
-  
-  return config;
-}
-
-void libnngio_management_free_connection_config(
-    LibnngioManagement__ConnectionConfig *config) {
-  if (!config) return;
-  free(config->name);
-  free(config->transport_name);
-  free(config->service_name);
-  free(config);
-}
-
 // =============================================================================
 // Module Interface Implementation
 // =============================================================================
@@ -784,7 +645,6 @@ const libnngio_module_descriptor* libnngio_management_get_module_descriptor(void
   // Static method arrays (user_data needs to be set by caller)
   static libnngio_service_method transport_methods[4];
   static libnngio_service_method service_methods[4];
-  static libnngio_service_method connection_methods[4];
   
   // Initialize transport methods
   transport_methods[0] = (libnngio_service_method){"AddTransport", transport_add_handler, user_data};
@@ -798,24 +658,17 @@ const libnngio_module_descriptor* libnngio_management_get_module_descriptor(void
   service_methods[2] = (libnngio_service_method){"ListServices", service_list_handler, user_data};
   service_methods[3] = (libnngio_service_method){"GetService", service_get_handler, user_data};
   
-  // Initialize connection methods
-  connection_methods[0] = (libnngio_service_method){"AddConnection", connection_add_handler, user_data};
-  connection_methods[1] = (libnngio_service_method){"RemoveConnection", connection_remove_handler, user_data};
-  connection_methods[2] = (libnngio_service_method){"ListConnections", connection_list_handler, user_data};
-  connection_methods[3] = (libnngio_service_method){"GetConnection", connection_get_handler, user_data};
-  
   // Static service descriptors
-  static libnngio_module_service services[3];
+  static libnngio_module_service services[2];
   services[0] = (libnngio_module_service){"TransportManagement", transport_methods, 4};
   services[1] = (libnngio_module_service){"ServiceManagement", service_methods, 4};
-  services[2] = (libnngio_module_service){"ConnectionManagement", connection_methods, 4};
   
   // Static module descriptor
   static libnngio_module_descriptor descriptor = {
     .module_name = "management",
     .protobuf_package = "LibnngioManagement",
     .services = services,
-    .n_services = 3
+    .n_services = 2
   };
   
   return &descriptor;

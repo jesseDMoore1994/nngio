@@ -25,13 +25,6 @@ message ServiceConfig {
     string service_type = 3;   // Type of service (e.g., "TransportManagement", "ServiceDiscoveryService")
 }
 
-// Connection configuration message
-message ConnectionConfig {
-    string name = 1;              // Unique name for the connection
-    string transport_name = 2;    // Transport to use
-    string service_name = 3;      // Service to connect to
-}
-
 // Transport Management Service Messages
 message AddTransportRequest {
     TransportConfig config = 1;
@@ -104,42 +97,6 @@ message GetServiceResponse {
     ServiceConfig config = 2;
 }
 
-// Connection Management Service Messages
-message AddConnectionRequest {
-    ConnectionConfig config = 1;
-}
-
-message AddConnectionResponse {
-    bool success = 1;
-    string message = 2;
-}
-
-message RemoveConnectionRequest {
-    string name = 1;
-}
-
-message RemoveConnectionResponse {
-    bool success = 1;
-    string message = 2;
-}
-
-message ListConnectionsRequest {
-    // Empty request
-}
-
-message ListConnectionsResponse {
-    repeated ConnectionConfig connections = 1;
-}
-
-message GetConnectionRequest {
-    string name = 1;
-}
-
-message GetConnectionResponse {
-    bool found = 1;
-    ConnectionConfig config = 2;
-}
-
 // Service definitions (for documentation purposes)
 service TransportManagement {
     rpc AddTransport(AddTransportRequest) returns (AddTransportResponse);
@@ -153,11 +110,4 @@ service ServiceManagement {
     rpc RemoveService(RemoveServiceRequest) returns (RemoveServiceResponse);
     rpc ListServices(ListServicesRequest) returns (ListServicesResponse);
     rpc GetService(GetServiceRequest) returns (GetServiceResponse);
-}
-
-service ConnectionManagement {
-    rpc AddConnection(AddConnectionRequest) returns (AddConnectionResponse);
-    rpc RemoveConnection(RemoveConnectionRequest) returns (RemoveConnectionResponse);
-    rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse);
-    rpc GetConnection(GetConnectionRequest) returns (GetConnectionResponse);
 }
