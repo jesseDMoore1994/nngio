@@ -9,13 +9,12 @@
  * The management interface includes:
  * - TransportManagement: Handle transport operations (add, remove, list, get)
  * - ServiceManagement: Handle service operations (add, remove, list, get)
- * - ConnectionManagement: Handle connection operations (add, remove, list, get)
  * - RpcService: Generic RPC call interface (from protobuf module)
  * - ServiceDiscoveryService: Service discovery interface (from protobuf module)
  *
  * Default Setup:
  * - One transport: "nngio-ipc" (IPC reply mode, "ipc:///tmp/libnngio_management.ipc")
- * - One management server with all five services registered
+ * - One management server with all four services registered
  * - Services are available through the management IPC transport
  */
 
