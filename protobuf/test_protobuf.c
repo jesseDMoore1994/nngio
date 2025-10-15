@@ -194,6 +194,56 @@ void test_protobuf_helpers() {
     assert(0);
   }
   nngio_free_nngio_message(nmsg);
+
+  // ---- Test Transports ----
+  libnngio_config cfg = {0};
+  cfg.mode = LIBNNGIO_MODE_DIAL;
+  cfg.proto = LIBNNGIO_PROTO_REQ;
+  cfg.url = "tcp://127.0.0.1:5555";
+  // AddTransportRequest and AddTransportResponse
+  LibnngioProtobuf__AddTransportRequest *atreq = nngio_create_add_transport_request(&cfg);
+  nmsg = nngio_create_nngio_message_with_add_transport_request("uuid-100",
+                                                              atreq);
+  if (!nmsg) {
+    fprintf(stderr, "Failed to create NngioMessage (AddTransportRequest)\n");
+    libnngio_protobuf__add_transport_request__free_unpacked(atreq, NULL);
+    assert(0);
+  }
+  nngio_free_nngio_message(nmsg);
+  //Note: AddTransportResponse not implemented, because it is simply an empty message
+
+  // GetTransportsRequest and GetTransportsResponse
+  // Note: GetTransportsRequest not implemented, because it is simply an empty message
+  libnngio_config **configs = malloc(1 * sizeof(libnngio_config *));
+  configs[0] = malloc(sizeof(libnngio_config));
+  memset(configs[0], 0, sizeof(libnngio_config));
+  configs[0]->mode = LIBNNGIO_MODE_DIAL;
+  configs[0]->proto = LIBNNGIO_PROTO_REQ;
+  configs[0]->url = "tcp://127.0.0.1:5555";
+  LibnngioProtobuf__GetTransportsResponse *gtresp = nngio_create_get_transports_response(configs, 1);
+  nmsg = nngio_create_nngio_message_with_get_transports_response("uuid-103",
+                                                                gtresp);
+  if (!nmsg) {
+    fprintf(stderr, "Failed to create NngioMessage (GetTransportsResponse)\n");
+    libnngio_protobuf__get_transports_response__free_unpacked(gtresp,
+                                                                NULL);
+    assert(0);
+  }
+  nngio_free_nngio_message(nmsg);
+  free(configs[0]);
+  free(configs);
+
+  // RemoveTransportRequest and RemoveTransportResponse
+  LibnngioProtobuf__RemoveTransportRequest *rtreq = nngio_create_remove_transport_request(LIBNNGIO_MODE_DIAL, LIBNNGIO_PROTO_REQ, "tcp://127.0.0.1:5555");
+  nmsg = nngio_create_nngio_message_with_remove_transport_request("uuid-104",
+                                                                 rtreq);
+  if (!nmsg) {
+    fprintf(stderr, "Failed to create NngioMessage (RemoveTransportRequest)\n");
+    libnngio_protobuf__remove_transport_request__free_unpacked(rtreq, NULL);
+    assert(0);
+  }
+  nngio_free_nngio_message(nmsg);
+  //Note: RemoveTransportResponse not implemented, because it is simply an empty message
 }
 
 void test_protobuf_raw_message() {
@@ -2548,13 +2598,15 @@ void test_rpc_service_discovery() {
       server, &actual_service_request, &actual_service_response);
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(actual_service_response != NULL);
-  assert(actual_service_response->n_services == 4);
+  assert(actual_service_response->n_services == 5);
   assert(strcmp(actual_service_response->services[0]->name,
                 "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(actual_service_response->services[1]->name,
                 "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(actual_service_response->services[2]->name, "Echo") == 0);
-  assert(strcmp(actual_service_response->services[3]->name, "Math") == 0);
+  assert(strcmp(actual_service_response->services[2]->name,
+                "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(actual_service_response->services[3]->name, "Echo") == 0);
+  assert(strcmp(actual_service_response->services[4]->name, "Math") == 0);
   libnngio_log("INF", "TEST_RPC_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Service discovery response created with %zu services.",
                actual_service_response->n_services);
@@ -2605,13 +2657,15 @@ void test_rpc_service_discovery() {
       client, &client_recv_response);
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(client_recv_response != NULL);
-  assert(client_recv_response->n_services == 4);
+  assert(client_recv_response->n_services == 5);
   assert(strcmp(client_recv_response->services[0]->name,
                 "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(client_recv_response->services[1]->name,
                 "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(client_recv_response->services[2]->name, "Echo") == 0);
-  assert(strcmp(client_recv_response->services[3]->name, "Math") == 0);
+  assert(strcmp(client_recv_response->services[2]->name,
+                "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(client_recv_response->services[3]->name, "Echo") == 0);
+  assert(strcmp(client_recv_response->services[4]->name, "Math") == 0);
   libnngio_log("INF", "TEST_RPC_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Service discovery response received with %zu services.",
                client_recv_response->n_services);
@@ -2631,13 +2685,15 @@ void test_rpc_service_discovery() {
   proto_rv = libnngio_client_populate_services_from_response(
       client, client_recv_response);
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
-  assert(client->n_discovered_services == 4);
+  assert(client->n_discovered_services == 5);
   assert(strcmp(client->discovered_services[0]->name,
                 "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(client->discovered_services[1]->name,
                 "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(client->discovered_services[2]->name, "Echo") == 0);
-  assert(strcmp(client->discovered_services[3]->name, "Math") == 0);
+  assert(strcmp(client->discovered_services[2]->name,
+                "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(client->discovered_services[3]->name, "Echo") == 0);
+  assert(strcmp(client->discovered_services[4]->name, "Math") == 0);
   libnngio_log("INF", "TEST_RPC_SERVICE_DISCOVERY", __FILE__, __LINE__, -1,
                "Client populated services from response. Found %zu services.",
                client->n_discovered_services);
@@ -2924,13 +2980,15 @@ void test_rpc_service_discovery_async(void) {
 
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(actual_service_response != NULL);
-  assert(actual_service_response->n_services == 4);
+  assert(actual_service_response->n_services == 5);
   assert(strcmp(actual_service_response->services[0]->name,
                 "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(actual_service_response->services[1]->name,
                 "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(actual_service_response->services[2]->name, "Echo") == 0);
-  assert(strcmp(actual_service_response->services[3]->name, "Math") == 0);
+  assert(strcmp(actual_service_response->services[2]->name,
+                "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(actual_service_response->services[3]->name, "Echo") == 0);
+  assert(strcmp(actual_service_response->services[4]->name, "Math") == 0);
   libnngio_log("INF", "TEST_RPC_SERVICE_DISCOVERY_ASYNC", __FILE__, __LINE__,
                -1, "Service discovery response created with %zu services.",
                actual_service_response->n_services);
@@ -3013,13 +3071,15 @@ void test_rpc_service_discovery_async(void) {
 
   assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
   assert(client_recv_response != NULL);
-  assert(client_recv_response->n_services == 4);
+  assert(client_recv_response->n_services == 5);
   assert(strcmp(client_recv_response->services[0]->name,
                 "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(client_recv_response->services[1]->name,
                 "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(client_recv_response->services[2]->name, "Echo") == 0);
-  assert(strcmp(client_recv_response->services[3]->name, "Math") == 0);
+  assert(strcmp(client_recv_response->services[2]->name,
+                "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(client_recv_response->services[3]->name, "Echo") == 0);
+  assert(strcmp(client_recv_response->services[4]->name, "Math") == 0);
   libnngio_log("INF", "TEST_RPC_SERVICE_DISCOVERY_ASYNC", __FILE__, __LINE__,
                -1, "Service discovery response received with %zu services.",
                client_recv_response->n_services);
@@ -3035,13 +3095,15 @@ void test_rpc_service_discovery_async(void) {
                    actual_service->methods[j]);
     }
   }
-  assert(client->n_discovered_services == 4);
+  assert(client->n_discovered_services == 5);
   assert(strcmp(client->discovered_services[0]->name,
                 "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(client->discovered_services[1]->name,
                 "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(client->discovered_services[2]->name, "Echo") == 0);
-  assert(strcmp(client->discovered_services[3]->name, "Math") == 0);
+  assert(strcmp(client->discovered_services[2]->name,
+                "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(client->discovered_services[3]->name, "Echo") == 0);
+  assert(strcmp(client->discovered_services[4]->name, "Math") == 0);
   libnngio_log("INF", "TEST_RPC_SERVICE_DISCOVERY_ASYNC", __FILE__, __LINE__,
                -1,
                "Client populated services from response. Found %zu services.",
@@ -3848,11 +3910,12 @@ void test_service_discovery_via_rpc(void) {
                                                         rpc_response->payload.data);
 
   assert(service_discovery_response != NULL);
-  assert(service_discovery_response->n_services == 4);
+  assert(service_discovery_response->n_services == 5);
   assert(strcmp(service_discovery_response->services[0]->name, "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(service_discovery_response->services[1]->name, "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(service_discovery_response->services[2]->name, "Echo") == 0);
-  assert(strcmp(service_discovery_response->services[3]->name, "Math") == 0);
+  assert(strcmp(service_discovery_response->services[2]->name, "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(service_discovery_response->services[3]->name, "Echo") == 0);
+  assert(strcmp(service_discovery_response->services[4]->name, "Math") == 0);
 
   libnngio_log("INF", "TEST_SERVICE_DISCOVERY_VIA_RPC", __FILE__, __LINE__, -1,
                "Service Discovery Response within RPC Response has %d services:",
@@ -4129,11 +4192,12 @@ void test_service_discovery_via_rpc_async(void) {
                                                         actual_rpc_response->payload.len,
                                                         actual_rpc_response->payload.data);
   assert(service_discovery_response != NULL);
-  assert(service_discovery_response->n_services == 4);
+  assert(service_discovery_response->n_services == 5);
   assert(strcmp(service_discovery_response->services[0]->name, "LibnngioProtobuf.RpcService") == 0);
   assert(strcmp(service_discovery_response->services[1]->name, "LibnngioProtobuf.ServiceDiscoveryService") == 0);
-  assert(strcmp(service_discovery_response->services[2]->name, "Echo") == 0);
-  assert(strcmp(service_discovery_response->services[3]->name, "Math") == 0);
+  assert(strcmp(service_discovery_response->services[2]->name, "LibnngioProtobuf.TransportService") == 0);
+  assert(strcmp(service_discovery_response->services[3]->name, "Echo") == 0);
+  assert(strcmp(service_discovery_response->services[4]->name, "Math") == 0);
 
   // prepare client to receive the response
 #ifdef NNGIO_MOCK_TRANSPORT
@@ -4213,7 +4277,7 @@ void test_service_discovery_via_rpc_async(void) {
                client_recv_response->status,
                (int)client_recv_response->payload.len);
   libnngio_log("INF", "TEST_SERVICE_DISCOVERY_VIA_RPC_ASYNC", __FILE__, __LINE__, -1,
-               "RPC call to Echo.SayHello completed successfully.");
+               "RPC call to LibnngioProtobuf.ServiceDiscoveryService.GetServices completed successfully.");
 
   libnngio_log("INF", "TEST_SERVICE_DISCOVERY_VIA_RPC_ASYNC", __FILE__, __LINE__, -1,
                "Async RPC test completed successfully.");
@@ -4233,6 +4297,364 @@ void test_service_discovery_via_rpc_async(void) {
   libnngio_context_free(req_ctx);
   libnngio_transport_free(rep);
   libnngio_transport_free(req);
+}
+
+void test_transport_operations(void) {
+  libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+               "Testing transport operations...");
+
+  // Initialize transport and contexts
+  libnngio_config rep_cfg = {.mode = LIBNNGIO_MODE_LISTEN,
+                             .proto = LIBNNGIO_PROTO_REP,
+                             .url = "tcp://127.0.0.1:7777",
+                             .tls_cert = NULL,
+                             .tls_key = NULL,
+                             .tls_ca_cert = NULL};
+  libnngio_config req_cfg = {.mode = LIBNNGIO_MODE_DIAL,
+                             .proto = LIBNNGIO_PROTO_REQ,
+                             .url = "tcp://127.0.0.1:7777",
+                             .tls_cert = NULL,
+                             .tls_key = NULL,
+                             .tls_ca_cert = NULL};
+
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
+  int rv = libnngio_transport_init(&rep, &rep_cfg);
+  if (rv != 0) {
+    assert(rv == 0);
+  }
+  rv = libnngio_transport_init(&req, &req_cfg);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&rep_ctx, rep, &rep_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  // create server and client
+  libnngio_protobuf_context *rep_proto_ctx = NULL, *req_proto_ctx = NULL;
+  libnngio_protobuf_error_code proto_rv =
+      libnngio_protobuf_context_init(&rep_proto_ctx, rep_ctx);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  proto_rv = libnngio_protobuf_context_init(&req_proto_ctx, req_ctx);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_server *server = NULL;
+  proto_rv = libnngio_server_init(&server, rep_proto_ctx);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  libnngio_client *client = NULL;
+  proto_rv = libnngio_client_init(&client, req_proto_ctx);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+               "Transport, contexts, server, and client initialized.");
+
+  // create a Transport for our client to add to the server's known transports
+  size_t num_transports = 10;
+  for(size_t i = 0; i < num_transports; i++) {
+    char url[100];
+    snprintf(url, 100, "tcp://127.0.0.1:%zu", 5000+i);
+    libnngio_config cfg = {0};
+    cfg.mode = LIBNNGIO_MODE_LISTEN;
+    cfg.proto = LIBNNGIO_PROTO_REP;
+    cfg.url = url;
+    cfg.tls_cert = NULL;
+    cfg.tls_key = NULL;
+    cfg.tls_ca_cert = NULL;
+    LibnngioProtobuf__AddTransportRequest *atreq = nngio_create_add_transport_request(&cfg);
+    assert(atreq != NULL);
+    assert(atreq->transport != NULL);
+    assert(strcmp(atreq->transport->url, cfg.url) == 0);
+    assert(atreq->transport->mode == LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen);
+    assert(atreq->transport->proto == LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep);
+    if (!atreq) {
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Failed to create AddTransport message.");
+      libnngio_protobuf__add_transport_request__free_unpacked(atreq, NULL);
+      assert(0);
+    }
+
+    // create rpc request to add transport
+    size_t atreq_pack_size =
+        libnngio_protobuf__add_transport_request__get_packed_size(atreq);
+    uint8_t *atreq_buffer = malloc(atreq_pack_size);
+    libnngio_protobuf__add_transport_request__pack(atreq, atreq_buffer);
+    LibnngioProtobuf__RpcRequest *rpc_request = nngio_create_rpc_request(
+        "LibnngioProtobuf.TransportService", "AddTransport",
+        (const char *)atreq_buffer, atreq_pack_size);
+    free(atreq_buffer);
+    if (!rpc_request) {
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Failed to create RPC request for AddTransport.");
+      libnngio_protobuf__add_transport_request__free_unpacked(atreq, NULL);
+      assert(0);
+    }
+
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Packed add transport request into RPC request for service %s method %s with payload of size %d",
+                 rpc_request->service_name, rpc_request->method_name,
+                 (int)rpc_request->payload.len);
+
+#ifdef NNGIO_MOCK_TRANSPORT
+    // Mock rpc request
+    LibnngioProtobuf__RpcRequest *fakerq = nngio_copy_rpc_request(rpc_request);
+    LibnngioProtobuf__LibnngioMessage *mock_request_msg =
+        nngio_create_nngio_message_with_rpc_request("84a9f303-0f3e-43e2-a86a-9e136eaca57c", fakerq);
+    size_t req_pack_size =
+        libnngio_protobuf__libnngio_message__get_packed_size(mock_request_msg);
+    uint8_t *req_buffer = malloc(req_pack_size);
+    libnngio_protobuf__libnngio_message__pack(mock_request_msg, req_buffer);
+    libnngio_mock_set_recv_buffer((const char *)req_buffer, req_pack_size);
+    free(req_buffer);
+    nngio_free_nngio_message(mock_request_msg);
+#endif
+
+    LibnngioProtobuf__RpcRequest *recv_rpc_request = NULL;
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Sending AddTransport RPC request...");
+    proto_rv = libnngio_client_send_rpc_request(client, rpc_request);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    proto_rv = libnngio_server_recv_rpc_request(server, &recv_rpc_request);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+    //validate received rpc request
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Server received RPC request for service %s method %s with payload of size %d",
+                 recv_rpc_request->service_name, recv_rpc_request->method_name,
+                 (int)recv_rpc_request->payload.len);
+    assert(strcmp(recv_rpc_request->service_name,
+                  "LibnngioProtobuf.TransportService") == 0);
+    assert(strcmp(recv_rpc_request->method_name, "AddTransport") == 0);
+    assert(recv_rpc_request->payload.len ==
+           libnngio_protobuf__add_transport_request__get_packed_size(atreq));
+    LibnngioProtobuf__AddTransportRequest *atreq_recv =
+        libnngio_protobuf__add_transport_request__unpack(NULL,
+                                              recv_rpc_request->payload.len,
+                                              recv_rpc_request->payload.data);
+    assert(atreq_recv != NULL);
+    assert(strcmp(atreq_recv->transport->url, cfg.url) == 0);
+    assert(atreq_recv->transport->mode == LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen);
+    assert(atreq_recv->transport->proto == LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep);
+    libnngio_protobuf__add_transport_request__free_unpacked(atreq_recv, NULL);
+
+    LibnngioProtobuf__RpcResponse *rpc_response = NULL;
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Handling AddTransport RPC request...");
+    proto_rv = libnngio_server_create_rpc_response(server, recv_rpc_request,
+                                                   &rpc_response);
+    if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Failed to create RPC response for AddTransport.");
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Return code: %d", proto_rv);
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "RPC response message: %s", rpc_response->error_message);
+      assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    }
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Server Generated RPC response status %d with payload of len: %d",
+                 rpc_response->status,
+                 (int)rpc_response->payload.len);
+
+#ifdef NNGIO_MOCK_TRANSPORT
+    // Mock rpc response
+    LibnngioProtobuf__RpcResponse *fakeresp =
+        nngio_copy_rpc_response(rpc_response);
+    LibnngioProtobuf__LibnngioMessage *mock_response_msg =
+        nngio_create_nngio_message_with_rpc_response("uuid-resp", fakeresp);
+    size_t resp_pack_size =
+        libnngio_protobuf__libnngio_message__get_packed_size(mock_response_msg);
+    uint8_t *resp_buffer = malloc(resp_pack_size);
+    libnngio_protobuf__libnngio_message__pack(mock_response_msg, resp_buffer);
+    libnngio_mock_set_recv_buffer((const char *)resp_buffer, resp_pack_size);
+    free(resp_buffer);
+    nngio_free_nngio_message(mock_response_msg);
+#endif
+
+    assert(server->n_transports == i+1);
+
+    LibnngioProtobuf__RpcResponse *recv_rpc_response = NULL;
+    proto_rv = libnngio_server_send_rpc_response(server, rpc_response);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__
+                  , -1, "AddTransport RPC response sent.");
+    proto_rv = libnngio_client_recv_rpc_response(client, &recv_rpc_response);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__
+                  , -1, "AddTransport RPC response received.");
+
+    nngio_free_rpc_response(recv_rpc_response);
+    nngio_free_rpc_response(rpc_response);
+    nngio_free_rpc_request(recv_rpc_request);
+    nngio_free_rpc_request(rpc_request);
+    nngio_free_add_transport_request(atreq);
+  }
+
+  size_t half_n_transports = num_transports/2;
+  for(size_t i = 0; i < half_n_transports; i++) {
+    char url[100];
+    snprintf(url, 100, "tcp://127.0.0.1:%zu", 5000+i);
+    LibnngioProtobuf__RemoveTransportRequest *rtreq = nngio_create_remove_transport_request(LIBNNGIO_MODE_LISTEN, LIBNNGIO_PROTO_REP, url);
+    assert(rtreq != NULL);
+    if (!rtreq) {
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Failed to create RemoveTransport message.");
+      libnngio_protobuf__remove_transport_request__free_unpacked(rtreq, NULL);
+      assert(0);
+    }
+
+    // create rpc request to remove transport
+    size_t rtreq_pack_size =
+        libnngio_protobuf__remove_transport_request__get_packed_size(rtreq);
+    uint8_t *rtreq_buffer = malloc(rtreq_pack_size);
+    libnngio_protobuf__remove_transport_request__pack(rtreq, rtreq_buffer);
+    LibnngioProtobuf__RpcRequest *rpc_request = nngio_create_rpc_request(
+        "LibnngioProtobuf.TransportService", "RemoveTransport",
+        (const char *)rtreq_buffer, rtreq_pack_size);
+    free(rtreq_buffer);
+    if (!rpc_request) {
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Failed to create RPC request for RemoveTransport.");
+      libnngio_protobuf__remove_transport_request__free_unpacked(rtreq, NULL);
+      assert(0);
+    }
+
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Packed remove transport request into RPC request for service %s method %s with payload of size %d",
+                 rpc_request->service_name, rpc_request->method_name,
+                 (int)rpc_request->payload.len);
+
+#ifdef NNGIO_MOCK_TRANSPORT
+    // Mock rpc request
+    LibnngioProtobuf__RpcRequest *fakerq = nngio_copy_rpc_request(rpc_request);
+    LibnngioProtobuf__LibnngioMessage *mock_request_msg =
+        nngio_create_nngio_message_with_rpc_request("84a9f303-0f3e-43e2-a86a-9e136eaca57c", fakerq);
+    size_t req_pack_size =
+        libnngio_protobuf__libnngio_message__get_packed_size(mock_request_msg);
+    uint8_t *req_buffer = malloc(req_pack_size);
+    libnngio_protobuf__libnngio_message__pack(mock_request_msg, req_buffer);
+    libnngio_mock_set_recv_buffer((const char *)req_buffer, req_pack_size);
+    free(req_buffer);
+    nngio_free_nngio_message(mock_request_msg);
+#endif
+
+    LibnngioProtobuf__RpcRequest *recv_rpc_request = NULL;
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Sending RemoveTransport RPC request...");
+    proto_rv = libnngio_client_send_rpc_request(client, rpc_request);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    proto_rv = libnngio_server_recv_rpc_request(server, &recv_rpc_request);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+    //validate received rpc request
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Server received RPC request for service %s method %s with payload of size %d",
+                 recv_rpc_request->service_name, recv_rpc_request->method_name,
+                 (int)recv_rpc_request->payload.len);
+    assert(strcmp(recv_rpc_request->service_name,
+                  "LibnngioProtobuf.TransportService") == 0);
+    assert(strcmp(recv_rpc_request->method_name, "RemoveTransport") == 0);
+    assert(recv_rpc_request->payload.len ==
+           libnngio_protobuf__remove_transport_request__get_packed_size(rtreq));
+    LibnngioProtobuf__RemoveTransportRequest *rtreq_recv =
+        libnngio_protobuf__remove_transport_request__unpack(NULL,
+                                              recv_rpc_request->payload.len,
+                                              recv_rpc_request->payload.data);
+    assert(rtreq_recv != NULL);
+    assert(strcmp(rtreq_recv->url, url) == 0);
+    assert(rtreq_recv->mode == LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen);
+    assert(rtreq_recv->proto == LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep);
+    libnngio_protobuf__remove_transport_request__free_unpacked(rtreq_recv, NULL);
+
+    LibnngioProtobuf__RpcResponse *rpc_response = NULL;
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Handling RemoveTransport RPC request...");
+    proto_rv = libnngio_server_create_rpc_response(server, recv_rpc_request,
+                                                   &rpc_response);
+    if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Failed to create RPC response for RemoveTransport.");
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "Return code: %d", proto_rv);
+      libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                   "RPC response message: %s", rpc_response->error_message);
+      assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    }
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+                 "Server Generated RPC response status %d with payload of len: %d",
+                 rpc_response->status,
+                 (int)rpc_response->payload.len);
+
+#ifdef NNGIO_MOCK_TRANSPORT
+    // Mock rpc response
+    LibnngioProtobuf__RpcResponse *fakeresp =
+        nngio_copy_rpc_response(rpc_response);
+    LibnngioProtobuf__LibnngioMessage *mock_response_msg =
+        nngio_create_nngio_message_with_rpc_response("uuid-resp", fakeresp);
+    size_t resp_pack_size =
+        libnngio_protobuf__libnngio_message__get_packed_size(mock_response_msg);
+    uint8_t *resp_buffer = malloc(resp_pack_size);
+    libnngio_protobuf__libnngio_message__pack(mock_response_msg, resp_buffer);
+    libnngio_mock_set_recv_buffer((const char *)resp_buffer, resp_pack_size);
+    free(resp_buffer);
+    nngio_free_nngio_message(mock_response_msg);
+#endif
+
+    assert(server->n_transports == (num_transports-(i+1)));
+
+    LibnngioProtobuf__RpcResponse *recv_rpc_response = NULL;
+    proto_rv = libnngio_server_send_rpc_response(server, rpc_response);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__
+                  , -1, "RemoveTransport RPC response sent.");
+    proto_rv = libnngio_client_recv_rpc_response(client, &recv_rpc_response);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+    libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__
+                  , -1, "RemoveTransport RPC response received.");
+
+    nngio_free_rpc_response(recv_rpc_response);
+    nngio_free_rpc_response(rpc_response);
+    nngio_free_rpc_request(recv_rpc_request);
+    nngio_free_rpc_request(rpc_request);
+    nngio_free_remove_transport_request(rtreq);
+  }
+
+  //cleanup
+  libnngio_client_free(client);
+  libnngio_server_free(server);
+  libnngio_protobuf_context_free(rep_proto_ctx);
+  libnngio_protobuf_context_free(req_proto_ctx);
+  libnngio_context_free(rep_ctx);
+  libnngio_context_free(req_ctx);
+  libnngio_transport_free(rep);
+  libnngio_transport_free(req);
+
+  libnngio_log("INF", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
+               "Transport operations test completed successfully.");
 }
 
 /**
@@ -4260,5 +4682,6 @@ int main() {
   test_rpc_asyc();
   test_service_discovery_via_rpc();
   test_service_discovery_via_rpc_async();
+  test_transport_operations();
   return 0;
 }

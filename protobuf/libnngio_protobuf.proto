@@ -47,6 +47,63 @@ message Raw {
     bytes data = 1; // Arbitrary binary data
 }
 
+enum TransportMode {
+    Dial = 0; // Client mode
+    Listen = 1; // Server mode
+}
+enum TransportProtocol {
+    Pair = 0; // Pair protocol
+    Req = 1; // Request protocol
+    Rep = 2; // Reply protocol
+    Pub = 3; // Publish protocol
+    Sub = 4; // Subscribe protocol
+    Push = 5; // Push protocol
+    Pull = 6; // Pull protocol
+    Surveyor = 7; // Surveyor protocol
+    Respondent = 8; // Respondent protocol
+    Bus = 9; // Bus protocol
+}
+
+message Transport {
+    TransportMode mode = 1; // Mode of the transport
+    TransportProtocol proto = 2; // Protocol of the transport
+    string url = 3; // Address to connect or bind to
+
+    string tls_cert = 4; // TLS certificate for secure connections
+    string tls_key = 5; // TLS private key for secure connections
+    string tls_ca_cert = 6; // TLS CA certificate for secure connections
+
+    uint32 recv_timeout_ms = 7; // Receive timeout in milliseconds
+    uint32 send_timeout_ms = 8; // Send timeout in milliseconds
+    uint64 max_msg_size = 9; // Maximum message size in bytes
+}
+
+message AddTransportRequest {
+    Transport transport = 1;
+}
+
+message AddTransportResponse {
+    // Empty message to acknowledge transport addition
+}
+
+message GetTransportsRequest {
+    // Empty message for requesting transports
+}
+
+message GetTransportsResponse {
+    repeated Transport transports = 1; // List of available transports
+}
+
+message RemoveTransportRequest {
+    TransportMode mode = 1; // Mode of the transport
+    TransportProtocol proto = 2; // Protocol of the transport
+    string url = 3; // Address to connect or bind to
+}
+
+message RemoveTransportResponse {
+    // Empty message to acknowledge transport removal
+}
+
 message LibnngioMessage {
     oneof msg {
         ServiceDiscoveryRequest service_discovery_request = 1;
@@ -54,49 +111,17 @@ message LibnngioMessage {
         RpcRequest rpc_request = 3;
         RpcResponse rpc_response = 4;
         Raw raw = 5;
+        AddTransportRequest add_transport_request = 6;
+        AddTransportResponse add_transport_response = 7;
+        GetTransportsRequest get_transports_request = 8;
+        GetTransportsResponse get_transports_response = 9;
+        RemoveTransportRequest remove_transport_request = 10;
+        RemoveTransportResponse remove_transport_response = 11;
     }
-    string uuid = 6; // Unique identifier for the message
+    string uuid = 12; // Unique identifier for the message
 }
 
-message LibnngioTransport {
-    enum TransportMode {
-        Dial = 0; // Client mode
-        Listen = 1; // Server mode
-    }
-    enum TransportProtocol {
-        Pair = 0; // Pair protocol
-        Req = 1; // Request protocol
-        Rep = 2; // Reply protocol
-        Pub = 3; // Publish protocol
-        Sub = 4; // Subscribe protocol
-        Push = 5; // Push protocol
-        Pull = 6; // Pull protocol
-        Serveyor = 7; // Surveyor protocol
-        Respondent = 8; // Respondent protocol
-        Bus = 9; // Bus protocol
-    }
-
-    TransportMode mode = 1; // Mode of the transport
-    TransportProtocol protocol = 2; // Protocol of the transport
-    string address = 3; // Address to connect or bind to
-
-    string tls_cert = 4; // TLS certificate for secure connections
-    string tls_key = 5; // TLS private key for secure connections
-    string tls_ca = 6; // TLS CA certificate for secure connections
-
-    uint32 recv_timeout_ms = 7; // Receive timeout in milliseconds
-    uint32 send_timeout_ms = 8; // Send timeout in milliseconds
-    uint64 max_msg_size = 9; // Maximum message size in bytes
-}
-
-message TransportDiscoveryRequest {
-    // Empty message for requesting service discovery
-}
-
-message TransportDiscoveryResponse {
-    repeated LibnngioTransport transports = 1; // List of available transports
-}
-
+// The Rpc from which all other RPCs are born... 
 service RpcService {
     rpc CallRpc(RpcRequest) returns (RpcResponse);
 }
@@ -105,6 +130,8 @@ service ServiceDiscoveryService {
     rpc GetServices(ServiceDiscoveryRequest) returns (ServiceDiscoveryResponse);
 }
 
-service TransportDiscoveryService {
-    rpc GetTransports(TransportDiscoveryRequest) returns (TransportDiscoveryResponse);
+service TransportService {
+    rpc AddTransport(AddTransportRequest) returns (AddTransportResponse);
+    rpc GetTransports(GetTransportsRequest) returns (GetTransportsResponse);
+    rpc RemoveTransport(RemoveTransportRequest) returns (RemoveTransportResponse);
 }

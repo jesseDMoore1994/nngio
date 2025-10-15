@@ -45,6 +45,7 @@ struct libnngio_transport {
   char *tls_cert_mem;    /**< In-memory TLS certificate (if loaded) */
   char *tls_key_mem;     /**< In-memory TLS private key (if loaded) */
   char *tls_ca_mem;      /**< In-memory TLS CA certificate (if loaded) */
+  libnngio_config config;/**< Configuration used to create transport */
 };
 
 /**
@@ -55,7 +56,7 @@ struct libnngio_transport {
 struct libnngio_context {
   int id;                        /**< Unique ID for this context */
   libnngio_transport *transport; /**< Associated transport */
-  libnngio_config config;        /**< Configuration used to create context */
+  const libnngio_config *config; /**< Configuration used to create context */
   libnngio_ctx_cb cb;            /**< User-defined callback function */
   nng_ctx nng_ctx;               /**< NNG context handle */
   void *user_data;               /**< Opaque user data pointer for callback */
@@ -500,6 +501,7 @@ int libnngio_transport_init(libnngio_transport **tp,
   }
 
   t->id = free_transport_id++;
+  t->config = *config;  // Copy config for introspection
 
   t->is_dial = (config->mode == LIBNNGIO_MODE_DIAL);
 
@@ -635,6 +637,17 @@ int libnngio_transport_init(libnngio_transport **tp,
 }
 
 /**
+ * @brief Get the config used to create a transport. Useful for introspection.
+ *
+ * @param t Pointer to transport structure.
+ * @return Pointer to libnngio_config structure, or NULL if t is NULL.
+ */
+const libnngio_config *libnngio_transport_get_config(libnngio_transport *t) {
+  if (!t) return NULL;
+  return &t->config;
+}
+
+/**
  * @brief Free a libnngio transport, closing any open sockets and freeing
  * resources.
  * @param t Pointer to transport structure to free.
@@ -714,7 +727,7 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
   ctx->id = free_context_id++;
 
   // Store the configuration, callback, and user data for later use
-  ctx->config = *config;
+  ctx->config = config;
   ctx->cb = cb;
   ctx->user_data = user_data;
 
@@ -762,6 +775,16 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
 int libnngio_context_id(libnngio_context *ctx) {
   if (!ctx) return -1;
   return ctx->id;
+}
+
+/*
+ * @brief Get the config used to create a context. Useful for introspection.
+ * @param ctx Pointer to context structure.
+ * @return Pointer to libnngio_config structure, or NULL if ctx is NULL.
+ */
+const libnngio_config *libnngio_context_get_config(libnngio_context *ctx) {
+  if (!ctx) return NULL;
+  return ctx->config;
 }
 
 /**

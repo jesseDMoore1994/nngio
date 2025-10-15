@@ -2,6 +2,7 @@
 #define LIBNNGIO_TRANSPORT_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 // ========================
 // libnngio public API
@@ -55,9 +56,8 @@ typedef struct {
   const char *tls_key;     /**< (Optional) Path to TLS private key file. */
   const char *tls_ca_cert; /**< (Optional) Path to TLS CA certificate file. */
 
-  int recv_timeout_ms; /**< Receive timeout in milliseconds, or -1 for default.
-                        */
-  int send_timeout_ms; /**< Send timeout in milliseconds, or -1 for default. */
+  uint32_t recv_timeout_ms; /**< Receive timeout in milliseconds, or -1 for default.*/
+  uint32_t send_timeout_ms; /**< Send timeout in milliseconds, or -1 for default. */
   size_t max_msg_size; /**< Maximum receive message size, or 0 for unlimited. */
 
   /** Arbitrary nng socket options */
@@ -96,6 +96,15 @@ void libnngio_log(const char *level, const char *tag, const char *file,
  */
 int libnngio_transport_init(libnngio_transport **tp,
                             const libnngio_config *config);
+
+/**
+ * @brief retrieve the config used to create a transport. Useful for
+ * introspection.
+ *
+ * @param t Transport handle.
+ * @return Pointer to the config used to create the transport.
+ */
+const libnngio_config *libnngio_transport_get_config(libnngio_transport *t);
 
 /**
  * @brief Free a transport and release resources.
@@ -148,6 +157,14 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
  * @return Context id (non-negative integer).
  */
 int libnngio_context_id(libnngio_context *ctx);
+
+/**
+ * @brief Get the config used to create a context. Useful for introspection.
+ *
+ * @param ctx Context handle.
+ * @return Pointer to the config used to create the context.
+ */
+const libnngio_config *libnngio_context_get_config(libnngio_context *ctx);
 
 /**
  * @brief Send a message synchronously using a context.

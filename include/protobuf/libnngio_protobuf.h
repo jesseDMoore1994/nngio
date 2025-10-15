@@ -96,15 +96,28 @@ typedef struct {
 } libnngio_service_registration;
 
 /**
+ * @brief Hold a server transport entity
+ */
+typedef struct {
+  libnngio_config *cfg;           ///< Transport config
+  libnngio_transport *transport;  ///< Transport handle
+  libnngio_context *t_ctx;        ///< Array of context handles
+  libnngio_protobuf_context *proto_ctx;  ///< Protobuf context for this
+                                         /// transport
+} libnngio_server_transport;
+
+/**
  * @brief Server structure that encapsulates protobuf context and service logic.
  */
 typedef struct libnngio_server {
-  libnngio_protobuf_context *proto_ctx;     ///< Protobuf context for transport
-  libnngio_service_registration *services;  ///< Array of registered services
-  size_t n_services;                        ///< Number of registered services
-  int running;                              ///< Server running flag
-  void *server_storage;  ///< Pointer to server storage (can be used to retrieve
-                         /// store server callback data, etc)
+  libnngio_protobuf_context *mgmt_ctx;        ///< Protobuf context for management
+  libnngio_server_transport **transports;     ///< Array of transport contexts
+  size_t n_transports;                        ///< Number of transport contexts
+  libnngio_service_registration *services;    ///< Array of registered services
+  size_t n_services;                          ///< Number of registered services
+  int running;                                ///< Server running flag
+  void *server_storage;                       ///< Pointer to server storage (can be used to retrieve
+                                              /// store server callback data, etc)
 } libnngio_server;
 
 /**
@@ -112,7 +125,7 @@ typedef struct libnngio_server {
  * services.
  */
 typedef struct libnngio_client {
-  libnngio_protobuf_context *proto_ctx;  ///< Protobuf context for transport
+  libnngio_protobuf_context *proto_ctx;  ///< Protobuf context for client
   LibnngioProtobuf__Service *
       *discovered_services;      ///< Array of discovered services
   size_t n_discovered_services;  ///< Number of discovered services
@@ -399,6 +412,98 @@ LibnngioProtobuf__Raw *nngio_create_raw_message(const void *data,
 void nngio_free_raw_message(LibnngioProtobuf__Raw *msg);
 
 /**
+ * @brief Create a LibnngioProtobuf__Transport and populate its fields.
+ *
+ * Allocates and initializes a transport message with the given type and
+ * address. Deep-copies strings.
+ *
+ * @param type Transport type string.
+ * @param config Transport configuration
+ * @return Pointer to the allocated transport message, or NULL on failure.
+ */
+LibnngioProtobuf__Transport *nngio_create_transport(libnngio_config *config);
+
+/**
+ * @brief Free a LibnngioProtobuf__Transport and its contents.
+ *
+ * Frees all allocated memory associated with the transport message.
+ *
+ * @param msg Pointer to the transport message to free.
+ */
+void nngio_free_transport(LibnngioProtobuf__Transport *transport);
+
+/**
+ * @brief Create a LibnngioProtobuf__AddTransportRequest message.
+ *
+ * Allocates and initializes an AddTransportRequest with the given transport.
+ * Takes ownership of the provided transport pointer.
+ *
+ * @param transport Pointer to a libnngio_config structure.
+ * @return Pointer to the allocated request, or NULL on failure.
+ */
+LibnngioProtobuf__AddTransportRequest *nngio_create_add_transport_request(
+    libnngio_config *transport);
+
+/**
+ * @brief Free a LibnngioProtobuf__AddTransportRequest and its contents.
+ *
+ * Frees all allocated memory associated with the request message.
+ *
+ * @param msg Pointer to the request message to free.
+ */
+void nngio_free_add_transport_request(
+    LibnngioProtobuf__AddTransportRequest *msg);
+
+/**
+ * @brief Create a GetTransportsResponse message.
+ *
+ * Allocates and initializes a GetTransportsResponse with the given transports.
+ * Takes ownership of the provided transport pointers.
+ *
+ * @param configs Array of pointers to libnngio_config structures.
+ * @param n_configs Number of configs.
+ * @return Pointer to the allocated response, or NULL on failure.
+ */
+LibnngioProtobuf__GetTransportsResponse *
+nngio_create_get_transports_response(libnngio_config **configs,
+                                     size_t n_configs);
+
+
+/**
+ * @brief Free a LibnngioProtobuf__GetTransportsResponse and its contents.
+ *
+ * Frees all allocated memory associated with the response message.
+ *
+ * @param msg Pointer to the response message to free.
+ */
+void nngio_free_get_transports_response(
+    LibnngioProtobuf__GetTransportsResponse *msg);
+
+
+/**
+ * @brief Create a LibnngioProtobuf__RemoveTransportRequest message.
+ *
+ * Allocates and initializes a RemoveTransportRequest with the given transport.
+ *
+ * @param mode Transport mode
+ * @param protocol Transport protocol
+ * @param url Transport address
+ * @return Pointer to the allocated request, or NULL on failure.
+ */
+LibnngioProtobuf__RemoveTransportRequest *nngio_create_remove_transport_request(
+     libnngio_mode mode, libnngio_proto protocol, const char *url);
+
+/**
+ * @brief Free a LibnngioProtobuf__RemoveTransportRequest and its contents.
+ *
+ * Frees all allocated memory associated with the request message.
+ *
+ * @param msg Pointer to the request message to free.
+ */
+void nngio_free_remove_transport_request(
+    LibnngioProtobuf__RemoveTransportRequest *msg);
+
+/**
  * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
  * RpcRequestMessage.
  *
@@ -470,6 +575,50 @@ nngio_create_nngio_message_with_service_discovery_response(
     const char *uuid, LibnngioProtobuf__ServiceDiscoveryResponse *resp);
 
 /**
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing an
+ * AddTransportRequest.
+ *
+ * Allocates and initializes an LibnngioMessage. Takes ownership of the req
+ * pointer.
+ *
+ * @param uuid Unique identifier string for the message.
+ * @param req Pointer to a LibnngioProtobuf__AddTransportRequest.
+ * @return Pointer to the allocated LibnngioMessage, or NULL on failure.
+ */
+LibnngioProtobuf__LibnngioMessage *
+nngio_create_nngio_message_with_add_transport_request(
+    const char *uuid, LibnngioProtobuf__AddTransportRequest *req);
+
+/**
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
+ * GetTransportsResponse.
+ *
+ * Allocates and initializes an LibnngioMessage. Takes ownership of the resp
+ * pointer.
+ *
+ * @param uuid Unique identifier string for the message.
+ * @param resp Pointer to a LibnngioProtobuf__GetTransportsResponse.
+ * @return Pointer to the allocated LibnngioMessage, or NULL on failure.
+ */
+LibnngioProtobuf__LibnngioMessage *
+nngio_create_nngio_message_with_get_transports_response(
+    const char *uuid, LibnngioProtobuf__GetTransportsResponse *resp);
+
+/**
+ * @brief Create a LibnngioProtobuf__LibnngioMessage containing a
+ * RemoveTransportRequest.
+ *
+ * Allocates and initializes an LibnngioMessage. Takes ownership of the req
+ * pointer.
+ * @param uuid Unique identifier string for the message.
+ * @param req Pointer to a LibnngioProtobuf__RemoveTransportRequest.
+ * @return Pointer to the allocated LibnngioMessage, or NULL on failure.
+ */
+LibnngioProtobuf__LibnngioMessage *
+nngio_create_nngio_message_with_remove_transport_request(
+    const char *uuid, LibnngioProtobuf__RemoveTransportRequest *req);
+
+/**
  * @brief Free a LibnngioProtobuf__LibnngioMessage and its contents.
  *
  * Frees all memory associated with the LibnngioMessage, including nested
@@ -536,6 +685,29 @@ LibnngioProtobuf__RpcResponse *nngio_copy_rpc_response(
  * @return Pointer to deep-copied raw message, or NULL on failure.
  */
 LibnngioProtobuf__Raw *nngio_copy_raw_message(const LibnngioProtobuf__Raw *src);
+
+/**
+ * @brief Deep copy a LibnngioProtobuf__Transport structure.
+ *
+ * Allocates and returns a new transport whose fields are deep-copied from src.
+ *
+ * @param src Pointer to the source transport to copy.
+ * @return Pointer to deep-copied transport, or NULL on failure.
+ */
+LibnngioProtobuf__Transport *nngio_copy_transport(
+    const LibnngioProtobuf__Transport *src);
+
+/**
+ * @brief Deep copy a LibnngioProtobuf__GetTransportsResponse structure.
+ *
+ * Allocates and returns a new response whose fields and transports are
+ * deep-copied from src.
+ *
+ * @param src Pointer to the source response to copy.
+ * @return Pointer to deep-copied response, or NULL on failure.
+ */
+LibnngioProtobuf__GetTransportsResponse *nngio_copy_get_transports_response(
+    const LibnngioProtobuf__GetTransportsResponse *src);
 
 /**
  * @brief Deep copy a LibnngioProtobuf__LibnngioMessage structure.

@@ -162,6 +162,7 @@ struct libnngio_context {
   libnngio_transport *transport; /**< Associated transport */
   int id;                        /**< Context ID */
   void *user_data;               /**< User data pointer */
+  const libnngio_config *config; /**< Configuration used */
   libnngio_ctx_cb cb;            /**< Context callback */
 };
 static int free_context_id = 0; /**< Simple ID generator */
@@ -181,6 +182,7 @@ int libnngio_context_init(libnngio_context **ctxp,
 
   ctx->transport = transport;
   ctx->id = free_context_id++;  // Assign a random ID for simplicity
+  ctx->config = config;
   ctx->user_data = user_data;
   ctx->cb = cb;
   *ctxp = ctx;
@@ -191,6 +193,11 @@ int libnngio_context_init(libnngio_context **ctxp,
 int libnngio_context_id(libnngio_context *ctx) {
   if (!ctx) return -1;
   return ctx->id;
+}
+
+const libnngio_config *libnngio_context_get_config(libnngio_context *ctx) {
+  if (!ctx || !ctx->config) return NULL;
+  return ctx->config;
 }
 
 void libnngio_context_start(libnngio_context *ctx) {
