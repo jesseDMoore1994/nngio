@@ -99,12 +99,28 @@ typedef struct {
  * @brief Hold a server transport entity
  */
 typedef struct {
+  char *t_name;                   ///< Transport name
   libnngio_config *cfg;           ///< Transport config
   libnngio_transport *transport;  ///< Transport handle
   libnngio_context *t_ctx;        ///< Array of context handles
   libnngio_protobuf_context *proto_ctx;  ///< Protobuf context for this
                                          /// transport
 } libnngio_server_transport;
+
+/**
+ * @brief Create a forwarder between two protobuf contexts
+ */
+typedef struct {
+  char *fwd_name;                  ///< Name of the forwarder (for logging)
+  char **inputs;                   ///< Array of source transport names
+  size_t n_inputs;                 ///< Number of source transports
+  char **outputs;                  ///< Array of destination transport names
+  size_t n_outputs;                ///< Number of destination transports
+  int running;                     ///< Forwarder running flag
+  void *fwd_storage;               ///< Pointer to forwarder storage (can be used
+                                   /// to store forwarder callback data, etc)
+} libnngio_protobuf_forwarder;
+
 
 /**
  * @brief Server structure that encapsulates protobuf context and service logic.
@@ -118,6 +134,8 @@ typedef struct libnngio_server {
   int running;                                ///< Server running flag
   void *server_storage;                       ///< Pointer to server storage (can be used to retrieve
                                               /// store server callback data, etc)
+  int is_async;                               ///< Flag indicating if server is async or
+                                              /// sync (0 = sync, 1 = async)
 } libnngio_server;
 
 /**
@@ -491,7 +509,7 @@ void nngio_free_get_transports_response(
  * @return Pointer to the allocated request, or NULL on failure.
  */
 LibnngioProtobuf__RemoveTransportRequest *nngio_create_remove_transport_request(
-     libnngio_mode mode, libnngio_proto protocol, const char *url);
+     const char *name, libnngio_mode mode, libnngio_proto protocol, const char *url);
 
 /**
  * @brief Free a LibnngioProtobuf__RemoveTransportRequest and its contents.

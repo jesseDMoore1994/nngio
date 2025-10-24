@@ -2,15 +2,6 @@ syntax = "proto3";
 
 package LibnngioProtobuf;
 
-// Example usage:
-// 1. A server defines its services and RPC methods using protobuf.
-// 2. The server also implements the ServiceDiscoveryService to advertise its services.
-// 3. A client connects to the server and calls GetServices to get the list of services.
-// 4. The client can then construct RpcRequestMessage messages to call the desired RPC methods.
-// 5. The server processes the RpcRequestMessage and responds with an RpcResponseMessage.
-// 6. Both client and server can also use RawMessage for sending arbitrary binary data if needed.
-// 7. The NngioMessage wrapper is used to encapsulate the different message types.
-
 message Service {
     string name = 1; // Name of the service
     repeated string methods = 2; // List of RPC methods provided by the service
@@ -65,17 +56,18 @@ enum TransportProtocol {
 }
 
 message Transport {
-    TransportMode mode = 1; // Mode of the transport
-    TransportProtocol proto = 2; // Protocol of the transport
-    string url = 3; // Address to connect or bind to
+    string name = 1; // Name of the transport (e.g., "rep-tcp1", "req-ipc1", etc.)
+    TransportMode mode = 2; // Mode of the transport
+    TransportProtocol proto = 3; // Protocol of the transport
+    string url = 4; // Address to connect or bind to
 
-    string tls_cert = 4; // TLS certificate for secure connections
-    string tls_key = 5; // TLS private key for secure connections
-    string tls_ca_cert = 6; // TLS CA certificate for secure connections
+    string tls_cert = 5; // TLS certificate for secure connections
+    string tls_key = 6; // TLS private key for secure connections
+    string tls_ca_cert = 7; // TLS CA certificate for secure connections
 
-    uint32 recv_timeout_ms = 7; // Receive timeout in milliseconds
-    uint32 send_timeout_ms = 8; // Send timeout in milliseconds
-    uint64 max_msg_size = 9; // Maximum message size in bytes
+    uint32 recv_timeout_ms = 8; // Receive timeout in milliseconds
+    uint32 send_timeout_ms = 9; // Send timeout in milliseconds
+    uint64 max_msg_size = 10; // Maximum message size in bytes
 }
 
 message AddTransportRequest {
@@ -95,13 +87,18 @@ message GetTransportsResponse {
 }
 
 message RemoveTransportRequest {
-    TransportMode mode = 1; // Mode of the transport
-    TransportProtocol proto = 2; // Protocol of the transport
-    string url = 3; // Address to connect or bind to
+    string name = 1; // Name of the transport to remove
 }
 
 message RemoveTransportResponse {
     // Empty message to acknowledge transport removal
+}
+
+message Forwarder {
+    string name = 1; // Name of the forwarder
+    repeated string inputs = 2; // Names of input transports
+    repeated string outputs = 3; // Names of output transports
+    bool running = 4; // Whether the forwarder is currently running
 }
 
 message LibnngioMessage {

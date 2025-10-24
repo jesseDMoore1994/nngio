@@ -47,6 +47,7 @@ typedef struct libnngio_transport libnngio_transport;
  * @brief User configuration for initializing a libnngio transport.
  */
 typedef struct {
+  char *name;           /**< Name for the transport (for logging). */
   libnngio_mode mode;   /**< Dial or listen mode. */
   libnngio_proto proto; /**< Protocol to use. */
   const char *url;      /**< URL to dial or listen on. */

@@ -448,6 +448,8 @@ LibnngioProtobuf__Transport *nngio_create_transport(libnngio_config *config) {
   if (!msg) return NULL;
   libnngio_protobuf__transport__init(msg);
 
+  msg->name = config->name ? strdup(config->name) : NULL;
+
   switch (config->mode) {
     case LIBNNGIO_MODE_DIAL:
       msg->mode = LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial;
@@ -512,6 +514,7 @@ LibnngioProtobuf__Transport *nngio_create_transport(libnngio_config *config) {
  */
 void nngio_free_transport(LibnngioProtobuf__Transport *transport) {
   if (!transport) return;
+  if (transport->name) free(transport->name);
   if (transport->url) free(transport->url);
   if (transport->tls_cert) free(transport->tls_cert);
   if (transport->tls_key) free(transport->tls_key);
@@ -613,61 +616,12 @@ void nngio_free_get_transports_response(
  * @return Pointer to allocated request, or NULL on failure.
  */
 LibnngioProtobuf__RemoveTransportRequest * nngio_create_remove_transport_request(
-    libnngio_mode mode,
-    libnngio_proto proto, const char *url) {
+    const char* name, libnngio_mode mode, libnngio_proto proto, const char *url) {
   LibnngioProtobuf__RemoveTransportRequest *req =
       malloc(sizeof(LibnngioProtobuf__RemoveTransportRequest));
   if (!req) return NULL;
   libnngio_protobuf__remove_transport_request__init(req);
-  switch (mode) {
-    case LIBNNGIO_MODE_DIAL:
-      req->mode = LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial;
-      break;
-    case LIBNNGIO_MODE_LISTEN:
-      req->mode = LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen;
-      break;
-    default:
-      assert(0 && "Invalid transport mode");
-      free(req);
-      return NULL;
-  }
-  switch (proto) {
-    case LIBNNGIO_PROTO_PAIR:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pair;
-      break;
-    case LIBNNGIO_PROTO_REQ:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Req;
-      break;
-    case LIBNNGIO_PROTO_REP:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep;
-      break;
-    case LIBNNGIO_PROTO_PUB:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pub;
-      break;
-    case LIBNNGIO_PROTO_SUB:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Sub;
-      break;
-    case LIBNNGIO_PROTO_PUSH:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Push;
-      break;
-    case LIBNNGIO_PROTO_PULL:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pull;
-      break;
-    case LIBNNGIO_PROTO_SURVEYOR:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Surveyor;
-      break;
-    case LIBNNGIO_PROTO_RESPONDENT:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Respondent;
-      break;
-    case LIBNNGIO_PROTO_BUS:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Bus;
-      break;
-    default:
-      assert(0 && "Invalid transport protocol");
-      free(req);
-      return NULL;
-  }
-  req->url = strdup(url ? url : "");
+  req->name = strdup(name ? name : "");
   return req;
 }
 
@@ -681,7 +635,7 @@ LibnngioProtobuf__RemoveTransportRequest * nngio_create_remove_transport_request
 void nngio_free_remove_transport_request(
     LibnngioProtobuf__RemoveTransportRequest *req) {
   if (!req) return;
-  if (req->url) free(req->url);
+  if (req->name) free(req->name);
   free(req);
 }
 
@@ -1000,6 +954,13 @@ LibnngioProtobuf__Raw *nngio_copy_raw_message(
 static libnngio_config *libnngio_config_from_transport(
     const LibnngioProtobuf__Transport *transport) {
   libnngio_config *config = calloc(1, sizeof(libnngio_config));
+
+  if(strcmp(transport->name, "") != 0) {
+    config->name = strdup(transport->name);
+  } else {
+    config->name = NULL;
+  }
+
   switch (transport->mode) {
     case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial:
       config->mode = LIBNNGIO_MODE_DIAL;
@@ -1084,6 +1045,7 @@ LibnngioProtobuf__Transport *nngio_copy_transport(
     const LibnngioProtobuf__Transport *src) {
   if (!src) return NULL;
   libnngio_config config;
+  config.name = src->name ? strdup(src->name) : NULL;
   switch (src->mode) {
     case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial:
       config.mode = LIBNNGIO_MODE_DIAL;
@@ -1146,6 +1108,9 @@ LibnngioProtobuf__AddTransportRequest *nngio_copy_add_transport_request(
     const LibnngioProtobuf__AddTransportRequest *src) {
   if (!src) return NULL;
   libnngio_config config;
+  src->transport->name
+      ? strdup(src->transport->name)
+      : NULL;
   switch (src->transport->mode) {
     case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial:
       config.mode = LIBNNGIO_MODE_DIAL;
@@ -1247,55 +1212,7 @@ LibnngioProtobuf__RemoveTransportRequest *nngio_copy_remove_transport_request(
       malloc(sizeof(LibnngioProtobuf__RemoveTransportRequest));
   if (!req) return NULL;
   libnngio_protobuf__remove_transport_request__init(req);
-  switch (src->mode) {
-    case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial:
-      req->mode = LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen:
-      req->mode = LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen;
-      break;
-    default:
-      assert(0 && "Invalid transport mode");
-      free(req);
-      return NULL;
-  }
-  switch (src->proto) {
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pair:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pair;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Req:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Req;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pub:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pub;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Sub:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Sub;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Push:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Push;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pull:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pull;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Surveyor:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Surveyor;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Respondent:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Respondent;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Bus:
-      req->proto = LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Bus;
-      break;
-    default:
-      assert(0 && "Invalid transport protocol");
-      free(req);
-      return NULL;
-  }
-  req->url = strdup(src->url ? src->url : "");
+  req->name = src->name ? strdup(src->name) : NULL;
   return req;
 }
 
@@ -4403,7 +4320,7 @@ static LibnngioProtobuf__RpcResponse__Status add_transport_handler(
   libnngio_protobuf_error_code rv = libnngio_transport_init(&t, cfg);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to initialize transport for URL '%s'.", cfg->url);
+                 "Failed to initialize transport %s with URL '%s'.", cfg->name, cfg->url);
     libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
@@ -4412,8 +4329,8 @@ static LibnngioProtobuf__RpcResponse__Status add_transport_handler(
   rv = libnngio_context_init(&t_ctx, t, cfg, NULL, NULL);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to initialize context for transport URL '%s'.",
-                 cfg->url);
+                 "Failed to initialize context %s with transport URL '%s'.",
+                 cfg->name, cfg->url);
     libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
@@ -4422,8 +4339,8 @@ static LibnngioProtobuf__RpcResponse__Status add_transport_handler(
   rv = libnngio_protobuf_context_init(&pb_ctx, t_ctx);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to initialize protobuf context for transport URL '%s'.",
-                 cfg->url);
+                 "Failed to initialize protobuf context %s with transport URL '%s'.",
+                 cfg->name, cfg->url);
     libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
@@ -4431,8 +4348,8 @@ static LibnngioProtobuf__RpcResponse__Status add_transport_handler(
   libnngio_server_transport *transport_ctx = malloc(sizeof(*transport_ctx));
   if (transport_ctx == NULL) {
     libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to allocate memory for transport context for URL '%s'.",
-                 cfg->url);
+                 "Failed to allocate memory for transport context %s with URL '%s'.",
+                 cfg->name, cfg->url);
     libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
@@ -4488,17 +4405,17 @@ static LibnngioProtobuf__RpcResponse__Status get_transports_handler(
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static libnngio_protobuf_error_code libnngio_server_remove_transport(libnngio_server *s, libnngio_mode m, libnngio_proto p, const char* url) {
-  if (s == NULL || url == NULL) {
+static libnngio_protobuf_error_code libnngio_server_remove_transport(libnngio_server *s,char* name) {
+  if (s == NULL || name == NULL) {
     return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
   }
 
   for (size_t i = 0; i < s->n_transports; i++) {
     const libnngio_config *cfg = libnngio_context_get_config(s->transports[i]->t_ctx);
   libnngio_log("INF", "REMOVE_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-               "Checking transport with url '%s' in server.",
-               cfg->url);
-    if (strcmp(cfg->url, url) == 0 && cfg->mode == m && cfg->proto == p) {
+               "Checking transport %s with url '%s' in server.",
+               cfg->name, cfg->url);
+    if (strcmp(cfg->name, name) == 0) {
       // Found the transport to remove
       libnngio_server_transport *to_remove = s->transports[i];
 
@@ -4518,6 +4435,7 @@ static libnngio_protobuf_error_code libnngio_server_remove_transport(libnngio_se
       }
 
       // Free the removed context
+      free((void*)to_remove->cfg->name);
       free((void*)to_remove->cfg->url);
       free((void*)to_remove->cfg->tls_cert);
       free((void*)to_remove->cfg->tls_key);
@@ -4551,64 +4469,11 @@ static LibnngioProtobuf__RpcResponse__Status remove_transport_handler(
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
 
-  libnngio_mode m;
-  libnngio_proto p;
-  char* url;
-  switch (request->mode) {
-    case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial:
-      m = LIBNNGIO_MODE_DIAL;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen:
-      m = LIBNNGIO_MODE_LISTEN;
-      break;
-    default:
-      libnngio_protobuf__remove_transport_request__free_unpacked(request, NULL);
-      return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
-  }
-  switch (request->proto) {
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pair:
-      p = LIBNNGIO_PROTO_PAIR;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Req:
-      p = LIBNNGIO_PROTO_REQ;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep:
-      p = LIBNNGIO_PROTO_REP;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pub:
-      p = LIBNNGIO_PROTO_PUB;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Sub:
-      p = LIBNNGIO_PROTO_SUB;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Push:
-      p = LIBNNGIO_PROTO_PUSH;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Pull:
-      p = LIBNNGIO_PROTO_PULL;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Surveyor:
-      p = LIBNNGIO_PROTO_SURVEYOR;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Respondent:
-      p = LIBNNGIO_PROTO_RESPONDENT;
-      break;
-    case LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Bus:
-      p = LIBNNGIO_PROTO_BUS;
-      break;
-    default:
-      libnngio_protobuf__remove_transport_request__free_unpacked(request, NULL);
-      return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
-  }
-  url = strdup(request->url);
-  if (url == NULL) {
-      libnngio_protobuf__remove_transport_request__free_unpacked(request, NULL);
-      return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
+  char* name = strdup(request->name);
 
-  libnngio_protobuf_error_code proto_rv = libnngio_server_remove_transport(s, m, p, url);
+  libnngio_protobuf_error_code proto_rv = libnngio_server_remove_transport(s, name);
 
-  free(url);
+  free(name);
   libnngio_protobuf__remove_transport_request__free_unpacked(request, NULL);
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
@@ -4713,6 +4578,7 @@ libnngio_protobuf_error_code libnngio_server_free(libnngio_server *server) {
 
   // Free transport contexts
   for (size_t i = 0; i < server->n_transports; i++) {
+    free((void*)server->transports[i]->cfg->name);
     free((void*)server->transports[i]->cfg->url);
     free((void*)server->transports[i]->cfg->tls_cert);
     free((void*)server->transports[i]->cfg->tls_key);

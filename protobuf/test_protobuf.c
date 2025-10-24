@@ -217,6 +217,7 @@ void test_protobuf_helpers() {
   libnngio_config **configs = malloc(1 * sizeof(libnngio_config *));
   configs[0] = malloc(sizeof(libnngio_config));
   memset(configs[0], 0, sizeof(libnngio_config));
+  configs[0]->name = "req-1";
   configs[0]->mode = LIBNNGIO_MODE_DIAL;
   configs[0]->proto = LIBNNGIO_PROTO_REQ;
   configs[0]->url = "tcp://127.0.0.1:5555";
@@ -234,7 +235,7 @@ void test_protobuf_helpers() {
   free(configs);
 
   // RemoveTransportRequest and RemoveTransportResponse
-  LibnngioProtobuf__RemoveTransportRequest *rtreq = nngio_create_remove_transport_request(LIBNNGIO_MODE_DIAL, LIBNNGIO_PROTO_REQ, "tcp://127.0.0.1:5555");
+  LibnngioProtobuf__RemoveTransportRequest *rtreq = nngio_create_remove_transport_request("req-1", LIBNNGIO_MODE_DIAL, LIBNNGIO_PROTO_REQ, "tcp://127.0.0.1:5555");
   nmsg = nngio_create_nngio_message_with_remove_transport_request("uuid-104",
                                                                  rtreq);
   if (!nmsg) {
@@ -4376,9 +4377,12 @@ void test_transport_operations(void) {
   // create a Transport for our client to add to the server's known transports
   size_t num_transports = 10;
   for(size_t i = 0; i < num_transports; i++) {
+    char name[50];
+    snprintf(name, 50, "Transport-%zu", i);
     char url[100];
     snprintf(url, 100, "tcp://127.0.0.1:%zu", 5000+i);
     libnngio_config cfg = {0};
+    cfg.name = name;
     cfg.mode = LIBNNGIO_MODE_LISTEN;
     cfg.proto = LIBNNGIO_PROTO_REP;
     cfg.url = url;
@@ -4388,6 +4392,7 @@ void test_transport_operations(void) {
     LibnngioProtobuf__AddTransportRequest *atreq = nngio_create_add_transport_request(&cfg);
     assert(atreq != NULL);
     assert(atreq->transport != NULL);
+    assert(strcmp(atreq->transport->name, cfg.name) == 0);
     assert(strcmp(atreq->transport->url, cfg.url) == 0);
     assert(atreq->transport->mode == LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen);
     assert(atreq->transport->proto == LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep);
@@ -4456,6 +4461,7 @@ void test_transport_operations(void) {
                                               recv_rpc_request->payload.len,
                                               recv_rpc_request->payload.data);
     assert(atreq_recv != NULL);
+    assert(strcmp(atreq_recv->transport->name, cfg.name) == 0);
     assert(strcmp(atreq_recv->transport->url, cfg.url) == 0);
     assert(atreq_recv->transport->mode == LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen);
     assert(atreq_recv->transport->proto == LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep);
@@ -4516,9 +4522,11 @@ void test_transport_operations(void) {
 
   size_t half_n_transports = num_transports/2;
   for(size_t i = 0; i < half_n_transports; i++) {
+    char name[50];
+    snprintf(name, 50, "Transport-%zu", i);
     char url[100];
     snprintf(url, 100, "tcp://127.0.0.1:%zu", 5000+i);
-    LibnngioProtobuf__RemoveTransportRequest *rtreq = nngio_create_remove_transport_request(LIBNNGIO_MODE_LISTEN, LIBNNGIO_PROTO_REP, url);
+    LibnngioProtobuf__RemoveTransportRequest *rtreq = nngio_create_remove_transport_request(name, LIBNNGIO_MODE_LISTEN, LIBNNGIO_PROTO_REP, url);
     assert(rtreq != NULL);
     if (!rtreq) {
       libnngio_log("ERR", "TEST_TRANSPORT_OPERATIONS", __FILE__, __LINE__, -1,
@@ -4585,9 +4593,7 @@ void test_transport_operations(void) {
                                               recv_rpc_request->payload.len,
                                               recv_rpc_request->payload.data);
     assert(rtreq_recv != NULL);
-    assert(strcmp(rtreq_recv->url, url) == 0);
-    assert(rtreq_recv->mode == LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Listen);
-    assert(rtreq_recv->proto == LIBNNGIO_PROTOBUF__TRANSPORT_PROTOCOL__Rep);
+    assert(strcmp(rtreq_recv->name, name) == 0);
     libnngio_protobuf__remove_transport_request__free_unpacked(rtreq_recv, NULL);
 
     LibnngioProtobuf__RpcResponse *rpc_response = NULL;
@@ -4657,6 +4663,93 @@ void test_transport_operations(void) {
                "Transport operations test completed successfully.");
 }
 
+void test_forwarders(void) {
+  libnngio_log("INF", "TEST_FORWARDERS", __FILE__, __LINE__, -1,
+               "Testing forwarders...");
+
+  // Initialize transport and contexts
+  libnngio_config rep_cfg = {.mode = LIBNNGIO_MODE_LISTEN,
+                             .proto = LIBNNGIO_PROTO_REP,
+                             .url = "tcp://127.0.0.1:7777",
+                             .tls_cert = NULL,
+                             .tls_key = NULL,
+                             .tls_ca_cert = NULL};
+  libnngio_config req_cfg = {.mode = LIBNNGIO_MODE_DIAL,
+                             .proto = LIBNNGIO_PROTO_REQ,
+                             .url = "tcp://127.0.0.1:7777",
+                             .tls_cert = NULL,
+                             .tls_key = NULL,
+                             .tls_ca_cert = NULL};
+
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_context *rep_ctx = NULL, *req_ctx = NULL;
+  int rv = libnngio_transport_init(&rep, &rep_cfg);
+  if (rv != 0) {
+    assert(rv == 0);
+  }
+  rv = libnngio_transport_init(&req, &req_cfg);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&rep_ctx, rep, &rep_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  if (rv != 0) {
+    libnngio_context_free(rep_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(rv == 0);
+  }
+
+  // create server and client
+  libnngio_protobuf_context *rep_proto_ctx = NULL, *req_proto_ctx = NULL;
+  libnngio_protobuf_error_code proto_rv =
+      libnngio_protobuf_context_init(&rep_proto_ctx, rep_ctx);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+  proto_rv = libnngio_protobuf_context_init(&req_proto_ctx, req_ctx);
+  if (proto_rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_protobuf_context_free(rep_proto_ctx);
+    libnngio_context_free(rep_ctx);
+    libnngio_context_free(req_ctx);
+    libnngio_transport_free(rep);
+    libnngio_transport_free(req);
+    assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  }
+
+  libnngio_server *server = NULL;
+  proto_rv = libnngio_server_init(&server, rep_proto_ctx);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+  libnngio_client *client = NULL;
+  proto_rv = libnngio_client_init(&client, req_proto_ctx);
+  assert(proto_rv == LIBNNGIO_PROTOBUF_ERR_NONE);
+
+  libnngio_log("INF", "TEST_FORWARDERS", __FILE__, __LINE__, -1,
+               "Transport, contexts, server, and client initialized.");
+
+  libnngio_server_free(server);
+  libnngio_client_free(client);
+  libnngio_protobuf_context_free(rep_proto_ctx);
+  libnngio_protobuf_context_free(req_proto_ctx);
+  libnngio_context_free(rep_ctx);
+  libnngio_context_free(req_ctx);
+  libnngio_transport_free(rep);
+  libnngio_transport_free(req);
+
+  libnngio_log("INF", "TEST_FORWARDERS", __FILE__, __LINE__, -1,
+               "Forwarders test completed successfully.");
+}
+
 /**
  * @brief Main function to run the protobuf tests
  */
@@ -4683,5 +4776,6 @@ int main() {
   test_service_discovery_via_rpc();
   test_service_discovery_via_rpc_async();
   test_transport_operations();
+  test_forwarders();
   return 0;
 }
