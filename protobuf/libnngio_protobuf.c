@@ -531,7 +531,7 @@ void nngio_free_transport(LibnngioProtobuf__Transport *transport) {
  * @param config Pointer to libnngio_config containing transport settings.
  * @return Pointer to allocated response, or NULL on failure.
  */
-LibnngioProtobuf__AddTransportRequest * nngio_create_add_transport_request(
+LibnngioProtobuf__AddTransportRequest *nngio_create_add_transport_request(
     libnngio_config *config) {
   LibnngioProtobuf__AddTransportRequest *req =
       malloc(sizeof(LibnngioProtobuf__AddTransportRequest));
@@ -568,8 +568,7 @@ void nngio_free_add_transport_request(
  * @param n_configs Number of transport configs.
  * @return Pointer to allocated response, or NULL on failure.
  */
-LibnngioProtobuf__GetTransportsResponse *
-nngio_create_get_transports_response(
+LibnngioProtobuf__GetTransportsResponse *nngio_create_get_transports_response(
     libnngio_config **configs, size_t n_configs) {
   LibnngioProtobuf__GetTransportsResponse *resp =
       malloc(sizeof(LibnngioProtobuf__GetTransportsResponse));
@@ -607,7 +606,7 @@ void nngio_free_get_transports_response(
 
 /**
  * @brief Create and populate a LibnngioProtobuf__RemoveTransportRequest.
- * 
+ *
  * Allocates and initializes a request to remove a transport.
  *
  * @param mode Transport mode (Dial or Listen).
@@ -615,8 +614,9 @@ void nngio_free_get_transports_response(
  * @param url Transport URL.
  * @return Pointer to allocated request, or NULL on failure.
  */
-LibnngioProtobuf__RemoveTransportRequest * nngio_create_remove_transport_request(
-    const char* name, libnngio_mode mode, libnngio_proto proto, const char *url) {
+LibnngioProtobuf__RemoveTransportRequest *nngio_create_remove_transport_request(
+    const char *name, libnngio_mode mode, libnngio_proto proto,
+    const char *url) {
   LibnngioProtobuf__RemoveTransportRequest *req =
       malloc(sizeof(LibnngioProtobuf__RemoveTransportRequest));
   if (!req) return NULL;
@@ -763,8 +763,7 @@ LibnngioProtobuf__LibnngioMessage *nngio_create_nngio_message_with_raw(
  */
 LibnngioProtobuf__LibnngioMessage *
 nngio_create_nngio_message_with_add_transport_request(
-    const char *uuid,
-    LibnngioProtobuf__AddTransportRequest *req) {
+    const char *uuid, LibnngioProtobuf__AddTransportRequest *req) {
   LibnngioProtobuf__LibnngioMessage *msg =
       malloc(sizeof(LibnngioProtobuf__LibnngioMessage));
   if (!msg) return NULL;
@@ -786,8 +785,7 @@ nngio_create_nngio_message_with_add_transport_request(
  */
 LibnngioProtobuf__LibnngioMessage *
 nngio_create_nngio_message_with_get_transports_response(
-    const char *uuid,
-    LibnngioProtobuf__GetTransportsResponse *resp) {
+    const char *uuid, LibnngioProtobuf__GetTransportsResponse *resp) {
   LibnngioProtobuf__LibnngioMessage *msg =
       malloc(sizeof(LibnngioProtobuf__LibnngioMessage));
   if (!msg) return NULL;
@@ -809,8 +807,7 @@ nngio_create_nngio_message_with_get_transports_response(
  */
 LibnngioProtobuf__LibnngioMessage *
 nngio_create_nngio_message_with_remove_transport_request(
-    const char *uuid,
-    LibnngioProtobuf__RemoveTransportRequest *req) {
+    const char *uuid, LibnngioProtobuf__RemoveTransportRequest *req) {
   LibnngioProtobuf__LibnngioMessage *msg =
       malloc(sizeof(LibnngioProtobuf__LibnngioMessage));
   if (!msg) return NULL;
@@ -867,8 +864,7 @@ void nngio_free_nngio_message(LibnngioProtobuf__LibnngioMessage *msg) {
       break;
     case LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_GET_TRANSPORTS_RESPONSE:
       if (msg->get_transports_response) {
-        nngio_free_get_transports_response(
-            msg->get_transports_response);
+        nngio_free_get_transports_response(msg->get_transports_response);
       }
       break;
     case LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_REMOVE_TRANSPORT_REQUEST:
@@ -955,7 +951,7 @@ static libnngio_config *libnngio_config_from_transport(
     const LibnngioProtobuf__Transport *transport) {
   libnngio_config *config = calloc(1, sizeof(libnngio_config));
 
-  if(strcmp(transport->name, "") != 0) {
+  if (strcmp(transport->name, "") != 0) {
     config->name = strdup(transport->name);
   } else {
     config->name = NULL;
@@ -1007,25 +1003,25 @@ static libnngio_config *libnngio_config_from_transport(
       assert(0 && "Invalid transport protocol");
   }
 
-  if(strcmp(transport->url, "") != 0) {
+  if (strcmp(transport->url, "") != 0) {
     config->url = strdup(transport->url);
   } else {
     config->url = NULL;
   }
 
-  if(strcmp(transport->tls_cert, "") != 0) {
+  if (strcmp(transport->tls_cert, "") != 0) {
     config->tls_cert = strdup(transport->tls_cert);
   } else {
     config->tls_cert = NULL;
   }
 
-  if(strcmp(transport->tls_cert, "") != 0) {
+  if (strcmp(transport->tls_cert, "") != 0) {
     config->tls_key = strdup(transport->tls_key);
   } else {
     config->tls_key = NULL;
   }
 
-  if(strcmp(transport->tls_ca_cert, "") != 0) {
+  if (strcmp(transport->tls_ca_cert, "") != 0) {
     config->tls_ca_cert = strdup(transport->tls_ca_cert);
   } else {
     config->tls_ca_cert = NULL;
@@ -1108,9 +1104,7 @@ LibnngioProtobuf__AddTransportRequest *nngio_copy_add_transport_request(
     const LibnngioProtobuf__AddTransportRequest *src) {
   if (!src) return NULL;
   libnngio_config config;
-  src->transport->name
-      ? strdup(src->transport->name)
-      : NULL;
+  src->transport->name ? strdup(src->transport->name) : NULL;
   switch (src->transport->mode) {
     case LIBNNGIO_PROTOBUF__TRANSPORT_MODE__Dial:
       config.mode = LIBNNGIO_MODE_DIAL;
@@ -1158,17 +1152,19 @@ LibnngioProtobuf__AddTransportRequest *nngio_copy_add_transport_request(
       return NULL;
   }
   config.url = strdup(src->transport->url ? src->transport->url : "");
-  config.tls_cert = strdup(src->transport->tls_cert ? src->transport->tls_cert : "");
-  config.tls_key = strdup(src->transport->tls_key ? src->transport->tls_key : "");
-  config.tls_ca_cert = strdup(src->transport->tls_ca_cert ? src->transport->tls_ca_cert : "");
+  config.tls_cert =
+      strdup(src->transport->tls_cert ? src->transport->tls_cert : "");
+  config.tls_key =
+      strdup(src->transport->tls_key ? src->transport->tls_key : "");
+  config.tls_ca_cert =
+      strdup(src->transport->tls_ca_cert ? src->transport->tls_ca_cert : "");
   return nngio_create_add_transport_request(&config);
 }
 
 /**
  * @brief Deep copy a LibnngioProtobuf__GetTransportsResponse structure.
  */
-LibnngioProtobuf__GetTransportsResponse *
-nngio_copy_get_transports_response(
+LibnngioProtobuf__GetTransportsResponse *nngio_copy_get_transports_response(
     const LibnngioProtobuf__GetTransportsResponse *src) {
   if (!src) return NULL;
   LibnngioProtobuf__Transport **transports = NULL;
@@ -1253,8 +1249,8 @@ LibnngioProtobuf__LibnngioMessage *nngio_copy_nngio_message(
       dst->raw = nngio_copy_raw_message(src->raw);
       break;
     case LIBNNGIO_PROTOBUF__LIBNNGIO_MESSAGE__MSG_GET_TRANSPORTS_RESPONSE:
-      dst->get_transports_response = nngio_copy_get_transports_response(
-          src->get_transports_response);
+      dst->get_transports_response =
+          nngio_copy_get_transports_response(src->get_transports_response);
       break;
     default:
       // do nothing - not set
@@ -4244,7 +4240,8 @@ static LibnngioProtobuf__RpcResponse__Status get_services_handler(
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static libnngio_protobuf_error_code libnngio_server_create_transport_discovery_response(
+static libnngio_protobuf_error_code
+libnngio_server_create_transport_discovery_response(
     libnngio_server *s, LibnngioProtobuf__GetTransportsResponse **response) {
   if (s == NULL || response == NULL) {
     return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
@@ -4266,35 +4263,84 @@ static libnngio_protobuf_error_code libnngio_server_create_transport_discovery_r
       return LIBNNGIO_PROTOBUF_ERR_UNKNOWN;
     }
     for (size_t i = 0; i < s->n_transports; i++) {
-      const libnngio_config *cfg = libnngio_context_get_config(s->transports[i]->t_ctx);
-      libnngio_log("DBG", "LIBNNGIO_SERVER_CREATE_TRANSPORT_DISCOVERY_RESPONSE",
-                   __FILE__, __LINE__, libnngio_context_id(s->transports[i]->t_ctx),
-                   "Adding transport URL '%s' to discovery response.",
-                   cfg->url);
+      const libnngio_config *cfg =
+          libnngio_context_get_config(s->transports[i]->t_ctx);
+      libnngio_log(
+          "DBG", "LIBNNGIO_SERVER_CREATE_TRANSPORT_DISCOVERY_RESPONSE",
+          __FILE__, __LINE__, libnngio_context_id(s->transports[i]->t_ctx),
+          "Adding transport URL '%s' to discovery response.", cfg->url);
     }
   } else {
     (*response)->transports = NULL;
   }
 
-
   return LIBNNGIO_PROTOBUF_ERR_NONE;
 }
 
-static libnngio_protobuf_error_code libnngio_server_add_transport(libnngio_server *s,
-                                        libnngio_server_transport *ctx) {
-  if (s == NULL || ctx == NULL) {
-    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+LibnngioProtobuf__RpcResponse__Status libnngio_server_add_transport(
+    libnngio_server *s, const LibnngioProtobuf__AddTransportRequest *request) {
+  if (s == NULL || request == NULL) {
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
 
-  s->transports = realloc(s->transports,
-                             (s->n_transports + 1) * sizeof(*s->transports));
+  // convert add transport request to a libnngio config
+  libnngio_config *cfg = libnngio_config_from_transport(request->transport);
+
+  libnngio_transport *t = NULL;
+  libnngio_protobuf_error_code rv = libnngio_transport_init(&t, cfg);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
+                 "Failed to initialize transport %s with URL '%s'.", cfg->name,
+                 cfg->url);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+
+  libnngio_context *t_ctx = NULL;
+  rv = libnngio_context_init(&t_ctx, t, cfg, NULL, NULL);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
+                 "Failed to initialize context %s with transport URL '%s'.",
+                 cfg->name, cfg->url);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
+  }
+
+  libnngio_protobuf_context *pb_ctx = NULL;
+  rv = libnngio_protobuf_context_init(&pb_ctx, t_ctx);
+  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
+    libnngio_log(
+        "ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
+        "Failed to initialize protobuf context %s with transport URL '%s'.",
+        cfg->name, cfg->url);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+
+  libnngio_server_transport *transport_ctx = malloc(sizeof(*transport_ctx));
+  if (transport_ctx == NULL) {
+    libnngio_log(
+        "ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
+        "Failed to allocate memory for transport context %s with URL '%s'.",
+        cfg->name, cfg->url);
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
+  }
+  transport_ctx->cfg = cfg;
+  transport_ctx->transport = t;
+  transport_ctx->t_ctx = t_ctx;
+  transport_ctx->proto_ctx = pb_ctx;
+
+  s->transports =
+      realloc(s->transports, (s->n_transports + 1) * sizeof(*s->transports));
   if (s->transports == NULL) {
-    return LIBNNGIO_PROTOBUF_ERR_INTERNAL_ERROR;
+    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
 
-  s->transports[s->n_transports] = ctx;
+  s->transports[s->n_transports] = transport_ctx;
   s->n_transports++;
-  return LIBNNGIO_PROTOBUF_ERR_NONE;
+
+  libnngio_log("INF", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
+               "Successfully added transport context for URL '%s' to server.",
+               cfg->url);
+
+  return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
 static LibnngioProtobuf__RpcResponse__Status add_transport_handler(
@@ -4306,72 +4352,22 @@ static LibnngioProtobuf__RpcResponse__Status add_transport_handler(
   }
 
   LibnngioProtobuf__AddTransportRequest *request =
-      libnngio_protobuf__add_transport_request__unpack(NULL, request_size, request_data);
+      libnngio_protobuf__add_transport_request__unpack(NULL, request_size,
+                                                       request_data);
   if (request == NULL) {
     libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
                  "Failed to unpack AddTransportRequest.");
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
 
-  // convert add transport request to a libnngio config
-  libnngio_config* cfg = libnngio_config_from_transport(request->transport);
-
-  libnngio_transport *t = NULL;
-  libnngio_protobuf_error_code rv = libnngio_transport_init(&t, cfg);
-  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to initialize transport %s with URL '%s'.", cfg->name, cfg->url);
-    libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
-  }
-
-  libnngio_context *t_ctx = NULL;
-  rv = libnngio_context_init(&t_ctx, t, cfg, NULL, NULL);
-  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to initialize context %s with transport URL '%s'.",
-                 cfg->name, cfg->url);
-    libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
-  }
-
-  libnngio_protobuf_context *pb_ctx = NULL;
-  rv = libnngio_protobuf_context_init(&pb_ctx, t_ctx);
-  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to initialize protobuf context %s with transport URL '%s'.",
-                 cfg->name, cfg->url);
-    libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-
-  libnngio_server_transport *transport_ctx = malloc(sizeof(*transport_ctx));
-  if (transport_ctx == NULL) {
-    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to allocate memory for transport context %s with URL '%s'.",
-                 cfg->name, cfg->url);
-    libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
-  transport_ctx->cfg = cfg;
-  transport_ctx->transport = t;
-  transport_ctx->t_ctx = t_ctx;
-  transport_ctx->proto_ctx = pb_ctx;
-  rv = libnngio_server_add_transport(s, transport_ctx);
+  LibnngioProtobuf__RpcResponse__Status rv =
+      libnngio_server_add_transport(s, request);
   libnngio_protobuf__add_transport_request__free_unpacked(request, NULL);
-  if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
-    libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-                 "Failed to add transport context for URL '%s' to server.",
-                 cfg->url);
-    return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
-  }
+  return rv;
 
   // return an empty response
   *response_data = NULL;
   *response_size = 0;
-  libnngio_log("INF", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-               "Successfully added transport context for URL '%s' to server.",
-               cfg->url);
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
@@ -4393,28 +4389,27 @@ static LibnngioProtobuf__RpcResponse__Status get_transports_handler(
       libnngio_protobuf__get_transports_response__get_packed_size(response);
   *response_data = malloc(*response_size);
   if (*response_data == NULL) {
-    libnngio_protobuf__get_transports_response__free_unpacked(response,
-                                                                   NULL);
+    libnngio_protobuf__get_transports_response__free_unpacked(response, NULL);
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InternalError;
   }
 
-  libnngio_protobuf__get_transports_response__pack(response,
-                                                        *response_data);
-  libnngio_protobuf__get_transports_response__free_unpacked(response,
-                                                                 NULL);
+  libnngio_protobuf__get_transports_response__pack(response, *response_data);
+  libnngio_protobuf__get_transports_response__free_unpacked(response, NULL);
   return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__Success;
 }
 
-static libnngio_protobuf_error_code libnngio_server_remove_transport(libnngio_server *s,char* name) {
+static libnngio_protobuf_error_code libnngio_server_remove_transport(
+    libnngio_server *s, char *name) {
   if (s == NULL || name == NULL) {
     return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
   }
 
   for (size_t i = 0; i < s->n_transports; i++) {
-    const libnngio_config *cfg = libnngio_context_get_config(s->transports[i]->t_ctx);
-  libnngio_log("INF", "REMOVE_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
-               "Checking transport %s with url '%s' in server.",
-               cfg->name, cfg->url);
+    const libnngio_config *cfg =
+        libnngio_context_get_config(s->transports[i]->t_ctx);
+    libnngio_log("INF", "REMOVE_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
+                 "Checking transport %s with url '%s' in server.", cfg->name,
+                 cfg->url);
     if (strcmp(cfg->name, name) == 0) {
       // Found the transport to remove
       libnngio_server_transport *to_remove = s->transports[i];
@@ -4430,17 +4425,17 @@ static libnngio_protobuf_error_code libnngio_server_remove_transport(libnngio_se
         free(s->transports);
         s->transports = NULL;
       } else {
-        s->transports = realloc(s->transports,
-                                   s->n_transports * sizeof(*s->transports));
+        s->transports =
+            realloc(s->transports, s->n_transports * sizeof(*s->transports));
       }
 
       // Free the removed context
-      free((void*)to_remove->cfg->name);
-      free((void*)to_remove->cfg->url);
-      free((void*)to_remove->cfg->tls_cert);
-      free((void*)to_remove->cfg->tls_key);
-      free((void*)to_remove->cfg->tls_ca_cert);
-      free((void*)to_remove->cfg);
+      free((void *)to_remove->cfg->name);
+      free((void *)to_remove->cfg->url);
+      free((void *)to_remove->cfg->tls_cert);
+      free((void *)to_remove->cfg->tls_key);
+      free((void *)to_remove->cfg->tls_ca_cert);
+      free((void *)to_remove->cfg);
       libnngio_protobuf_context_free(to_remove->proto_ctx);
       libnngio_context_free(to_remove->t_ctx);
       libnngio_transport_free(to_remove->transport);
@@ -4462,16 +4457,18 @@ static LibnngioProtobuf__RpcResponse__Status remove_transport_handler(
   }
 
   LibnngioProtobuf__RemoveTransportRequest *request =
-      libnngio_protobuf__remove_transport_request__unpack(NULL, request_size, request_data);
+      libnngio_protobuf__remove_transport_request__unpack(NULL, request_size,
+                                                          request_data);
   if (request == NULL) {
     libnngio_log("ERR", "ADD_TRANSPORT_HANDLER", __FILE__, __LINE__, -1,
                  "Failed to unpack AddTransportRequest.");
     return LIBNNGIO_PROTOBUF__RPC_RESPONSE__STATUS__InvalidRequest;
   }
 
-  char* name = strdup(request->name);
+  char *name = strdup(request->name);
 
-  libnngio_protobuf_error_code proto_rv = libnngio_server_remove_transport(s, name);
+  libnngio_protobuf_error_code proto_rv =
+      libnngio_server_remove_transport(s, name);
 
   free(name);
   libnngio_protobuf__remove_transport_request__free_unpacked(request, NULL);
@@ -4538,8 +4535,7 @@ libnngio_protobuf_error_code libnngio_server_init(
   get_transports_method[2].user_data = *server;
 
   rv = libnngio_server_register_service(
-      *server, "LibnngioProtobuf.TransportService", get_transports_method,
-      3);
+      *server, "LibnngioProtobuf.TransportService", get_transports_method, 3);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_server_free(*server);
     *server = NULL;
@@ -4578,12 +4574,12 @@ libnngio_protobuf_error_code libnngio_server_free(libnngio_server *server) {
 
   // Free transport contexts
   for (size_t i = 0; i < server->n_transports; i++) {
-    free((void*)server->transports[i]->cfg->name);
-    free((void*)server->transports[i]->cfg->url);
-    free((void*)server->transports[i]->cfg->tls_cert);
-    free((void*)server->transports[i]->cfg->tls_key);
-    free((void*)server->transports[i]->cfg->tls_ca_cert);
-    free((void*)server->transports[i]->cfg);
+    free((void *)server->transports[i]->cfg->name);
+    free((void *)server->transports[i]->cfg->url);
+    free((void *)server->transports[i]->cfg->tls_cert);
+    free((void *)server->transports[i]->cfg->tls_key);
+    free((void *)server->transports[i]->cfg->tls_ca_cert);
+    free((void *)server->transports[i]->cfg);
     libnngio_protobuf_context_free(server->transports[i]->proto_ctx);
     libnngio_context_free(server->transports[i]->t_ctx);
     libnngio_transport_free(server->transports[i]->transport);
@@ -4828,6 +4824,53 @@ libnngio_server_send_service_discovery_response_async(
 
   return libnngio_protobuf_send_service_discovery_response_async(
       server->mgmt_ctx, response, cb_info);
+}
+
+/**
+ * @brief Default forward function implementation.
+ *
+ * This function receives messages from the input context and forwards them
+ * to all output contexts.
+
+ * @param input_ctx Pointer to the input protobuf context.
+ * @param output_ctxs Array of pointers to output protobuf contexts.
+ * @param n_output_ctxs Number of output protobuf contexts.
+ * @param fwd_storage Pointer to forwarder storage
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_default_forward_func(
+    libnngio_protobuf_context *input_ctx,
+    libnngio_protobuf_context **output_ctxs, size_t n_output_ctxs,
+    void *fwd_storage) {
+  if (input_ctx == NULL || output_ctxs == NULL || n_output_ctxs == 0) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return LIBNNGIO_PROTOBUF_ERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * @brief default forwarder creation function
+ *
+ * @param forwarder Pointer to the forwarder to create
+ * @param fwd_name Name of the forwarder
+ * @param input Name of the input transport
+ * @param outputs Array of names of the output transports
+ * @param n_outputs Number of output transports
+ * @param fwd_func Custom forward function (if NULL, default will be used)
+ * @param fwd_storage Custom forwarder storage (if NULL, default will be used)
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_create_forwarder(
+    libnngio_protobuf_forwarder **forwarder, const char *fwd_name,
+    const char *input, const char **outputs, size_t n_outputs,
+    libnngio_protobuf_forward_func fwd_func, void *fwd_storage) {
+  if (forwarder == NULL || fwd_name == NULL || input == NULL ||
+      outputs == NULL || n_outputs == 0) {
+    return LIBNNGIO_PROTOBUF_ERR_INVALID_CONTEXT;
+  }
+
+  return LIBNNGIO_PROTOBUF_ERR_NOT_IMPLEMENTED;
 }
 
 /**
@@ -5189,8 +5232,7 @@ static void server_prepare_service_discovery_response_cb(
     LibnngioProtobuf__LibnngioMessage **msg, void *user_data) {
   if (result != 0 || msg == NULL || *msg == NULL) {
     libnngio_log("ERR", "SERVER_PREPARE_SERVICE_DISCOVERY_RESPONSE_CB",
-                 __FILE__, __LINE__,
-                 libnngio_context_id(server->mgmt_ctx->ctx),
+                 __FILE__, __LINE__, libnngio_context_id(server->mgmt_ctx->ctx),
                  "Error in prepare response callback: %d", result);
     return;
   }
@@ -5219,8 +5261,7 @@ static void server_prepare_service_discovery_response_cb(
       libnngio_server_create_service_discovery_response(server, response);
   if (rv != LIBNNGIO_PROTOBUF_ERR_NONE) {
     libnngio_log("ERR", "SERVER_PREPARE_SERVICE_DISCOVERY_RESPONSE_CB",
-                 __FILE__, __LINE__,
-                 libnngio_context_id(server->mgmt_ctx->ctx),
+                 __FILE__, __LINE__, libnngio_context_id(server->mgmt_ctx->ctx),
                  "Failed to create service discovery response: %d", rv);
     return;
   }

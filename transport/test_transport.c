@@ -514,6 +514,147 @@ void test_reqrep_basic() {
 }
 
 /**
+ * @brief Basic pair test: server listens, client dials, the distinction is
+ * arbitrary. with send/recv buffering enabled. Client loads messages into send
+ * buffer, sends them to the server, server processes from recv buffer. Client
+ * receives replies similarly.
+ */
+void test_pair_basic_buffered() {
+  libnngio_transport *server = NULL, *client = NULL;
+  libnngio_config server_cfg = {0}, client_cfg = {0};
+  const char *url = "tcp://127.0.0.1:5560";
+  char msg[256] = {0};
+  size_t msglen;
+  int rv;
+
+  server_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  server_cfg.proto = LIBNNGIO_PROTO_PAIR;
+  server_cfg.url = url;
+  server_cfg.recv_buffer_size = 128;
+  server_cfg.send_buffer_size = 128;
+
+  client_cfg.mode = LIBNNGIO_MODE_DIAL;
+  client_cfg.proto = LIBNNGIO_PROTO_PAIR;
+  client_cfg.url = url;
+  client_cfg.recv_buffer_size = 128;
+  client_cfg.send_buffer_size = 128;
+
+  rv = libnngio_transport_init(&server, &server_cfg);
+  assert(rv == 0);
+
+  rv = libnngio_transport_init(&client, &client_cfg);
+  assert(rv == 0);
+
+  sleep_ms(100);
+
+  libnngio_context *server_ctx = NULL, *client_ctx = NULL;
+  rv = libnngio_context_init(&server_ctx, server, &server_cfg, NULL, NULL);
+  assert(rv == 0);
+  rv = libnngio_context_init(&client_ctx, client, &client_cfg, NULL, NULL);
+  assert(rv == 0);
+
+  // client creates and pushes request into send buffer
+  for (int i = 0; i < 3; i++) {
+    char req[32];
+    snprintf(req, sizeof(req), "buffered-req-%d", i);
+    libnngio_message *msg = NULL;
+    rv = libnngio_message_init(&msg, req, strlen(req) + 1);
+    assert(rv == 0);
+    rv = libnngio_context_send_buffer_push(client_ctx, msg);
+    libnngio_log("INF", "TEST_PAIR_BASIC_BUFFERED", __FILE__, __LINE__, -1,
+                 "Client pushed buffered request: %s (rv = %d)", req, rv);
+    assert(rv == 0);
+  }
+
+  // client sends all messages from send buffer
+  rv = libnngio_context_send_buffer_flush(client_ctx);
+  assert(rv == 0);
+
+  // server processes messages from recv buffer
+  for (int i = 0; i < 3; i++) {
+    char expected_req[32];
+    snprintf(expected_req, sizeof(expected_req), "buffered-req-%d", i);
+#ifdef NNGIO_MOCK_TRANSPORT
+    libnngio_mock_set_recv_buffer(expected_req, strlen(expected_req) + 1);
+#endif
+    msglen = sizeof(msg);
+    rv = libnngio_context_recv_into_buffer(server_ctx);
+    assert(rv == 0);
+  }
+
+  // validate received messages
+  for (int i = 0; i < 3; i++) {
+    libnngio_message *msg = NULL;
+    rv = libnngio_context_recv_buffer_pop(server_ctx, &msg);
+    assert(rv == 0);
+    assert(msg != NULL);
+    char expected_req[32] = {0};
+    snprintf(expected_req, sizeof(expected_req), "buffered-req-%d", i);
+    char *actual_req = NULL;
+    size_t actual_len = 0;
+    rv = libnngio_message_get(msg, (void **)&actual_req, &actual_len);
+    assert(rv == 0);
+    libnngio_log("INF", "TEST_PAIR_BASIC_BUFFERED", __FILE__, __LINE__, -1,
+                 "Server received buffered request: %s", actual_req);
+    libnngio_log("INF", "TEST_PAIR_BASIC_BUFFERED", __FILE__, __LINE__, -1,
+                 "Expected buffered request: %s", expected_req);
+    assert(strcmp(actual_req, expected_req) == 0);
+    assert(actual_len == strlen(expected_req) + 1);
+    libnngio_message_free(msg);
+  }
+
+  libnngio_log("INF", "TEST_PAIR_BASIC_BUFFERED", __FILE__, __LINE__, -1,
+               "Server processed all buffered requests successfully.");
+
+  // server creates and pushes replies into send buffer
+  for (int i = 0; i < 3; i++) {
+    char rep[32];
+    snprintf(rep, sizeof(rep), "buffered-rep-%d", i);
+    libnngio_message *msg = NULL;
+    rv = libnngio_message_init(&msg, rep, strlen(rep) + 1);
+    assert(rv == 0);
+    rv = libnngio_context_send_buffer_push(server_ctx, msg);
+    assert(rv == 0);
+  }
+
+  // server sends all replies from send buffer
+  rv = libnngio_context_send_buffer_flush(server_ctx);
+  assert(rv == 0);
+
+  // client processes replies from recv buffer
+  for (int i = 0; i < 3; i++) {
+    char expected_rep[32];
+    snprintf(expected_rep, sizeof(expected_rep), "buffered-rep-%d", i);
+#ifdef NNGIO_MOCK_TRANSPORT
+    libnngio_mock_set_recv_buffer(expected_rep, strlen(expected_rep) + 1);
+#endif
+    msglen = sizeof(msg);
+    rv = libnngio_context_recv_into_buffer(client_ctx);
+    assert(rv == 0);
+  }
+
+  libnngio_context_free(client_ctx);
+  libnngio_context_free(server_ctx);
+
+  libnngio_transport_free(client);
+  libnngio_transport_free(server);
+
+#ifdef NNGIO_MOCK_TRANSPORT
+  // Verify mock stats
+  assert(mock_stats.init_calls == 2);
+  assert(mock_stats.send_calls == 6);
+  assert(mock_stats.recv_calls == 6);
+  assert(mock_stats.free_calls == 2);
+  assert(mock_stats.last_init_result == 0);
+  assert(mock_stats.last_send_result == 0);
+  assert(mock_stats.last_recv_result == 0);
+  libnngio_log("INF", "TEST_PAIR_BASIC_BUFFERED", __FILE__, __LINE__, -1,
+               "Mock stats verified successfully.");
+  libnngio_mock_reset();
+#endif  // NNGIO_MOCK_TRANSPORT
+}
+
+/**
  * @brief Basic PUB/SUB test: server (PUB) listens, client (SUB) dials,
  *        server sends message, client receives message.
  */
@@ -986,6 +1127,276 @@ void test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp() {
                "test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp: PASS");
 }
 
+void test_ring_buffers() {
+  libnngio_message_ring_buffer *rb = NULL;
+  size_t capacity = 10;
+  int rv = libnngio_message_ring_buffer_init(&rb, capacity);
+  assert(rv == 0);
+  assert(rb != NULL);
+  libnngio_log("INF", "TEST_RING_BUFFERS", __FILE__, __LINE__, -1,
+               "Ring buffer initialized with capacity %zu", capacity);
+
+  // Test pushing messages
+  for (size_t i = 0; i < capacity; ++i) {
+    libnngio_message *msg = NULL;
+    char *data = calloc(32, sizeof(char));
+    snprintf(data, 32, "message-%zu", i);
+    rv = libnngio_message_init(&msg, data, strlen(data) + 1);
+    assert(rv == 0);
+    rv = libnngio_message_ring_buffer_push(rb, msg);
+    assert(rv == 0);
+    libnngio_log("INF", "TEST_RING_BUFFERS", __FILE__, __LINE__, -1,
+                 "Pushed message %s to ring buffer", data);
+    free(data);
+  }
+
+  // test push on full results in -1
+  libnngio_message *overflow_msg = NULL;
+  char *data = calloc(32, sizeof(char));
+  snprintf(data, 32, "message-11");
+  rv = libnngio_message_init(&overflow_msg, data, strlen(data) + 1);
+  assert(rv == 0);
+  libnngio_log("NTC", "TEST_RING_BUFFERS", __FILE__, __LINE__, -1,
+               "Next failure is expected, deliberately pushing full stack",
+               data);
+  rv = libnngio_message_ring_buffer_push(rb, overflow_msg);
+  assert(rv == LIBNNGIO_MESSAGE_RING_BUFFER_FULL);
+  free(data);
+  libnngio_message_free(overflow_msg);
+
+  // Test popping messages
+  for (size_t i = 0; i < capacity; ++i) {
+    libnngio_message *msg = NULL;
+    rv = libnngio_message_ring_buffer_pop(rb, &msg);
+    assert(rv == 0 && msg != NULL);
+    char expected_data[32];
+    snprintf(expected_data, sizeof(expected_data), "message-%zu", i);
+    char *actual_data = NULL;
+    size_t actual_len = 0;
+    rv = libnngio_message_get(msg, (void **)&actual_data, &actual_len);
+    assert(rv == 0);
+    libnngio_log("INF", "TEST_RING_BUFFERS", __FILE__, __LINE__, -1,
+                 "Popped message %s from ring buffer", actual_data);
+    assert(strcmp(actual_data, expected_data) == 0);
+    libnngio_message_free(msg);
+  }
+
+  // Test pop empty
+  libnngio_log("NTC", "TEST_RING_BUFFERS", __FILE__, __LINE__, -1,
+               "Next failure is expected, deliberately popping empty stack",
+               data);
+  rv = libnngio_message_ring_buffer_pop(rb, &overflow_msg);
+  assert(rv == LIBNNGIO_MESSAGE_RING_BUFFER_EMPTY);
+
+  libnngio_message_ring_buffer_free(rb);
+  libnngio_log("INF", "TEST_RING_BUFFERS", __FILE__, __LINE__, -1,
+               "Ring buffer freed successfully");
+}
+
+// Forward declaration of buffered service routine
+void buffered_reqrep_service_routine(void *arg);
+
+/**
+ * @brief Buffered async reply callback for requests
+ */
+void buffered_reqrep_reply_cb(libnngio_context *t, int result, void *data, size_t len,
+                     void *user_data) {
+  reqrep_user_data *ud = (reqrep_user_data *)user_data;
+  libnngio_log("DBG", "REPLY_CB", __FILE__, __LINE__, ud->index,
+               "Context %d: reply sent: %s", ud->index, ud->rep_buf);
+  assert(result == 0);
+  ud->replied++;
+
+#ifndef NNGIO_MOCK_TRANSPORT
+  // After reply sent, post another receive by re-entering the service routine
+  buffered_reqrep_service_routine(ud->ctx);
+#endif
+}
+
+/**
+ * @brief Buffered async receive callback for requests
+ */
+void buffered_reqrep_recv_cb(libnngio_context *t, int result, void *data, size_t len,
+                    void *user_data) {
+  reqrep_user_data *ud = (reqrep_user_data *)user_data;
+  libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
+               "Context %d: received request.", ud->index);
+
+
+  if (result != 0 && result != 7) {
+    libnngio_log("ERR", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
+                 "Context %d: receive error: %d", ud->index, result);
+  }
+  if (result == 7) {
+    // This is a special case for NNG where it indicates that the context is
+    // closed
+    libnngio_log("INF", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
+                 "Context %d: receive closed", ud->index);
+    return;  // No further processing needed
+  }
+  assert(result == 0 || result == 7);
+
+  //take message out of receive buffer
+  libnngio_message *msg = NULL;
+  int rv = libnngio_context_recv_buffer_pop(t, &msg);
+  assert(rv == 0 && msg != NULL);
+  char *msg_data = NULL;
+  size_t msg_len = 0;
+  rv = libnngio_message_get(msg, (void **)&msg_data, &msg_len);
+  assert(rv == 0);
+  if (result == 0 && ud && msg_data && msg_len <= sizeof(ud->req_buf)) {
+    memcpy(ud->req_buf, msg_data, msg_len);
+    ud->req_len = msg_len;
+    ud->received++;
+    libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
+                 "Context %d received request: %s", ud->index, msg_data);
+    libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
+                 "Creating response for Context %d.", ud->index);
+    // Prepare reply
+    snprintf(ud->rep_buf, sizeof(ud->rep_buf), "reply-%d", ud->index);
+    ud->rep_len = strlen(ud->rep_buf) + 1;
+    libnngio_message *rep_msg = NULL;
+    int rv = libnngio_message_init(&rep_msg, ud->rep_buf, ud->rep_len);
+    assert(rv == 0);
+    rv = libnngio_context_send_buffer_push(t, rep_msg);
+    assert(rv == 0);
+    // Send reply asynchronously
+    rv = libnngio_context_send_from_buffer_async(t, buffered_reqrep_reply_cb, ud);
+    assert(rv == 0);
+    // Free the message after processing
+    libnngio_message_free(msg);
+  }
+}
+
+/**
+ * @brief Buffered service routine for REQ/REP context: starts async receive
+ */
+void buffered_reqrep_service_routine(void *arg) {
+  libnngio_context *ctx = (libnngio_context *)arg;
+  reqrep_user_data *ud =
+      (reqrep_user_data *)libnngio_context_get_user_data(ctx);
+  ud->ctx = ctx;  // store the context pointer (optional if not already set)
+  ud->req_len = sizeof(ud->req_buf);
+
+#ifdef NNGIO_MOCK_TRANSPORT
+  // Mocking: set expected receive buffer for REP contexts
+  char expected_req[32];
+  snprintf(expected_req, sizeof(expected_req), "request-%d", ud->index);
+  libnngio_mock_set_recv_buffer(expected_req, strlen(expected_req) + 1);
+#endif
+  libnngio_log("DBG", "SERVICE_ROUTINE", __FILE__, __LINE__, ud->index,
+               "Context %d starting async receive", ud->index);
+  int rv = libnngio_context_recv_into_buffer_async(ctx, buffered_reqrep_recv_cb, ud);
+  assert(rv == 0);
+}
+
+/**
+ * @brief Test multiple REQ/REP contexts with concurrent request handling
+ */
+void test_multiple_contexts_buffered() {
+  libnngio_transport *rep = NULL, *req = NULL;
+  libnngio_config rep_cfg = {0}, req_cfg = {0};
+  char url[64];
+  snprintf(url, sizeof(url), "tcp://127.0.0.1:%d", REQREP_TEST_TCP_PORT);
+
+  rep_cfg.url = url;
+  rep_cfg.mode = LIBNNGIO_MODE_LISTEN;
+  rep_cfg.proto = LIBNNGIO_PROTO_REP;
+  rep_cfg.recv_buffer_size = 128;
+  rep_cfg.send_buffer_size = 128;
+
+  req_cfg.url = url;
+  req_cfg.mode = LIBNNGIO_MODE_DIAL;
+  req_cfg.proto = LIBNNGIO_PROTO_REQ;
+  req_cfg.recv_buffer_size = 128;
+  req_cfg.send_buffer_size = 128;
+
+  int rv = libnngio_transport_init(&rep, &rep_cfg);
+  assert(rv == 0);
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "REP transport initialized on %s", url);
+  rv = libnngio_transport_init(&req, &req_cfg);
+  assert(rv == 0);
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "REQ transport initialized on %s", url);
+
+  libnngio_context *req_ctx = NULL;
+
+  rv = libnngio_context_init(&req_ctx, req, &req_cfg, NULL, NULL);
+  assert(rv == 0);
+
+  // Prepare contexts for REP side
+  size_t n = REQREP_TEST_MSG_COUNT;
+  libnngio_context **ctxs = NULL;
+  reqrep_user_data user_datas[REQREP_TEST_MSG_COUNT] = {0};
+  void *ud_ptrs[REQREP_TEST_MSG_COUNT];
+  for (size_t i = 0; i < n; ++i) {
+    user_datas[i].index = (int)i;
+    user_datas[i].transport = rep;
+    ud_ptrs[i] = &user_datas[i];
+  }
+  rv = libnngio_contexts_init(&ctxs, n, rep, &rep_cfg, buffered_reqrep_service_routine,
+                              ud_ptrs);
+  assert(rv == 0);
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "%zu REP contexts initialized", n);
+
+  // Start service routines for all contexts
+  libnngio_contexts_start(ctxs, n);
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "All REP context service routines started");
+
+  usleep(100000);
+
+  // Send requests from REQ side and receive replies synchronously
+  for (size_t i = 0; i < n; ++i) {
+    char req_msg[32];
+    snprintf(req_msg, sizeof(req_msg), "request-%zu", i);
+    libnngio_message *msg = NULL;
+    rv = libnngio_message_init(&msg, req_msg, strlen(req_msg) + 1);
+    assert(rv == 0);
+    libnngio_log("DBG", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__,
+                 i, "Adding REQ to send buffer: %s", req_msg);
+    rv = libnngio_context_send_buffer_push(req_ctx, msg);
+    assert(rv == 0);
+  }
+
+  libnngio_context_send_buffer_flush(req_ctx);
+
+  // Wait for all contexts to finish at least one request/reply
+  int all_done = 0;
+  for (int tries = 0; tries < 100 && !all_done; ++tries) {
+    all_done = 1;
+    for (size_t i = 0; i < n; ++i) {
+      if (!(user_datas[i].received >= 1 && user_datas[i].replied >= 1))
+        all_done = 0;
+    }
+    if (!all_done) {
+      usleep(10000);
+    }
+  }
+
+  for (size_t i = 0; i < n; ++i) {
+    assert(user_datas[i].received >= 1);
+    assert(user_datas[i].replied >= 1);
+    libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__,
+                 i, "Context %zu handled request: %s -> reply: %s", i,
+                 user_datas[i].req_buf, user_datas[i].rep_buf);
+  }
+
+  libnngio_context_free(req_ctx);
+  libnngio_contexts_free(ctxs, n);
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "REP contexts freed");
+  libnngio_transport_free(rep);
+  libnngio_transport_free(req);
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "REP and REQ transports freed");
+
+  libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
+               "test_multiple_contexts_buffered: PASS");
+}
+
 /**
  * @brief Main function to run all tests
  */
@@ -1003,12 +1414,15 @@ int main() {
   test_tcp_async();
   test_tls_async();
   test_reqrep_basic();
+  test_pair_basic_buffered();
   test_pubsub_basic();
   test_pushpull_basic();
   test_libnngio_context_init();
   test_libnngio_multiple_contexts();
   test_libnngio_multiple_contexts2();
   test_multiple_contexts_reqrep_concurrent_ctx_cb_tcp();
+  test_ring_buffers();
+  test_multiple_contexts_buffered();
 
   libnngio_log("INF", "MAIN", __FILE__, __LINE__, -1,
                "All tests completed successfully.");

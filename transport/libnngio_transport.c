@@ -36,16 +36,21 @@ static int free_context_id = 0;
  * dialer/listener, TLS).
  */
 struct libnngio_transport {
-  nng_socket sock;       /**< NNG socket handle */
-  nng_dialer dialer;     /**< Dialer handle (if in dial mode) */
-  nng_listener listener; /**< Listener handle (if in listen mode) */
-  int is_open;           /**< 1 if transport is open, 0 if closed */
-  int is_dial;           /**< 1 if dialer, 0 if listener */
-  int id;                /**< Unique ID for this transport */
-  char *tls_cert_mem;    /**< In-memory TLS certificate (if loaded) */
-  char *tls_key_mem;     /**< In-memory TLS private key (if loaded) */
-  char *tls_ca_mem;      /**< In-memory TLS CA certificate (if loaded) */
-  libnngio_config config;/**< Configuration used to create transport */
+  nng_socket sock;        /**< NNG socket handle */
+  nng_dialer dialer;      /**< Dialer handle (if in dial mode) */
+  nng_listener listener;  /**< Listener handle (if in listen mode) */
+  int is_open;            /**< 1 if transport is open, 0 if closed */
+  int is_dial;            /**< 1 if dialer, 0 if listener */
+  int id;                 /**< Unique ID for this transport */
+  char *tls_cert_mem;     /**< In-memory TLS certificate (if loaded) */
+  char *tls_key_mem;      /**< In-memory TLS private key (if loaded) */
+  char *tls_ca_mem;       /**< In-memory TLS CA certificate (if loaded) */
+  libnngio_config config; /**< Configuration used to create transport */
+};
+
+struct libnngio_message {
+  void *data; /**< Pointer to message data buffer */
+  size_t len; /**< Length of message data */
 };
 
 /**
@@ -60,6 +65,14 @@ struct libnngio_context {
   libnngio_ctx_cb cb;            /**< User-defined callback function */
   nng_ctx nng_ctx;               /**< NNG context handle */
   void *user_data;               /**< Opaque user data pointer for callback */
+  int transport_err;             /**< Underlying transport error if needed */
+  libnngio_message_ring_buffer
+      *recv_buffer;        /**< Ring buffer for received messages */
+  size_t recv_buffer_size; /**< Capacity of receive ring buffer */
+  libnngio_message_ring_buffer
+      *send_buffer;        /**< Ring buffer for messages to send */
+  size_t send_buffer_size; /**< Capacity of send ring buffer */
+  int buffer_err;          /**< Buffer operation error if needed */
 };
 
 /**
@@ -682,6 +695,145 @@ void libnngio_transport_free(libnngio_transport *t) {
 }
 
 /**
+ * @brief Create a libnngio message with the given data.
+ * @param msg Pointer to pointer to receive allocated message.
+ * @param data Pointer to data buffer.
+ * @param len Length of data buffer in bytes.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_init(libnngio_message **msg, const void *data,
+                          size_t len) {
+  if (!msg || !data || len == 0) return NNG_EINVAL;
+  libnngio_message *m = calloc(1, sizeof(libnngio_message));
+  if (!m) return NNG_ENOMEM;
+  m->data = malloc(len);
+  if (!m->data) {
+    free(m);
+    return NNG_ENOMEM;
+  }
+  memcpy(m->data, data, len);
+  m->len = len;
+  *msg = m;
+  return 0;
+}
+
+/**
+ * @brief Get the data buffer and length from a libnngio message.
+ * @param msg Pointer to message.
+ * @param data Pointer to receive data buffer pointer.
+ * @param len Pointer to receive length of data buffer.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_get(libnngio_message *msg, void **data, size_t *len) {
+  if (!msg || !data || !len) return NNG_EINVAL;
+  *data = msg->data;
+  *len = msg->len;
+  return 0;
+}
+
+/**
+ * @brief Free a libnngio message and release resources.
+ * @param msg Pointer to message to free.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_free(libnngio_message *msg) {
+  if (!msg) return NNG_EINVAL;
+  if (msg->data) free(msg->data);
+  free(msg);
+  return 0;
+}
+
+/**
+ * @brief Initialize a message ring buffer.
+ * @param ring Pointer to pointer to receive ring buffer structure.
+ * @param max_size Maximum number of messages the buffer can hold.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_init(libnngio_message_ring_buffer **ring,
+                                      size_t max_size) {
+  if (!ring || max_size == 0) return NNG_EINVAL;
+  libnngio_message_ring_buffer *rb =
+      calloc(1, sizeof(libnngio_message_ring_buffer));
+  if (!rb) return NNG_ENOMEM;
+  rb->buffer = calloc(max_size, sizeof(libnngio_message *));
+  if (!rb->buffer) {
+    free(rb);
+    return NNG_ENOMEM;
+  }
+  rb->head = 0;
+  rb->tail = 0;
+  rb->max_size = max_size;
+  rb->current_size = 0;
+  *ring = rb;
+  return 0;
+}
+
+/**
+ * @brief Free a message ring buffer and its contents.
+ * @param ring Pointer to ring buffer to free.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_free(libnngio_message_ring_buffer *ring) {
+  if (!ring) return LIBNNGIO_MESSAGE_RING_BUFFER_UNINITIALIZED;
+  // Free any messages still in the buffer
+  for (size_t i = 0; i < ring->current_size; ++i) {
+    size_t index = (ring->head + i) % ring->max_size;
+    if (ring->buffer[index]) {
+      libnngio_message_free(ring->buffer[index]);
+    }
+  }
+  free(ring->buffer);
+  free(ring);
+  return LIBNNGIO_MESSAGE_RING_BUFFER_OK;
+}
+
+/**
+ * @brief Push a message onto the ring buffer.
+ * @param ring Pointer to ring buffer.
+ * @param msg Pointer to message to push.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_push(libnngio_message_ring_buffer *ring,
+                                      libnngio_message *msg) {
+  if (!ring || !msg) return LIBNNGIO_MESSAGE_RING_BUFFER_UNINITIALIZED;
+  if (ring->current_size == ring->max_size) {
+    libnngio_log("ERR", "LIBNNGIO_MESSAGE_RING_BUFFER_PUSH", __FILE__, __LINE__,
+                 -1, "Error pushing to full ring buffer.");
+    return LIBNNGIO_MESSAGE_RING_BUFFER_FULL;  // Buffer is full
+  }
+  ring->buffer[ring->tail] = msg;
+  ring->tail = (ring->tail + 1) % ring->max_size;
+  ring->current_size++;
+  libnngio_log("DBG", "LIBNNGIO_MESSAGE_RING_BUFFER_PUSH", __FILE__, __LINE__,
+               -1, "Pushed message to ring buffer. Current size: %zu.",
+               ring->current_size);
+  return LIBNNGIO_MESSAGE_RING_BUFFER_OK;
+}
+
+/**
+ * @brief Pop a message from the ring buffer.
+ * @param ring Pointer to ring buffer.
+ * @param msg Pointer to receive popped message.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_pop(libnngio_message_ring_buffer *ring,
+                                     libnngio_message **msg) {
+  if (!ring || !msg) return LIBNNGIO_MESSAGE_RING_BUFFER_UNINITIALIZED;
+  if (ring->current_size == 0) {
+    libnngio_log("ERR", "LIBNNGIO_MESSAGE_RING_BUFFER_POP", __FILE__, __LINE__,
+                 -1, "Error popping from empty ring buffer.");
+    return LIBNNGIO_MESSAGE_RING_BUFFER_EMPTY;  // Buffer is empty
+  }
+  *msg = ring->buffer[ring->head];
+  ring->head = (ring->head + 1) % ring->max_size;
+  ring->current_size--;
+  libnngio_log("DBG", "LIBNNGIO_MESSAGE_RING_BUFFER_POP", __FILE__, __LINE__,
+               -1, "Popped message from ring buffer. Current size: %zu.",
+               ring->current_size);
+  return LIBNNGIO_MESSAGE_RING_BUFFER_OK;
+}
+
+/**
  * @brief Check if a given transport protocol supports contexts.
  * @param proto Protocol enum to check.
  * @return 1 if the protocol supports contexts, 0 otherwise.
@@ -741,6 +893,23 @@ int libnngio_context_init(libnngio_context **ctxp, libnngio_transport *t,
 
   libnngio_log("DBG", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
                "Check if protocol is capable of contexts.");
+
+  // Create send/recv buffers
+  if (config->send_buffer_size != 0) {
+    libnngio_log("INF", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
+                 "Creating send buffer of size %zu.", config->send_buffer_size);
+    libnngio_message_ring_buffer_init(&ctx->send_buffer,
+                                      config->send_buffer_size);
+    ctx->send_buffer_size = config->send_buffer_size;
+  }
+  if (config->recv_buffer_size != 0) {
+    libnngio_log("INF", "LIBNNGIO_CONTEXT_INIT", __FILE__, __LINE__, ctx->id,
+                 "Creating receive buffer of size %zu.",
+                 config->recv_buffer_size);
+    libnngio_message_ring_buffer_init(&ctx->recv_buffer,
+                                      config->recv_buffer_size);
+    ctx->recv_buffer_size = config->recv_buffer_size;
+  }
 
   libnngio_proto proto = config->proto;
   if (!protocol_supports_context(proto)) {
@@ -827,6 +996,38 @@ int libnngio_context_send(libnngio_context *ctx, const void *buf, size_t len) {
   return nng_send(ctx->transport->sock, (void *)buf, len, 0);
 }
 
+/* @brief Send a message synchronously from a context send buffer
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_send_from_buffer(libnngio_context *ctx) {
+  if (!ctx || !ctx->send_buffer) return NNG_EINVAL;
+  libnngio_message *msg = NULL;
+  int rv = 0;
+
+  rv = libnngio_message_ring_buffer_pop(ctx->send_buffer, &msg);
+  if (rv != 0) {
+    libnngio_log("INF", "LIBNNGIO_CONTEXT_SEND_FROM_BUFFER", __FILE__, __LINE__,
+                 ctx->id, "Error in buffer operation: %d", rv);
+    libnngio_message_free(msg);
+    ctx->buffer_err = rv;
+    return rv;
+  }
+
+  rv = libnngio_context_send(ctx, msg->data, msg->len);
+  libnngio_message_free(msg);
+  if (rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_CONTEXT_SEND_FROM_BUFFER", __FILE__, __LINE__,
+                 ctx->id, "Failed to send message from buffer with error %d.",
+                 rv);
+    ctx->transport_err = rv;
+    return rv;
+  }
+
+  return 0;
+}
+
 /**
  * @brief Receive data from the context synchronously.
  * @param ctx Pointer to context structure.
@@ -847,6 +1048,56 @@ int libnngio_context_recv(libnngio_context *ctx, void *buf, size_t *len) {
 }
 
 /**
+ * @brief Receive a message synchronously into a context receive buffer
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_recv_into_buffer(libnngio_context *ctx) {
+  if (!ctx || !ctx->recv_buffer) return NNG_EINVAL;
+  libnngio_message *msg = NULL;
+  int rv = 0;
+  void *data = NULL;
+  size_t len = ctx->config->max_msg_size > 0 ? ctx->config->max_msg_size
+                                             : LIBNNGIO_DEFAULT_MAX_MSG_SIZE;
+  data = malloc(len);
+  if (!data) {
+    libnngio_log("ERR", "LIBNNGIO_CONTEXT_RECV_INTO_BUFFER", __FILE__, __LINE__,
+                 ctx->id, "Failed to allocate memory for receive buffer.");
+    return NNG_ENOMEM;
+  }
+
+  rv = libnngio_context_recv(ctx, data, &len);
+  if (rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_CONTEXT_RECV_INTO_BUFFER", __FILE__, __LINE__,
+                 ctx->id, "Failed to receive message with error %d.", rv);
+    free(data);
+    ctx->transport_err = rv;
+    return rv;
+  }
+
+  rv = libnngio_message_init(&msg, data, len);
+  free(data);
+  if (rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_CONTEXT_RECV_INTO_BUFFER", __FILE__, __LINE__,
+                 ctx->id, "Failed to initialize message with error %d.", rv);
+    return NNG_ENOMEM;
+  }
+
+  rv = libnngio_message_ring_buffer_push(ctx->recv_buffer, msg);
+  if (rv != 0) {
+    libnngio_log("ERR", "LIBNNGIO_CONTEXT_RECV_INTO_BUFFER", __FILE__, __LINE__,
+                 ctx->id, "Failed to push message to buffer with error %d.",
+                 rv);
+    libnngio_message_free(msg);
+    ctx->buffer_err = rv;
+    return rv;
+  }
+
+  return rv;
+}
+
+/**
  *  @brief nngio internal callback to manage async recv callback data.
  *  @param arg Pointer to the libnngio recv callback data (void*) for parity
  *              with nng_aio cb signature.
@@ -858,31 +1109,58 @@ static void nngio_recv_aio_cb(void *arg) {
   void *msg_data = NULL;
   size_t msg_len = 0;
 
-  libnngio_log("DBG", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+  libnngio_log("DBG", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
                "nngio_recv_aio_cb called with result=%d", result);
 
   if (result == 0) {
     nng_msg *msg = nng_aio_get_msg(cbdata->aio);
     msg_data = nng_msg_body(msg);
     msg_len = nng_msg_len(msg);
-    libnngio_log("DBG", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+    libnngio_log("DBG", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
                  "Received message of length %zu", msg_len);
 
+    if (cbdata->ctx->recv_buffer) {
+      libnngio_message *buffered_msg = NULL;
+      int rv = libnngio_message_init(&buffered_msg, msg_data, msg_len);
+      libnngio_log("DBG", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
+                   "Initialized message for context receive buffer.");
+      libnngio_log("DBG", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
+                   "msg_data=%s, msg_len=%zu", (char *)msg_data, msg_len);
+      if (rv == 0) {
+        rv = libnngio_message_ring_buffer_push(cbdata->ctx->recv_buffer,
+                                               buffered_msg);
+        if (rv != 0) {
+          libnngio_log("ERR", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
+                       "Failed to push received message to context receive "
+                       "buffer: %d",
+                       rv);
+          libnngio_message_free(buffered_msg);
+        } else {
+          libnngio_log("DBG", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
+                       "Pushed received message to context receive buffer.");
+        }
+      } else {
+        libnngio_log("ERR", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
+                     "Failed to initialize message for context receive buffer: "
+                     "%d",
+                     rv);
+      }
+    }
     if (cbdata->user_buf && cbdata->user_len) {
       size_t copy_len =
           (*cbdata->user_len < msg_len) ? *cbdata->user_len : msg_len;
       memcpy(cbdata->user_buf, msg_data, copy_len);
       *cbdata->user_len = copy_len;
-      libnngio_log("DBG", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+      libnngio_log("DBG", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
                    "Copied %zu bytes to user buffer", copy_len);
     }
     nng_msg_free(msg);
   } else {
     if (result == NNG_ECLOSED) {
-      libnngio_log("WRN", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+      libnngio_log("WRN", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
                    "Receive operation closed, no message received.");
     } else {
-      libnngio_log("ERR", "CTX_RECV_CB", __FILE__, __LINE__, -1,
+      libnngio_log("ERR", "NNGIO_RECV_AIO_CB", __FILE__, __LINE__, -1,
                    "Receive operation failed with error: %s",
                    nng_strerror(result));
     }
@@ -940,6 +1218,53 @@ int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
   }
 
   libnngio_log("DBG", "CTX_RECV_ASYNC", __FILE__, __LINE__, -1,
+               "Posting nng_ctx_recv for context id %d",
+               nng_ctx_id(ctx->nng_ctx));
+
+  nng_ctx_recv(ctx->nng_ctx, cbdata->aio);
+  return 0;
+}
+
+/**
+ * @brief Asynchronously receive data into a libnngio context receive buffer.
+ * @param ctx Pointer to libnngio context.
+ * @param cb User-defined callback function to invoke when the receive operation
+ *           completes.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
+ */
+int libnngio_context_recv_into_buffer_async(libnngio_context *ctx,
+                                            libnngio_async_cb cb,
+                                            void *user_data) {
+  libnngio_log("DBG", "CTX_RECV_INTO_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+               "Entering libnngio_context_recv_into_buffer_async");
+
+  if (!ctx || !cb || !ctx->recv_buffer) {
+    libnngio_log("ERR", "CTX_RECV_INTO_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Invalid arguments to libnngio_context_recv_async");
+    return NNG_EINVAL;
+  }
+
+  libnngio_recv_async_cbdata *cbdata = calloc(1, sizeof(*cbdata));
+  if (!cbdata) {
+    libnngio_log("ERR", "CTX_RECV_INTO_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate cbdata");
+    return NNG_ENOMEM;
+  }
+
+  cbdata->user_cb = cb;
+  cbdata->ctx = ctx;
+  cbdata->user_data = user_data;
+
+  int rv = nng_aio_alloc(&cbdata->aio, nngio_recv_aio_cb, cbdata);
+  if (rv != 0) {
+    libnngio_log("ERR", "CTX_RECV_INTO_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate aio: %s", nng_strerror(rv));
+    free(cbdata);
+    return rv;
+  }
+
+  libnngio_log("DBG", "CTX_RECV_INTO_BUFFER_ASYNC", __FILE__, __LINE__, -1,
                "Posting nng_ctx_recv for context id %d",
                nng_ctx_id(ctx->nng_ctx));
 
@@ -1034,6 +1359,81 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
 }
 
 /**
+ * @brief Asynchronously send data from libnngio context send buffer.
+ * @param ctx Pointer to libnngio context.
+ * @param cb User-defined callback function to invoke when the send operation
+ *           completes.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
+ */
+int libnngio_context_send_from_buffer_async(libnngio_context *ctx, 
+                                            libnngio_async_cb cb,
+                                            void *user_data) {
+  libnngio_log("DBG", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+               "Entering libnngio_context_send_from_buffer_async");
+
+  if (!ctx || !cb || !ctx->send_buffer) {
+    libnngio_log("ERR", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Invalid arguments to libnngio_context_send_async");
+    return NNG_EINVAL;
+  }
+
+  libnngio_send_async_cbdata *cbdata = calloc(1, sizeof(*cbdata));
+  if (!cbdata) {
+    libnngio_log("ERR", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate cbdata");
+    return NNG_ENOMEM;
+  }
+
+  libnngio_message *m = NULL;
+  int rv = libnngio_message_ring_buffer_pop(ctx->send_buffer, &m);
+  if (rv != 0) {
+    libnngio_log("INF", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__,
+                 ctx->id, "Error in buffer operation: %d", rv);
+    libnngio_message_free(m);
+    ctx->buffer_err = rv;
+    return rv;
+  }
+  size_t len = m->len;
+  void *buf = memcpy(malloc(len), m->data, len);
+  libnngio_message_free(m);
+
+  cbdata->user_cb = cb;
+  cbdata->ctx = ctx;
+  cbdata->user_data = user_data;
+
+  rv = nng_aio_alloc(&cbdata->aio, nngio_send_aio_cb, cbdata);
+  if (rv != 0) {
+    libnngio_log("ERR", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate aio: %s", nng_strerror(rv));
+    free(cbdata);
+    ctx->transport_err = rv;
+    return rv;
+  }
+
+  nng_msg *msg;
+  rv = nng_msg_alloc(&msg, len);
+  if (rv != 0) {
+    libnngio_log("ERR", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+                 "Failed to allocate nng_msg: %s", nng_strerror(rv));
+    nng_aio_free(cbdata->aio);
+    free(cbdata);
+    ctx->transport_err = rv;
+    return rv;
+  }
+  memcpy(nng_msg_body(msg), buf, len);
+
+  nng_aio_set_msg(cbdata->aio, msg);
+
+  libnngio_log("DBG", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
+               "Posting nng_ctx_send for context id %d",
+               nng_ctx_id(ctx->nng_ctx));
+
+  nng_ctx_send(ctx->nng_ctx, cbdata->aio);
+  return 0;
+}
+
+/**
  * @brief Set user data pointer for the libnngio context.
  * @param ctx Pointer to libnngio context.
  * @param user_data Opaque user data pointer to associate with the context.
@@ -1067,10 +1467,13 @@ void *libnngio_context_get_user_data(libnngio_context *ctx) {
  */
 void libnngio_context_free(libnngio_context *ctx) {
   if (!ctx) return;
+
   libnngio_log("DBG", "LIBNNGIO_CONTEXT_FREE", __FILE__, __LINE__, ctx->id,
                "Freeing context with transport ID %d.", ctx->transport->id);
   // transport is not freed here, as it may be shared by multiple contexts
   // Caller should take care of freeing the transport if needed
+  if (ctx->recv_buffer) libnngio_message_ring_buffer_free(ctx->recv_buffer);
+  if (ctx->send_buffer) libnngio_message_ring_buffer_free(ctx->send_buffer);
   nng_ctx_close(ctx->nng_ctx);  // Close NNG context
   int id = ctx->id;             // hold ID on stack before freeing
   free(ctx);
@@ -1139,7 +1542,108 @@ void libnngio_contexts_start(libnngio_context **ctxs, size_t n) {
 }
 
 /**
- * @brief Initialize global libnngio state. Must be called before any other
+ * @brief Get the send buffer from a context
+ *
+ * @param ctx Context handle
+ * @return Send buffer handle, NULL if there isn't one.
+ */
+libnngio_message_ring_buffer *libnngio_context_get_send_buffer(
+    libnngio_context *ctx) {
+  if (!ctx) return NULL;
+  return ctx->send_buffer;
+}
+
+/**
+ * @brief push message onto the send buffer in a context
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_send_buffer_push(libnngio_context *ctx,
+                                      libnngio_message *msg) {
+  if (!ctx || !ctx->send_buffer) return NNG_EINVAL;
+  return libnngio_message_ring_buffer_push(ctx->send_buffer, msg);
+}
+
+/**
+ * @brief flush send buffer out of a context onto the transport
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_send_buffer_flush(libnngio_context *ctx) {
+  if (!ctx || !ctx->send_buffer) return NNG_EINVAL;
+  int rv = 0;
+  libnngio_log("DBG", "LIBNNGIO_CONTEXT_SEND_BUFFER_FLUSH", __FILE__,
+               __LINE__, ctx->id,
+               "Flushing send buffer with current size %d.",
+               ctx->send_buffer->current_size);
+  while (ctx->send_buffer->current_size != 0) {
+    rv = libnngio_context_send_from_buffer(ctx);
+    if (rv != 0) {
+      libnngio_log("ERR", "LIBNNGIO_CONTEXT_SEND_BUFFER_FLUSH", __FILE__,
+                   __LINE__, ctx->id,
+                   "Failed to send message from buffer with error %d.", rv);
+      libnngio_log("ERR", "LIBNNGIO_CONTEXT_SEND_BUFFER_FLUSH", __FILE__,
+                   __LINE__, ctx->id, "transport err %d.", ctx->transport_err);
+      libnngio_log("ERR", "LIBNNGIO_CONTEXT_SEND_BUFFER_FLUSH", __FILE__,
+                   __LINE__, ctx->id, "buffer err %d.", ctx->buffer_err);
+      return rv;
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Get the receive buffer from a context
+ *
+ * @param ctx Context handle
+ * @return Send buffer handle, NULL if there isn't one.
+ */
+libnngio_message_ring_buffer *libnngio_context_get_recv_buffer(
+    libnngio_context *ctx) {
+  if (!ctx) return NULL;
+  return ctx->recv_buffer;
+}
+
+/**
+ * @brief push message onto the receive buffer in a context
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_recv_buffer_pop(libnngio_context *ctx,
+                                     libnngio_message **msg) {
+  if (!ctx || !ctx->recv_buffer) return NNG_EINVAL;
+  return libnngio_message_ring_buffer_pop(ctx->recv_buffer, msg);
+}
+
+/**
+ * @brief flush receive buffer out of a context from the transport
+ *
+ * @param ctx Context handle
+ * @param max_n_msgs Maximum number of messages allowed for flush
+ * @param n_msgs Pointer to receive number of messages flushed
+ * @param array of pointers to messages flushed
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_recv_buffer_flush(libnngio_context *ctx, size_t max_n_msgs,
+                                       size_t *n_msgs,
+                                       libnngio_message **msgs) {
+  if (!ctx || !ctx->recv_buffer || !n_msgs || !msgs) return NNG_EINVAL;
+  *n_msgs = 0;
+  libnngio_message *msg = NULL;
+  int rv = 0;
+  while ((*n_msgs < max_n_msgs) &&
+         (libnngio_message_ring_buffer_pop(ctx->recv_buffer, &msg) == 0)) {
+    msgs[*n_msgs] = msg;
+    (*n_msgs)++;
+  }
+  return 0;
+}
+
+/**
+ * @brief clean global libnngio state. Must be called after all other
  *        libnngio functions.
  */
 void libnngio_cleanup(void) {

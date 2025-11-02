@@ -96,7 +96,7 @@ message RemoveTransportResponse {
 
 message Forwarder {
     string name = 1; // Name of the forwarder
-    repeated string inputs = 2; // Names of input transports
+    string input = 2; // Names of input transports
     repeated string outputs = 3; // Names of output transports
     bool running = 4; // Whether the forwarder is currently running
 }

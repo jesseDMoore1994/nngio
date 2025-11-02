@@ -8,6 +8,9 @@
 // libnngio public API
 // ========================
 
+// 64 KB
+#define LIBNNGIO_DEFAULT_MAX_MSG_SIZE 65536
+
 /**
  * @brief Supported NNG protocols.
  */
@@ -57,9 +60,15 @@ typedef struct {
   const char *tls_key;     /**< (Optional) Path to TLS private key file. */
   const char *tls_ca_cert; /**< (Optional) Path to TLS CA certificate file. */
 
-  uint32_t recv_timeout_ms; /**< Receive timeout in milliseconds, or -1 for default.*/
-  uint32_t send_timeout_ms; /**< Send timeout in milliseconds, or -1 for default. */
+  uint32_t recv_timeout_ms; /**< Receive timeout in milliseconds, or -1 for
+                               default.*/
+  uint32_t
+      send_timeout_ms; /**< Send timeout in milliseconds, or -1 for default. */
   size_t max_msg_size; /**< Maximum receive message size, or 0 for unlimited. */
+
+  size_t send_buffer_size; /**< Send buffer size, 0 to disable send buffer */
+  size_t
+      recv_buffer_size; /**< Receive buffer size, 0 to disable receive buffer */
 
   /** Arbitrary nng socket options */
   const libnngio_option
@@ -113,6 +122,89 @@ const libnngio_config *libnngio_transport_get_config(libnngio_transport *t);
  * @param t Transport handle to free.
  */
 void libnngio_transport_free(libnngio_transport *t);
+
+/**
+ * @brief Opaque transport message storage structure
+ */
+typedef struct libnngio_message libnngio_message;
+
+/**
+ * @brief Create a libnngio message with the given data.
+ * @param msg Pointer to pointer to receive allocated message.
+ * @param data Pointer to data buffer.
+ * @param len Length of data buffer in bytes.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_init(libnngio_message **msg, const void *data, size_t len);
+
+/**
+ * @brief Get the data buffer and length from a libnngio message.
+ * @param msg Pointer to message.
+ * @param data Pointer to receive data buffer pointer.
+ * @param len Pointer to receive length of data buffer.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_get(libnngio_message *msg, void **data, size_t *len);
+
+/**
+ * @brief Free a libnngio message and release resources.
+ * @param msg Pointer to message to free.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_free(libnngio_message *msg);
+
+typedef enum {
+  LIBNNGIO_MESSAGE_RING_BUFFER_OK = 0,
+  LIBNNGIO_MESSAGE_RING_BUFFER_FULL = 1,
+  LIBNNGIO_MESSAGE_RING_BUFFER_EMPTY = 2,
+  LIBNNGIO_MESSAGE_RING_BUFFER_TRANSPORT_ERR = 3,
+  LIBNNGIO_MESSAGE_RING_BUFFER_UNINITIALIZED = 4,
+} libnngio_message_ring_buffer_err;
+
+/**
+ * @brief A ring buffer implementation for holding messages.
+ */
+typedef struct libnngio_message_ring_buffer {
+  libnngio_message **buffer; /**< Array of message pointers. */
+  size_t head;               /**< Index of the head of the buffer. */
+  size_t tail;               /**< Index of the tail of the buffer. */
+  size_t max_size;           /**< Maximum number of messages in the buffer. */
+  size_t current_size;       /**< Current number of messages in the buffer. */
+} libnngio_message_ring_buffer;
+
+/**
+ * @brief Initialize a message ring buffer.
+ * @param ring Pointer to pointer to receive ring buffer structure.
+ * @param max_size Maximum number of messages the buffer can hold.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_init(libnngio_message_ring_buffer **ring,
+                                      size_t max_size);
+
+/**
+ * @brief Free a message ring buffer and its contents.
+ * @param ring Pointer to ring buffer to free.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_free(libnngio_message_ring_buffer *ring);
+
+/**
+ * @brief Push a message onto the ring buffer.
+ * @param ring Pointer to ring buffer.
+ * @param msg Pointer to message to push.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_push(libnngio_message_ring_buffer *ring,
+                                      libnngio_message *msg);
+
+/**
+ * @brief Pop a message from the ring buffer.
+ * @param ring Pointer to ring buffer.
+ * @param msg Pointer to pointer to receive popped message.
+ * @return 0 on success, nonzero on failure.
+ */
+int libnngio_message_ring_buffer_pop(libnngio_message_ring_buffer *ring,
+                                     libnngio_message **msg);
 
 /**
  * @brief Opaque handle for a libnngio context.
@@ -178,6 +270,14 @@ const libnngio_config *libnngio_context_get_config(libnngio_context *ctx);
 int libnngio_context_send(libnngio_context *ctx, const void *buf, size_t len);
 
 /**
+ * @brief Send a message synchronously from a context send buffer
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_send_from_buffer(libnngio_context *ctx);
+
+/**
  * @brief Receive a message synchronously using a context.
  *
  * @param ctx  Context handle.
@@ -189,11 +289,45 @@ int libnngio_context_send(libnngio_context *ctx, const void *buf, size_t len);
 int libnngio_context_recv(libnngio_context *ctx, void *buf, size_t *len);
 
 /**
+ * @brief Receive a message synchronously into a context receive buffer
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_recv_into_buffer(libnngio_context *ctx);
+
+/**
  * @brief Start a context (e.g. begin async operations).
  *
  * @param ctx Context to start.
  */
 void libnngio_context_start(libnngio_context *ctx);
+
+/**
+ * @brief Receive a message asynchronously using a context.
+ *
+ * @param ctx       Context handle.
+ * @param buf       Buffer to receive into.
+ * @param len       Pointer to size; set to buffer capacity on input, actual
+ * length on output.
+ * @param cb        Callback to invoke upon completion.
+ * @param user_data User data for callback.
+ * @return 0 on submission, nonzero on failure.
+ */
+int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
+                                libnngio_async_cb cb, void *user_data);
+
+/**
+ * @brief Asynchronously receive data into a libnngio context receive buffer.
+ * @param ctx Pointer to libnngio context.
+ * @param cb User-defined callback function to invoke when the receive operation
+ *           completes.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
+ */
+int libnngio_context_recv_into_buffer_async(libnngio_context *ctx,
+                                            libnngio_async_cb cb,
+                                            void *user_data);
 
 /**
  * @brief Send a message asynchronously using a context.
@@ -210,18 +344,16 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
                                 void *user_data);
 
 /**
- * @brief Receive a message asynchronously using a context.
- *
- * @param ctx       Context handle.
- * @param buf       Buffer to receive into.
- * @param len       Pointer to size; set to buffer capacity on input, actual
- * length on output.
- * @param cb        Callback to invoke upon completion.
- * @param user_data User data for callback.
- * @return 0 on submission, nonzero on failure.
+ * @brief Asynchronously send data from libnngio context send buffer.
+ * @param ctx Pointer to libnngio context.
+ * @param cb User-defined callback function to invoke when the send operation
+ *           completes.
+ * @param user_data Opaque user data pointer to pass to the callback.
+ * @return 0 on success, nonzero error code on failure.
  */
-int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
-                                libnngio_async_cb cb, void *user_data);
+int libnngio_context_send_from_buffer_async(libnngio_context *ctx, 
+                                            libnngio_async_cb cb,
+                                            void *user_data);
 
 /**
  * @brief Set the user data pointer for a context.
@@ -276,6 +408,63 @@ void libnngio_contexts_free(libnngio_context **ctxs, size_t n);
  * @param n    Number of contexts.
  */
 void libnngio_contexts_start(libnngio_context **ctxs, size_t n);
+
+/**
+ * @brief Get the send buffer from a context
+ *
+ * @param ctx Context handle
+ * @return Send buffer handle, NULL if there isn't one.
+ */
+libnngio_message_ring_buffer *libnngio_context_get_send_buffer(
+    libnngio_context *ctx);
+
+/**
+ * @brief push message onto the send buffer in a context
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_send_buffer_push(libnngio_context *ctx,
+                                      libnngio_message *msg);
+
+/**
+ * @brief flush send buffer out of a context onto the transport
+ *
+ * @param ctx Context handle
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_send_buffer_flush(libnngio_context *ctx);
+
+/**
+ * @brief Get the receive buffer from a context
+ *
+ * @param ctx Context handle
+ * @return Send buffer handle, NULL if there isn't one.
+ */
+libnngio_message_ring_buffer *libnngio_context_get_recv_buffer(
+    libnngio_context *ctx);
+
+/**
+ * @brief push message onto the receive buffer in a context
+ *
+ * @param ctx Context handle
+ * @param msg Pointer to address to receive popped message.
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_recv_buffer_pop(libnngio_context *ctx,
+                                     libnngio_message **msg);
+
+/**
+ * @brief flush receive buffer out of a context from the transport
+ *
+ * @param ctx Context handle
+ * @param max_n_msgs Maximum number of messages allowed for flush
+ * @param n_msgs Pointer to receive number of messages flushed
+ * @param array of pointers to messages flushed
+ * @return 0 on success, nonzero on failure
+ */
+int libnngio_context_recv_buffer_flush(libnngio_context *ctx, size_t max_n_msgs,
+                                       size_t *n_msgs, libnngio_message **msgs);
 
 /**
  * @brief Cleanup global NNG state (calls nng_fini).

@@ -41,6 +41,8 @@ typedef enum {
   LIBNNGIO_PROTOBUF_ERR_DESERIALIZATION_FAILED =
       8,  ///< Message deserialization failed
   LIBNNGIO_PROTOBUF_ERR_TRANSPORT_ERROR = 9,  ///< Underlying transport error
+  LIBNNGIO_PROTOBUF_ERR_NOT_IMPLEMENTED =
+      10,  ///< Requested feature not implemented
 } libnngio_protobuf_error_code;
 
 /**
@@ -96,50 +98,75 @@ typedef struct {
 } libnngio_service_registration;
 
 /**
+ * @brief Opaque transport message storage structure
+ */
+typedef struct libnngio_server_message libnngio_server_message;
+
+/**
  * @brief Hold a server transport entity
  */
 typedef struct {
-  char *t_name;                   ///< Transport name
-  libnngio_config *cfg;           ///< Transport config
-  libnngio_transport *transport;  ///< Transport handle
-  libnngio_context *t_ctx;        ///< Array of context handles
+  char *name;                            ///< Transport name
+  libnngio_config *cfg;                  ///< Transport config
+  libnngio_transport *transport;         ///< Transport handle
+  libnngio_context *t_ctx;               ///< Array of context handles
   libnngio_protobuf_context *proto_ctx;  ///< Protobuf context for this
                                          /// transport
 } libnngio_server_transport;
 
 /**
- * @brief Create a forwarder between two protobuf contexts
+ * @brief Defines a default transport storage structure
+ * used when no custom storage is provided
+ */
+typedef struct libnngio_transport_storage {
+} libnngio_transport_storage;
+
+/**
+ * @brief define a function used to forward a message
+ */
+typedef libnngio_protobuf_error_code (*libnngio_protobuf_forward_func)(
+    libnngio_protobuf_context *input_ctx,
+    libnngio_protobuf_context **output_ctxs, size_t n_output_ctxs,
+    void *fwd_storage);
+
+/**
+ * @brief Create a forwarder between protobuf contexts
  */
 typedef struct {
-  char *fwd_name;                  ///< Name of the forwarder (for logging)
-  char **inputs;                   ///< Array of source transport names
-  size_t n_inputs;                 ///< Number of source transports
-  char **outputs;                  ///< Array of destination transport names
-  size_t n_outputs;                ///< Number of destination transports
-  int running;                     ///< Forwarder running flag
-  void *fwd_storage;               ///< Pointer to forwarder storage (can be used
-                                   /// to store forwarder callback data, etc)
+  char *fwd_name;    ///< Name of the fsorwarder (for logging)
+  char *input;       ///< source transport name
+  char **outputs;    ///< Array of destination transport names
+  size_t n_outputs;  ///< Number of destination transports
+  int running;       ///< Forwarder running flag
+  libnngio_protobuf_forward_func fwd_func;  ///< Forward function
+  void *fwd_storage;  ///< Pointer to forwarder storage (can be used
+                      /// to store forwarder callback data, etc)
 } libnngio_protobuf_forwarder;
 
+/**
+ * @brief default forwarder storage
+ */
+typedef struct libnngio_forwarder_storage {
+} libnngio_forwarder_storage;
 
 /**
  * @brief Server structure that encapsulates protobuf context and service logic.
  */
 typedef struct libnngio_server {
-  libnngio_protobuf_context *mgmt_ctx;        ///< Protobuf context for management
-  libnngio_server_transport **transports;     ///< Array of transport contexts
-  size_t n_transports;                        ///< Number of transport contexts
-  libnngio_service_registration *services;    ///< Array of registered services
-  size_t n_services;                          ///< Number of registered services
-  int running;                                ///< Server running flag
-  void *server_storage;                       ///< Pointer to server storage (can be used to retrieve
-                                              /// store server callback data, etc)
-  int is_async;                               ///< Flag indicating if server is async or
-                                              /// sync (0 = sync, 1 = async)
+  libnngio_protobuf_context *mgmt_ctx;      ///< Protobuf context for management
+  libnngio_server_transport **transports;   ///< Array of transport contexts
+  size_t n_transports;                      ///< Number of transport contexts
+  libnngio_service_registration *services;  ///< Array of registered services
+  size_t n_services;                        ///< Number of registered services
+  int running;                              ///< Server running flag
+  void *server_storage;  ///< Pointer to server storage (can be used to retrieve
+                         /// store server callback data, etc)
+  int is_async;          ///< Flag indicating if server is async or
+                         /// sync (0 = sync, 1 = async)
 } libnngio_server;
 
 /**
- * @brief Client structure that encapsulates protobuf context and discovered
+ * @brief Client structure that encapsulates rotobuf context and discovered
  * services.
  */
 typedef struct libnngio_client {
@@ -482,10 +509,8 @@ void nngio_free_add_transport_request(
  * @param n_configs Number of configs.
  * @return Pointer to the allocated response, or NULL on failure.
  */
-LibnngioProtobuf__GetTransportsResponse *
-nngio_create_get_transports_response(libnngio_config **configs,
-                                     size_t n_configs);
-
+LibnngioProtobuf__GetTransportsResponse *nngio_create_get_transports_response(
+    libnngio_config **configs, size_t n_configs);
 
 /**
  * @brief Free a LibnngioProtobuf__GetTransportsResponse and its contents.
@@ -496,7 +521,6 @@ nngio_create_get_transports_response(libnngio_config **configs,
  */
 void nngio_free_get_transports_response(
     LibnngioProtobuf__GetTransportsResponse *msg);
-
 
 /**
  * @brief Create a LibnngioProtobuf__RemoveTransportRequest message.
@@ -509,7 +533,8 @@ void nngio_free_get_transports_response(
  * @return Pointer to the allocated request, or NULL on failure.
  */
 LibnngioProtobuf__RemoveTransportRequest *nngio_create_remove_transport_request(
-     const char *name, libnngio_mode mode, libnngio_proto protocol, const char *url);
+    const char *name, libnngio_mode mode, libnngio_proto protocol,
+    const char *url);
 
 /**
  * @brief Free a LibnngioProtobuf__RemoveTransportRequest and its contents.
@@ -1047,6 +1072,19 @@ libnngio_protobuf_error_code libnngio_protobuf_recv_async(
     libnngio_protobuf_recv_cb_info cb_info);
 
 /**
+ * @brief Adds a transport to the libnngio_server using a
+ * LibnngioProtobuf__AddTransportRequest message.
+ *
+ * @param server Server to add transport to.
+ * @param request Pointer to the AddTransportRequest message.
+ * @return LibnngioProtobuf__RpcResponse__Status indicating result of the
+ * operation.
+ */
+LibnngioProtobuf__RpcResponse__Status libnngio_server_add_transport(
+    libnngio_server *server,
+    const LibnngioProtobuf__AddTransportRequest *request);
+
+/**
  * @brief Initialize a libnngio_server with the given protobuf context.
  *
  * @param server Pointer to receive initialized server structure.
@@ -1139,6 +1177,40 @@ libnngio_server_send_service_discovery_response_async(
     libnngio_server *server,
     const LibnngioProtobuf__ServiceDiscoveryResponse *response,
     libnngio_protobuf_send_cb_info cb_info);
+
+/**
+ * @brief Default forward function implementation.
+ *
+ * This function receives messages from the input context and forwards them
+ * to all output contexts.
+
+ * @param input_ctx Pointer to the input protobuf context.
+ * @param output_ctxs Array of pointers to output protobuf contexts.
+ * @param n_output_ctxs Number of output protobuf contexts.
+ * @param fwd_storage Pointer to forwarder storage
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_default_forward_func(
+    libnngio_protobuf_context *input_ctx,
+    libnngio_protobuf_context **output_ctxs, size_t n_output_ctxs,
+    void *fwd_storage);
+
+/**
+ * @brief default forwarder creation function
+ *
+ * @param forwarder Pointer to the forwarder to create
+ * @param fwd_name Name of the forwarder
+ * @param input Name of the input transport
+ * @param outputs Array of names of the output transports
+ * @param n_outputs Number of output transports
+ * @param fwd_func Custom forward function (if NULL, default will be used)
+ * @param fwd_storage Custom forwarder storage (if NULL, default will be used)
+ * @return libnngio_protobuf_error_code indicating success or failure.
+ */
+libnngio_protobuf_error_code libnngio_protobuf_create_forwarder(
+    libnngio_protobuf_forwarder **forwarder, const char *fwd_name,
+    const char *input, const char **outputs, size_t n_outputs,
+    libnngio_protobuf_forward_func fwd_func, void *fwd_storage);
 
 /**
  * @brief Initialize a libnngio_client with the given protobuf context.

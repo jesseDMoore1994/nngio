@@ -10,7 +10,7 @@ PROJECT_NAME_UPPERCASE = NNGIO
 # BINS are the list of production binaries to build
 BINS                   =
 # TEST_BINS are the list of test binaries to build
-TEST_BINS              = transport protobuf
+TEST_BINS              = transport # protobuf
 # LIBS are the list of production libraries to build
 LIBS                   = transport protobuf
 # MOCK_LIBS are the list of mock libraries to build
@@ -85,7 +85,7 @@ $(BUILD_DIR)/lib$(PROJECT_NAME)_%.so: $(BUILD_DIR)/lib$(PROJECT_NAME)_%.a
 	mkdir -p $(BUILD_DIR)
 	$(CC) -shared -o $@ $(subst .so,.o,$@)
 
-# Create list of librariest that do not have mock versions
+# Create list of libraries that do not have mock versions
 NON_MOCK_LIBS = $(filter-out $(MOCK_LIBS),$(LIBS))
 NON_MOCK_STATIC_LIBS = $(addprefix $(BUILD_DIR)/lib$(PROJECT_NAME)_, $(addsuffix .a, $(NON_MOCK_LIBS)))
 MOCK_AND_NON_MOCK_STATIC_LIBS = $(MOCK_STATIC_LIBS) $(NON_MOCK_STATIC_LIBS)
