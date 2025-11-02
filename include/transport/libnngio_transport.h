@@ -351,7 +351,7 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
  * @param user_data Opaque user data pointer to pass to the callback.
  * @return 0 on success, nonzero error code on failure.
  */
-int libnngio_context_send_from_buffer_async(libnngio_context *ctx, 
+int libnngio_context_send_from_buffer_async(libnngio_context *ctx,
                                             libnngio_async_cb cb,
                                             void *user_data);
 

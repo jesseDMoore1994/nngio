@@ -1199,8 +1199,8 @@ void buffered_reqrep_service_routine(void *arg);
 /**
  * @brief Buffered async reply callback for requests
  */
-void buffered_reqrep_reply_cb(libnngio_context *t, int result, void *data, size_t len,
-                     void *user_data) {
+void buffered_reqrep_reply_cb(libnngio_context *t, int result, void *data,
+                              size_t len, void *user_data) {
   reqrep_user_data *ud = (reqrep_user_data *)user_data;
   libnngio_log("DBG", "REPLY_CB", __FILE__, __LINE__, ud->index,
                "Context %d: reply sent: %s", ud->index, ud->rep_buf);
@@ -1216,27 +1216,26 @@ void buffered_reqrep_reply_cb(libnngio_context *t, int result, void *data, size_
 /**
  * @brief Buffered async receive callback for requests
  */
-void buffered_reqrep_recv_cb(libnngio_context *t, int result, void *data, size_t len,
-                    void *user_data) {
+void buffered_reqrep_recv_cb(libnngio_context *t, int result, void *data,
+                             size_t len, void *user_data) {
   reqrep_user_data *ud = (reqrep_user_data *)user_data;
   libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
                "Context %d: received request.", ud->index);
 
-
   if (result != 0 && result != 7) {
-    libnngio_log("ERR", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
-                 "Context %d: receive error: %d", ud->index, result);
+    libnngio_log("ERR", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__,
+                 ud->index, "Context %d: receive error: %d", ud->index, result);
   }
   if (result == 7) {
     // This is a special case for NNG where it indicates that the context is
     // closed
-    libnngio_log("INF", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
-                 "Context %d: receive closed", ud->index);
+    libnngio_log("INF", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__,
+                 ud->index, "Context %d: receive closed", ud->index);
     return;  // No further processing needed
   }
   assert(result == 0 || result == 7);
 
-  //take message out of receive buffer
+  // take message out of receive buffer
   libnngio_message *msg = NULL;
   int rv = libnngio_context_recv_buffer_pop(t, &msg);
   assert(rv == 0 && msg != NULL);
@@ -1248,10 +1247,11 @@ void buffered_reqrep_recv_cb(libnngio_context *t, int result, void *data, size_t
     memcpy(ud->req_buf, msg_data, msg_len);
     ud->req_len = msg_len;
     ud->received++;
-    libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
-                 "Context %d received request: %s", ud->index, msg_data);
-    libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__, ud->index,
-                 "Creating response for Context %d.", ud->index);
+    libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__,
+                 ud->index, "Context %d received request: %s", ud->index,
+                 msg_data);
+    libnngio_log("DBG", "BUFFERED_REQREP_RECV_CB", __FILE__, __LINE__,
+                 ud->index, "Creating response for Context %d.", ud->index);
     // Prepare reply
     snprintf(ud->rep_buf, sizeof(ud->rep_buf), "reply-%d", ud->index);
     ud->rep_len = strlen(ud->rep_buf) + 1;
@@ -1261,7 +1261,8 @@ void buffered_reqrep_recv_cb(libnngio_context *t, int result, void *data, size_t
     rv = libnngio_context_send_buffer_push(t, rep_msg);
     assert(rv == 0);
     // Send reply asynchronously
-    rv = libnngio_context_send_from_buffer_async(t, buffered_reqrep_reply_cb, ud);
+    rv = libnngio_context_send_from_buffer_async(t, buffered_reqrep_reply_cb,
+                                                 ud);
     assert(rv == 0);
     // Free the message after processing
     libnngio_message_free(msg);
@@ -1286,7 +1287,8 @@ void buffered_reqrep_service_routine(void *arg) {
 #endif
   libnngio_log("DBG", "SERVICE_ROUTINE", __FILE__, __LINE__, ud->index,
                "Context %d starting async receive", ud->index);
-  int rv = libnngio_context_recv_into_buffer_async(ctx, buffered_reqrep_recv_cb, ud);
+  int rv =
+      libnngio_context_recv_into_buffer_async(ctx, buffered_reqrep_recv_cb, ud);
   assert(rv == 0);
 }
 
@@ -1335,8 +1337,8 @@ void test_multiple_contexts_buffered() {
     user_datas[i].transport = rep;
     ud_ptrs[i] = &user_datas[i];
   }
-  rv = libnngio_contexts_init(&ctxs, n, rep, &rep_cfg, buffered_reqrep_service_routine,
-                              ud_ptrs);
+  rv = libnngio_contexts_init(&ctxs, n, rep, &rep_cfg,
+                              buffered_reqrep_service_routine, ud_ptrs);
   assert(rv == 0);
   libnngio_log("INF", "TEST_MULTIPLE_CONTEXTS_BUFFERED", __FILE__, __LINE__, -1,
                "%zu REP contexts initialized", n);

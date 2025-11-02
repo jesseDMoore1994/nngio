@@ -198,7 +198,8 @@ int libnngio_message_get(libnngio_message *msg, void **data, size_t *len) {
   *data = msg->data;
   *len = msg->len;
   libnngio_log("DBG", "MOCK_LIBNNGIO_MESSAGE_GET", __FILE__, __LINE__, 0,
-               "Getting message data: %s, length: %zu", (char*)msg->data, msg->len);
+               "Getting message data: %s, length: %zu", (char *)msg->data,
+               msg->len);
   return 0;
 }
 
@@ -529,25 +530,26 @@ int libnngio_context_send_from_buffer_async(libnngio_context *ctx,
     return rv;
   }
 
-  libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__,
-               0, "Sending %zu bytes asynchronously", msg->len);
+  libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC", __FILE__,
+               __LINE__, 0, "Sending %zu bytes asynchronously", msg->len);
   if (forced_send_async_result != 0) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "Forced send async error: %d",
+    libnngio_log("ERR", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0, "Forced send async error: %d",
                  forced_send_async_result);
     return forced_send_async_result;
   }
   rv = libnngio_context_send(ctx, msg->data, msg->len);
   if (cb) {
-    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "Calling async callback with result %d", rv);
-    cb(ctx, rv, (void *)msg->data, msg->len, user_data);
-    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "Async callback completed");
-  } else {
-    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "No async callback provided, returning result %d",
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0, "Calling async callback with result %d",
                  rv);
+    cb(ctx, rv, (void *)msg->data, msg->len, user_data);
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0, "Async callback completed");
+  } else {
+    libnngio_log("DBG", "MOCK_LIBNNGIO_CONTEXT_SEND_FROM_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0,
+                 "No async callback provided, returning result %d", rv);
   }
   libnngio_message_free(msg);
   return rv;
@@ -588,7 +590,7 @@ int libnngio_context_recv_async(libnngio_context *ctx, void *buf, size_t *len,
 }
 
 int libnngio_context_recv_into_buffer_async(libnngio_context *ctx,
-                                            libnngio_async_cb cb, 
+                                            libnngio_async_cb cb,
                                             void *user_data) {
   mock_stats.recv_async_calls++;
   mock_stats.last_recv_async_result = forced_recv_async_result;
@@ -597,13 +599,13 @@ int libnngio_context_recv_into_buffer_async(libnngio_context *ctx,
   mock_stats.last_recv_async.user_data = user_data;
   size_t len = ctx->config->max_msg_size > 0 ? ctx->config->max_msg_size
                                              : LIBNNGIO_DEFAULT_MAX_MSG_SIZE;
-  void* buf = malloc(len);
+  void *buf = malloc(len);
 
-  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__, __LINE__,
-               0, "Receiving data asynchronously");
+  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+               __FILE__, __LINE__, 0, "Receiving data asynchronously");
   if (forced_recv_async_result != 0) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "Forced receive async error: %d",
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0, "Forced receive async error: %d",
                  forced_recv_async_result);
     return forced_recv_async_result;
   }
@@ -614,35 +616,37 @@ int libnngio_context_recv_into_buffer_async(libnngio_context *ctx,
   rv = libnngio_message_init(&msg, buf, len);
   free(buf);
   if (rv != 0) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-                 __LINE__, ctx->id,
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+                 __FILE__, __LINE__, ctx->id,
                  "Failed to initialize message with error %d.", rv);
     return NNG_ENOMEM;
   }
 
   rv = libnngio_message_ring_buffer_push(ctx->recv_buffer, msg);
   if (rv != 0) {
-    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-                 __LINE__, ctx->id,
+    libnngio_log("ERR", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+                 __FILE__, __LINE__, ctx->id,
                  "Failed to push message to buffer with error %d.", rv);
     libnngio_message_free(msg);
     ctx->buffer_err = rv;
     return rv;
   }
 
-  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-               __LINE__, ctx->id, "Received message into buffer successfully.");
+  libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+               __FILE__, __LINE__, ctx->id,
+               "Received message into buffer successfully.");
 
   if (cb) {
-    libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "Calling async callback with result %d", rv);
-    cb(ctx, rv, buf, len ? len : 0, user_data);
-    libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "Async callback completed");
-  } else {
-    libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC", __FILE__,
-                 __LINE__, 0, "No async callback provided, returning result %d",
+    libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0, "Calling async callback with result %d",
                  rv);
+    cb(ctx, rv, buf, len ? len : 0, user_data);
+    libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0, "Async callback completed");
+  } else {
+    libnngio_log("DBG", "MOCK_LIBNNGIO_TRANSPORT_RECV_INTO_BUFFER_ASYNC",
+                 __FILE__, __LINE__, 0,
+                 "No async callback provided, returning result %d", rv);
   }
   return rv;
 }

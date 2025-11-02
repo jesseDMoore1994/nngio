@@ -1366,7 +1366,7 @@ int libnngio_context_send_async(libnngio_context *ctx, const void *buf,
  * @param user_data Opaque user data pointer to pass to the callback.
  * @return 0 on success, nonzero error code on failure.
  */
-int libnngio_context_send_from_buffer_async(libnngio_context *ctx, 
+int libnngio_context_send_from_buffer_async(libnngio_context *ctx,
                                             libnngio_async_cb cb,
                                             void *user_data) {
   libnngio_log("DBG", "CTX_SEND_FROM_BUFFER_ASYNC", __FILE__, __LINE__, -1,
@@ -1574,9 +1574,8 @@ int libnngio_context_send_buffer_push(libnngio_context *ctx,
 int libnngio_context_send_buffer_flush(libnngio_context *ctx) {
   if (!ctx || !ctx->send_buffer) return NNG_EINVAL;
   int rv = 0;
-  libnngio_log("DBG", "LIBNNGIO_CONTEXT_SEND_BUFFER_FLUSH", __FILE__,
-               __LINE__, ctx->id,
-               "Flushing send buffer with current size %d.",
+  libnngio_log("DBG", "LIBNNGIO_CONTEXT_SEND_BUFFER_FLUSH", __FILE__, __LINE__,
+               ctx->id, "Flushing send buffer with current size %d.",
                ctx->send_buffer->current_size);
   while (ctx->send_buffer->current_size != 0) {
     rv = libnngio_context_send_from_buffer(ctx);
